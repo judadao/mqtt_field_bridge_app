@@ -41,7 +41,7 @@ This TODO is for the product application repository. The broker dependency is
 ## Product Config
 
 - [ ] Define persistent config schema for device role/name, WiFi, bridge peers,
-      site ID, and 4510 topic prefix.
+      site ID, and topic prefix.
 - [x] Store bridge peer config in flash/NVS or Zephyr settings.
 - [ ] Add defaults for Note 1, Note 2, and Note 3.
 - [ ] Add config validation.
@@ -68,20 +68,20 @@ This TODO is for the product application repository. The broker dependency is
 - [ ] Add broker start/stop/status endpoints.
 - [x] Add peer configuration endpoints.
 - [ ] Add publish test endpoint.
-- [ ] Add simple HTML UI for status, WiFi setup, peer setup, broker/P2P state,
-      and 4510 topic test.
+- [x] Add simple HTML UI for status and peer setup.
+- [ ] Add HTML UI for WiFi setup, broker/P2P state, and topic test.
 - [ ] Keep UI product-specific; do not move it into `mqtt_min_broker`.
 
-## 4510 Workflow
+## Topic Workflow
 
-- [ ] Standardize topic prefix: `site/<site_id>/4510/<stream>`.
+- [ ] Standardize topic prefix: `site/<site_id>/<stream>`.
 - [ ] Add product config for `site_id`.
-- [ ] Add status stream topic: `site/<site_id>/4510/status`.
-- [ ] Add IO stream topic: `site/<site_id>/4510/io`.
-- [ ] Add event stream topic: `site/<site_id>/4510/event`.
+- [ ] Add status stream topic.
+- [ ] Add IO stream topic.
+- [ ] Add event stream topic.
 - [ ] Add test publisher flow for Note 1.
 - [ ] Add test subscriber flow for Note 2 and Note 3.
-- [ ] Verify Note 2 and Note 3 receive Note 1 4510 data through P2P routing.
+- [ ] Verify Note 2 and Note 3 receive Note 1 field data through P2P routing.
 
 ## Field Validation
 

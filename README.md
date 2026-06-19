@@ -15,19 +15,19 @@ Current pinned broker release: `minmqtt-v0.1.12`.
 small field-deployed MQTT mesh. The intended deployment is three ESP32-class
 nodes:
 
-- Note 1 receives or produces 4510 field data.
+- Note 1 receives or produces field data.
 - Note 2 and Note 3 subscribe to that data through broker-to-broker P2P routing.
 - Each node keeps a local MQTT broker available, so local clients can continue
   to publish or subscribe even when another field node is temporarily offline.
 
 The broker dependency handles MQTT packet parsing, sessions, topic matching,
 P2P discovery, and inter-node routing. This product app owns the field-specific
-configuration, startup order, local provisioning/control endpoints, and 4510
+configuration, startup order, local provisioning/control endpoints, and topic
 workflow decisions.
 
 ## Usage Scenarios
 
-- Field telemetry bridge: publish 4510 data on Note 1 and route matching
+- Field telemetry bridge: publish field data on Note 1 and route matching
   subscriptions to Note 2 and Note 3 over the P2P broker mesh.
 - Local-first operation: keep Note 1 local MQTT delivery working while Note 2 or
   Note 3 is offline, rebooting, or reconnecting.
@@ -97,7 +97,7 @@ mqtt_field_bridge_app/
    ```
 
 The product app owns WiFi provisioning, local HTML UI, bridge peer
-configuration, and the 4510 field workflow. The broker implementation remains
+configuration, and the topic bridge workflow. The broker implementation remains
 inside `deps/mqtt_min_broker`.
 
 ## Linux Development
@@ -143,30 +143,39 @@ curl http://127.0.0.1:8080/peers
 # Configure peer slot 0
 curl -X POST http://127.0.0.1:8080/peers/0 \
   -H 'Content-Type: application/json' \
-  -d '{"name":"note2","host":"192.168.10.12","mqtt_port":1883,"p2p_port":4884,"enabled":1}'
+  -d '{"name":"node2","host":"192.168.10.12","mqtt_port":1883,"p2p_port":4884,"enabled":1}'
 ```
 
 Peer slots are fixed at three entries for the Note 1 / Note 2 / Note 3 field
 scenario. Updating a peer persists the peer config and calls
 `bridge_control_apply_peers()`.
 
-## 4510 Topic Model
+The same server also serves a local settings page:
+
+```text
+http://<device-ip>:8080/
+```
+
+The page lists peer slots, edits host and port values, toggles enabled state,
+and saves through the same JSON endpoints.
+
+## Topic Model
 
 The intended topic family is:
 
 ```text
-site/<site_id>/4510/<stream>
+site/<site_id>/<stream>
 ```
 
 Planned streams:
 
 - `status`: device and field status.
-- `io`: 4510 IO payloads.
+- `io`: field IO payloads.
 - `event`: field events and alarms.
 
-The Linux integration tests already exercise the 4510 routing shape with topics
-such as `site/field-a/4510/io` and wildcard subscribers on
-`site/field-a/4510/#`.
+The Linux integration tests already exercise the topic routing shape with topics
+such as `site/field-a/data/io` and wildcard subscribers on
+`site/field-a/data/#`.
 
 ## Current Status
 
@@ -191,7 +200,7 @@ Still open:
 
 - Product network startup and board overlays for target ESP32 hardware.
 - WiFi setup, broker control, publish-test endpoints, and the HTML UI.
-- Full device/site config schema for role/name, WiFi, `site_id`, and 4510 topic
+- Full device/site config schema for role/name, WiFi, `site_id`, and topic
   prefix.
 - Hardware validation logs and manual field checklist for Note 1/2/3.
 
@@ -207,12 +216,12 @@ Result:
 
 - `unit_product_config`: 70/70 checks passed.
 - `unit_bridge_control`: 7/7 tests passed.
-- `unit_provisioning_http`: 18/18 checks passed.
+- `unit_provisioning_http`: 32/32 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.
-- `stress_throughput.sh`: 2,302,436 messages received in 10 seconds
-  (`230,243 msg/s`), above the 500-message minimum; all three brokers survived.
+- `stress_throughput.sh`: 2,177,145 messages received in 10 seconds
+  (`217,714 msg/s`), above the 500-message minimum; all three brokers survived.
 
 ## Release And Tagging
 

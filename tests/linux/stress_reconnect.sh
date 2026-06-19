@@ -93,7 +93,7 @@ sleep "$SETTLE_SEC"
 
 # background publisher on B1
 (while true; do
-    "$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/stress/4510/io" -m "s" >/dev/null 2>&1 || true
+    "$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/stress/data/io" -m "s" >/dev/null 2>&1 || true
     sleep "$PUB_INTERVAL_SEC"
 done) & PUB_PID=$!
 
@@ -108,7 +108,7 @@ for i in $(seq 1 "$RESTART_COUNT"); do
 
     RECV="$OUT/cycle_${i}_recv.out"
     : >"$RECV"
-    "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/stress/4510/#" \
+    "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/stress/data/#" \
         >"$RECV" 2>"$OUT/cycle_${i}_sub.err" & SUB_PID=$!
     wait_for_lines "$RECV" "$VERIFY_MSGS" "$VERIFY_TIMEOUT_SEC" || true
     kill "$SUB_PID" 2>/dev/null || true

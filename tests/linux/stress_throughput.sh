@@ -107,10 +107,10 @@ SUB_FILES=""
 j=0
 while [ $j -lt "$SUB_COUNT" ]; do
     f="$OUT/sub_b2_${j}.out"; : >"$f"; SUB_FILES="$SUB_FILES $f"
-    "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/tp/4510/#" \
+    "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/tp/data/#" \
         >"$f" 2>"$OUT/sub_b2_${j}.err" & ALL_PIDS="$ALL_PIDS $!"
     f="$OUT/sub_b3_${j}.out"; : >"$f"; SUB_FILES="$SUB_FILES $f"
-    "$CLI" sub -h 127.0.0.1 -p "$B3_MQTT" -t "site/tp/4510/#" \
+    "$CLI" sub -h 127.0.0.1 -p "$B3_MQTT" -t "site/tp/data/#" \
         >"$f" 2>"$OUT/sub_b3_${j}.err" & ALL_PIDS="$ALL_PIDS $!"
     j=$((j+1))
 done
@@ -122,7 +122,7 @@ while [ $j -lt "$PUB_COUNT" ]; do
     (end=$(($(date +%s) + DURATION))
      while [ "$(date +%s)" -lt "$end" ]; do
          "$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" \
-             -t "site/tp/4510/io" -m "tp" >/dev/null 2>&1 || true
+             -t "site/tp/data/io" -m "tp" >/dev/null 2>&1 || true
      done) & ALL_PIDS="$ALL_PIDS $!"
     j=$((j+1))
 done

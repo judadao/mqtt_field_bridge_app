@@ -25,9 +25,9 @@ make -C tests/linux test
 |------|------|----------------|
 | `unit_product_config` | unit | peer CRUD, boundary, null-safety, Linux persistence |
 | `unit_bridge_control` | unit | enabled peer filtering and invalid peer skipping |
-| `unit_provisioning_http` | unit | socket-based `/status`, `/peers`, `POST /peers/<index>`, and error routes |
+| `unit_provisioning_http` | unit | socket-based local HTML page, `/status`, `/peers`, `POST /peers/<index>`, and error routes |
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
-| `test_3node_scenario.sh` | integration | Note1→Note2 routing, Note3 routing, Note1 local-only when Note2 offline, Note2 restart recovery |
+| `test_3node_scenario.sh` | integration | Node1→Node2 routing, Node3 routing, Node1 local-only when Node2 offline, Node2 restart recovery |
 | `stress_reconnect.sh` | stress | 5 kill+restart cycles by default; B1 must not hang |
 | `stress_throughput.sh` | stress | 3-broker P2P under multi-publisher load; minimum throughput check |
 

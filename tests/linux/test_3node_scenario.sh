@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_3node_scenario.sh — integration test for the Note1/Note2/Note3 field scenario.
+# test_3node_scenario.sh — integration test for the generic 3-node field scenario.
 #
 # Builds three separate broker binaries (compile-time ports), simulates the
 # P2P mesh on localhost, and verifies message routing.
@@ -79,54 +79,54 @@ MQTT_P2P_PEERS="127.0.0.1:$B1_P2P,127.0.0.1:$B2_P2P" \
 printf '  Waiting %ds for P2P mesh...\n' "$SETTLE_SEC"
 sleep "$SETTLE_SEC"
 
-# ── T1: Note2 subscriber receives Note1 publish ──────────────────────────
-"$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/field-a/4510/#" \
+# ── T1: Node2 subscriber receives Node1 publish ──────────────────────────
+"$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t1_recv.out" 2>/dev/null & SUB_PID=$!
 sleep 1.5   # allow subscription to propagate B2→B1 via P2P
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/4510/io" -m "t1-ok" >/dev/null 2>&1
+"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t1-ok" >/dev/null 2>&1
 sleep 1.5
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t1-ok" "$OUT/t1_recv.out" \
-    && ok "T1: Note2 receives Note1 4510 publish" \
-    || fail "T1: Note2 did not receive Note1 publish (got: $(cat "$OUT/t1_recv.out"))"
+    && ok "T1: Node2 receives Node1 publish" \
+    || fail "T1: Node2 did not receive Node1 publish (got: $(cat "$OUT/t1_recv.out"))"
 
-# ── T2: Note3 subscriber receives Note1 publish ──────────────────────────
-"$CLI" sub -h 127.0.0.1 -p "$B3_MQTT" -t "site/field-a/4510/#" \
+# ── T2: Node3 subscriber receives Node1 publish ──────────────────────────
+"$CLI" sub -h 127.0.0.1 -p "$B3_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t2_recv.out" 2>/dev/null & SUB_PID=$!
 sleep 1.5
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/4510/io" -m "t2-ok" >/dev/null 2>&1
+"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t2-ok" >/dev/null 2>&1
 sleep 1.5
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t2-ok" "$OUT/t2_recv.out" \
-    && ok "T2: Note3 receives Note1 4510 publish" \
-    || fail "T2: Note3 did not receive Note1 publish"
+    && ok "T2: Node3 receives Node1 publish" \
+    || fail "T2: Node3 did not receive Node1 publish"
 
-# ── T3: Note1 local delivery when Note2 is offline ───────────────────────
+# ── T3: Node1 local delivery when Node2 is offline ───────────────────────
 kill "$B2_PID" 2>/dev/null || true; wait "$B2_PID" 2>/dev/null || true; B2_PID=""
 sleep 0.5
-"$CLI" sub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/4510/#" \
+"$CLI" sub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t3_recv.out" 2>/dev/null & SUB_PID=$!
 sleep 0.3
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/4510/io" -m "t3-local" >/dev/null 2>&1
+"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t3-local" >/dev/null 2>&1
 sleep 0.5
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t3-local" "$OUT/t3_recv.out" \
-    && ok "T3: Note1 local delivery works when Note2 offline" \
-    || fail "T3: Note1 local delivery failed"
+    && ok "T3: Node1 local delivery works when Node2 offline" \
+    || fail "T3: Node1 local delivery failed"
 
-# ── T4: Note2 recovers and receives after restart ─────────────────────────
+# ── T4: Node2 recovers and receives after restart ─────────────────────────
 MQTT_P2P_PEERS="127.0.0.1:$B1_P2P,127.0.0.1:$B3_P2P" \
     "$OUT/broker_b2" >/tmp/3n_b2r.log 2>&1 & B2_PID=$!
 sleep "$SETTLE_SEC"
-"$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/field-a/4510/#" \
+"$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t4_recv.out" 2>/dev/null & SUB_PID=$!
 sleep 1.5
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/4510/io" -m "t4-restart" >/dev/null 2>&1
+"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t4-restart" >/dev/null 2>&1
 sleep 1.5
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t4-restart" "$OUT/t4_recv.out" \
-    && ok "T4: Note2 receives after restart" \
-    || fail "T4: Note2 failed to receive after restart"
+    && ok "T4: Node2 receives after restart" \
+    || fail "T4: Node2 failed to receive after restart"
 
 echo ""; echo "$PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

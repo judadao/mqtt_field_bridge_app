@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -56,10 +57,15 @@ static int http_req(const char *req, char *buf, int cap)
         return -1;
     }
     send(fd, req, strlen(req), 0);
-    int n = recv(fd, buf, cap - 1, 0);
-    if (n > 0) buf[n] = '\0';
+    int total = 0;
+    while (total < cap - 1) {
+        int n = recv(fd, buf + total, cap - 1 - total, 0);
+        if (n <= 0) break;
+        total += n;
+    }
+    if (total > 0) buf[total] = '\0';
     close(fd);
-    return n;
+    return total;
 }
 
 static void test_get_status(void)
@@ -70,6 +76,26 @@ static void test_get_status(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
     CHECK(strstr(resp, "\"peers\"") != NULL);
+}
+
+static void test_get_index_html(void)
+{
+    char resp[8192];
+    int n = http_req("GET / HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "Content-Type: text/html") != NULL);
+    CHECK(strstr(resp, "Field Bridge Settings") != NULL);
+    CHECK(strstr(resp, "peer-form") != NULL);
+}
+
+static void test_get_index_html_alias(void)
+{
+    char resp[8192];
+    int n = http_req("GET /index.html HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "Field Bridge Settings") != NULL);
 }
 
 static void test_get_peers_empty(void)
@@ -103,10 +129,44 @@ static void test_post_peer_valid(void)
     CHECK(strstr(resp2, "1883") != NULL);
 }
 
+static void test_post_peer_escapes_json_strings(void)
+{
+    const char *body =
+        "{\"name\":\"node\\\"two\",\"host\":\"lab\\\\node\","
+        "\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
+    char req[512];
+    snprintf(req, sizeof(req),
+             "POST /peers/1 HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
+             (int)strlen(body), body);
+    char resp[512];
+    int n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+
+    char resp2[2048];
+    http_req("GET /peers HTTP/1.0\r\n\r\n", resp2, sizeof(resp2));
+    CHECK(strstr(resp2, "node\\\"two") != NULL);
+    CHECK(strstr(resp2, "lab\\\\node") != NULL);
+}
+
 static void test_post_peer_invalid_json(void)
 {
     const char *body = "not-json";
     char req[256];
+    snprintf(req, sizeof(req),
+             "POST /peers/0 HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
+             (int)strlen(body), body);
+    char resp[512];
+    int n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "400") != NULL);
+}
+
+static void test_post_peer_invalid_enabled(void)
+{
+    const char *body =
+        "{\"host\":\"1.2.3.4\",\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":2}";
+    char req[512];
     snprintf(req, sizeof(req),
              "POST /peers/0 HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
              (int)strlen(body), body);
@@ -145,12 +205,17 @@ int main(void)
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
     product_config_init();
     provisioning_http_start();
-    usleep(100000);   /* 100 ms for server to bind */
+    struct timespec bind_wait = { .tv_sec = 0, .tv_nsec = 100000000L };
+    nanosleep(&bind_wait, NULL);
 
     RUN(test_get_status);
+    RUN(test_get_index_html);
+    RUN(test_get_index_html_alias);
     RUN(test_get_peers_empty);
     RUN(test_post_peer_valid);
+    RUN(test_post_peer_escapes_json_strings);
     RUN(test_post_peer_invalid_json);
+    RUN(test_post_peer_invalid_enabled);
     RUN(test_post_peer_out_of_range);
     RUN(test_unknown_route);
 
