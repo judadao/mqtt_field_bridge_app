@@ -158,7 +158,7 @@ curl http://127.0.0.1:8080/config \
 curl -X POST http://127.0.0.1:8080/config \
   -H "X-Auth-Token: $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"device_name":"node-a","admin_password":"admin","wifi_ssid":"plant","wifi_password":"wifi-pass","ap_ssid":"ESP32-Min-Broker","ap_password":"12345678","device_ip":"192.168.4.1","gateway":"192.168.4.1","netmask":"255.255.255.0","dhcp_enabled":1,"site_id":"field-a","topic_prefix":"site/field-a","mqtt_port":1883,"p2p_port":4884,"broker_enabled":1,"bridge_enabled":1,"mesh_enabled":1}'
+  -d '{"device_name":"node-a","admin_password":"admin","wifi_ssid":"plant","wifi_password":"wifi-pass","ap_ssid":"ESP32-Min-Broker","ap_password":"12345678","device_ip":"192.168.4.1","gateway":"192.168.4.1","netmask":"255.255.255.0","dns":"192.168.4.1","dhcp_enabled":1,"site_id":"field-a","topic_prefix":"site/field-a","mqtt_port":1883,"p2p_port":4884,"broker_enabled":1,"bridge_enabled":1,"mesh_enabled":1}'
 
 # List configured peers and runtime peer states
 curl http://127.0.0.1:8080/peers \
@@ -206,7 +206,7 @@ shows three setting tabs:
 
 - `System Setting`: device name and admin password.
 - `Network Setting`: WiFi client values, setup AP values, default device IP,
-  gateway, netmask, and DHCP toggle.
+  gateway, netmask, DNS, and DHCP toggle.
 - `Broker Setting`: MQTT/P2P ports, site/topic fields, broker/bridge/mesh
   toggles, and bridge peer slots.
 - `Topic Test`: topic, payload, QoS, and retain fields for a product-level test
@@ -369,9 +369,14 @@ Implemented in this product repo:
 - Firmware-served HTML settings page with login, System Setting, Network
   Setting, Broker Setting / Bridge Mesh Setting, runtime status cards, broker
   control buttons, reset, and Topic Test.
+- Network settings include device IP, gateway, netmask, DNS, and DHCP toggle.
 - Linux HTTP/web unit tests for page content, login token flow, authenticated
   settings APIs, authenticated peer APIs, broker control, publish test, reset,
   and invalid request paths.
+- Local static-IP web/config shell test reads ignored site-specific values from
+  `tests/linux/local_web_network.env`.
+- Linux provisioning web runner can serve the UI locally with ignored
+  static-IP values for browser inspection.
 - Linux unit, integration, reconnect stress, and throughput stress tests under
   `tests/linux/`.
 
@@ -423,7 +428,7 @@ Product releases use `bridge-vX.Y.Z` tags. Broker dependency releases use
 Current product release tag in this branch:
 
 ```text
-bridge-v0.1.6
+bridge-v0.1.7
 ```
 
 ## Dependency Rule

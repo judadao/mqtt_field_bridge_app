@@ -34,6 +34,7 @@ typedef struct {
     char device_ip[FIELD_BRIDGE_HOST_MAX];
     char gateway[FIELD_BRIDGE_HOST_MAX];
     char netmask[FIELD_BRIDGE_HOST_MAX];
+    char dns[FIELD_BRIDGE_HOST_MAX];
     uint8_t dhcp_enabled;
 } field_bridge_network_settings_t;
 

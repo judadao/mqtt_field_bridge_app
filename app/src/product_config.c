@@ -26,6 +26,8 @@ static void settings_defaults(void)
             sizeof(settings.network.gateway) - 1);
     strncpy(settings.network.netmask, "255.255.255.0",
             sizeof(settings.network.netmask) - 1);
+    strncpy(settings.network.dns, "192.168.4.1",
+            sizeof(settings.network.dns) - 1);
     settings.network.dhcp_enabled = 1;
     strncpy(settings.broker.site_id, "field-a",
             sizeof(settings.broker.site_id) - 1);
@@ -94,6 +96,7 @@ static int validate_settings(const field_bridge_settings_t *cfg)
         !valid_nonempty(cfg->network.device_ip) ||
         !valid_nonempty(cfg->network.gateway) ||
         !valid_nonempty(cfg->network.netmask) ||
+        !valid_nonempty(cfg->network.dns) ||
         !valid_bool(cfg->network.dhcp_enabled)) {
         return -1;
     }

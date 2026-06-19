@@ -53,6 +53,12 @@ Completed product-owned provisioning/runtime surface:
   `p2p_static_seed_clear()` / `p2p_static_seed_add()`.
 - `/peer-status` exposes disabled, connecting, connected, disconnected, and
   unknown peer states with last-error text.
+- Provisioning HTML received a lightweight CSS-only UX refresh with restrained
+  teal/amber status colors, clearer segmented navigation, stronger form focus
+  states, responsive mobile layout, and no external image/font/icon dependency.
+- Network settings now include DNS in persistent config, `/config` JSON, and
+  the provisioning UI. `tests/linux/test_web_network_config.sh` reads ignored
+  `tests/linux/local_web_network.env` for site-specific static-IP web tests.
 
 Remaining meaningful blockers:
 

@@ -189,6 +189,9 @@ static void test_settings_defaults(void)
     CHECK(strcmp(s.system.admin_password, "admin") == 0);
     CHECK(strcmp(s.network.ap_ssid, "ESP32-Min-Broker") == 0);
     CHECK(strcmp(s.network.device_ip, "192.168.4.1") == 0);
+    CHECK(strcmp(s.network.gateway, "192.168.4.1") == 0);
+    CHECK(strcmp(s.network.netmask, "255.255.255.0") == 0);
+    CHECK(strcmp(s.network.dns, "192.168.4.1") == 0);
     CHECK(s.network.dhcp_enabled == 1);
     CHECK(strcmp(s.broker.site_id, "field-a") == 0);
     CHECK(strcmp(s.broker.topic_prefix, "site/field-a") == 0);
@@ -212,6 +215,7 @@ static void test_settings_set_and_get(void)
     strcpy(in.network.device_ip, "192.168.10.1");
     strcpy(in.network.gateway, "192.168.10.254");
     strcpy(in.network.netmask, "255.255.255.0");
+    strcpy(in.network.dns, "8.8.8.8");
     in.network.dhcp_enabled = 0;
     strcpy(in.broker.site_id, "site-b");
     strcpy(in.broker.topic_prefix, "site/site-b");
@@ -228,6 +232,9 @@ static void test_settings_set_and_get(void)
     CHECK(strcmp(out.system.device_name, "field-node-1") == 0);
     CHECK(strcmp(out.network.wifi_ssid, "plant-wifi") == 0);
     CHECK(strcmp(out.network.device_ip, "192.168.10.1") == 0);
+    CHECK(strcmp(out.network.gateway, "192.168.10.254") == 0);
+    CHECK(strcmp(out.network.netmask, "255.255.255.0") == 0);
+    CHECK(strcmp(out.network.dns, "8.8.8.8") == 0);
     CHECK(out.network.dhcp_enabled == 0);
     CHECK(strcmp(out.broker.site_id, "site-b") == 0);
     CHECK(out.broker.mqtt_port == 1884);
@@ -277,6 +284,10 @@ static void test_reject_invalid_settings(void)
 
     CHECK(product_config_get_settings(&s) == 0);
     s.network.dhcp_enabled = 2;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.network.dns[0] = '\0';
     CHECK(product_config_set_settings(&s) == -1);
 }
 
@@ -405,6 +416,7 @@ static void test_settings_persist_survives_reinit(void)
     strcpy(in.network.device_ip, "10.10.10.1");
     strcpy(in.network.gateway, "10.10.10.254");
     strcpy(in.network.netmask, "255.255.255.0");
+    strcpy(in.network.dns, "10.10.10.53");
     in.network.dhcp_enabled = 0;
     strcpy(in.broker.site_id, "persist-site");
     strcpy(in.broker.topic_prefix, "site/persist-site");
@@ -423,6 +435,7 @@ static void test_settings_persist_survives_reinit(void)
     CHECK(strcmp(out.system.device_name, "persist-node") == 0);
     CHECK(strcmp(out.network.wifi_ssid, "persist-wifi") == 0);
     CHECK(strcmp(out.network.device_ip, "10.10.10.1") == 0);
+    CHECK(strcmp(out.network.dns, "10.10.10.53") == 0);
     CHECK(strcmp(out.broker.site_id, "persist-site") == 0);
     CHECK(out.broker.p2p_port == 5884);
     CHECK(out.broker.mesh_enabled == 0);

@@ -72,6 +72,10 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Add publish test endpoint.
 - [x] Add simple HTML UI for status and peer setup.
 - [x] Add HTML UI for WiFi setup, broker/P2P state, and topic test.
+- [x] Refresh local HTML UX with lightweight CSS-only color, spacing, focus,
+      status, and mobile layout improvements.
+- [x] Add DNS to network settings and Linux web/config coverage.
+- [x] Add ignored local static-IP shell test for provisioning web config.
 - [x] Keep UI product-specific; do not move it into `mqtt_min_broker`.
 
 ## Topic Workflow

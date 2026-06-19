@@ -2,6 +2,7 @@ build/
 build_out/
 deps/mqtt_min_broker/
 tests/linux/out/
+tests/linux/local_web_network.env
 *.log
 *.tmp
 prj.local.conf

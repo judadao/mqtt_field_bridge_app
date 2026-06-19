@@ -11,7 +11,7 @@ OUTDIR = out
 
 .PHONY: all test unit-tests unit_product_config unit_product_runtime \
         unit_product_topics unit_bridge_control \
-        unit_provisioning_http integration-tests stress scale-tests \
+        unit_provisioning_http web-network-test run-web-server integration-tests stress scale-tests \
         scale-ring-tests clean broker-p2p
 
 all: unit-tests
@@ -84,6 +84,23 @@ $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
 	    $(APP_SRC)/bridge_control.c \
 	    -o $@ -lpthread
 
+$(OUTDIR)/run_web_config_server: run_web_config_server.c \
+                                  $(APP_SRC)/provisioning_http.c \
+                                  $(APP_SRC)/provisioning_http.h \
+                                  $(APP_SRC)/product_config.c \
+                                  $(APP_SRC)/product_runtime.c \
+                                  $(APP_SRC)/product_topics.c \
+                                  $(APP_SRC)/bridge_control.c \
+                                  | $(OUTDIR)
+	$(CC) $(CFLAGS) \
+	    run_web_config_server.c \
+	    $(APP_SRC)/provisioning_http.c \
+	    $(APP_SRC)/product_config.c \
+	    $(APP_SRC)/product_runtime.c \
+	    $(APP_SRC)/product_topics.c \
+	    $(APP_SRC)/bridge_control.c \
+	    -o $@ -lpthread
+
 unit-tests: $(OUTDIR)/unit_product_config \
             $(OUTDIR)/unit_product_runtime \
             $(OUTDIR)/unit_product_topics \
@@ -119,6 +136,12 @@ unit_product_topics: $(OUTDIR)/unit_product_topics
 
 unit_provisioning_http: $(OUTDIR)/unit_provisioning_http
 	$(OUTDIR)/unit_provisioning_http
+
+web-network-test: $(OUTDIR)/unit_provisioning_http
+	@bash test_web_network_config.sh
+
+run-web-server: $(OUTDIR)/run_web_config_server
+	@bash run_web_config_server.sh
 
 # ── integration tests ──────────────────────────────────────────────────────
 integration-tests: broker-p2p

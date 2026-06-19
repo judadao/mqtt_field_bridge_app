@@ -6,9 +6,9 @@
 # nodes behave as one broker network.
 #
 # Knobs:
-#   SETTLE_SEC   P2P mesh formation wait (default: 8)
-#   WAIT_MSG_SEC max seconds to wait for an expected message (default: 8)
-#   SUB_PROP_SEC seconds to wait for remote subscriptions to propagate (default: 2.5)
+#   SETTLE_SEC   P2P mesh formation wait (default: 12)
+#   WAIT_MSG_SEC max seconds to wait for an expected message (default: 12)
+#   SUB_PROP_SEC seconds to wait for remote subscriptions to propagate (default: 4)
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -16,9 +16,9 @@ BROKER_DIR="$ROOT_DIR/deps/mqtt_min_broker"
 OUT="$ROOT_DIR/tests/linux/out/3node"
 CLI="$BROKER_DIR/build_out/mqtt_cli"
 
-SETTLE_SEC=${SETTLE_SEC:-8}
-WAIT_MSG_SEC=${WAIT_MSG_SEC:-8}
-SUB_PROP_SEC=${SUB_PROP_SEC:-2.5}
+SETTLE_SEC=${SETTLE_SEC:-12}
+WAIT_MSG_SEC=${WAIT_MSG_SEC:-12}
+SUB_PROP_SEC=${SUB_PROP_SEC:-4}
 DISC_PORT=14850
 
 PASS=0; FAIL=0

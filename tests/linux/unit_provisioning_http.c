@@ -99,6 +99,12 @@ static int login_as(const char *password)
     return auth_token[0] ? 0 : -1;
 }
 
+static const char *env_or_empty(const char *name)
+{
+    const char *value = getenv(name);
+    return value ? value : "";
+}
+
 static void test_get_status(void)
 {
     char resp[512];
@@ -212,6 +218,9 @@ static void test_get_config_defaults(void)
     CHECK(strstr(resp, "\"admin_password\":\"admin\"") != NULL);
     CHECK(strstr(resp, "\"ap_ssid\":\"ESP32-Min-Broker\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.4.1\"") != NULL);
+    CHECK(strstr(resp, "\"gateway\":\"192.168.4.1\"") != NULL);
+    CHECK(strstr(resp, "\"netmask\":\"255.255.255.0\"") != NULL);
+    CHECK(strstr(resp, "\"dns\":\"192.168.4.1\"") != NULL);
     CHECK(strstr(resp, "\"site_id\":\"field-a\"") != NULL);
     CHECK(strstr(resp, "\"topic_prefix\":\"site/field-a\"") != NULL);
     CHECK(strstr(resp, "\"mesh_enabled\":1") != NULL);
@@ -233,7 +242,7 @@ static void test_post_config_requires_auth(void)
         "\"wifi_ssid\":\"plant\",\"wifi_password\":\"wifi-pass\","
         "\"ap_ssid\":\"setup-a\",\"ap_password\":\"setup-pass\","
         "\"device_ip\":\"192.168.9.1\",\"gateway\":\"192.168.9.254\","
-        "\"netmask\":\"255.255.255.0\",\"dhcp_enabled\":0,"
+        "\"netmask\":\"255.255.255.0\",\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,"
         "\"site_id\":\"field-b\",\"topic_prefix\":\"site/field-b\","
         "\"mqtt_port\":1884,\"p2p_port\":4885,"
         "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":0}";
@@ -255,7 +264,7 @@ static void test_post_config_valid(void)
         "\"wifi_ssid\":\"plant\",\"wifi_password\":\"wifi-pass\","
         "\"ap_ssid\":\"setup-a\",\"ap_password\":\"setup-pass\","
         "\"device_ip\":\"192.168.9.1\",\"gateway\":\"192.168.9.254\","
-        "\"netmask\":\"255.255.255.0\",\"dhcp_enabled\":0,"
+        "\"netmask\":\"255.255.255.0\",\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,"
         "\"site_id\":\"field-b\",\"topic_prefix\":\"site/field-b\","
         "\"mqtt_port\":1884,\"p2p_port\":4885,"
         "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":0}";
@@ -275,8 +284,63 @@ static void test_post_config_valid(void)
     http_req(req, resp2, sizeof(resp2));
     CHECK(strstr(resp2, "\"device_name\":\"node-a\"") != NULL);
     CHECK(strstr(resp2, "\"device_ip\":\"192.168.9.1\"") != NULL);
+    CHECK(strstr(resp2, "\"gateway\":\"192.168.9.254\"") != NULL);
+    CHECK(strstr(resp2, "\"netmask\":\"255.255.255.0\"") != NULL);
+    CHECK(strstr(resp2, "\"dns\":\"1.1.1.1\"") != NULL);
     CHECK(strstr(resp2, "\"site_id\":\"field-b\"") != NULL);
     CHECK(strstr(resp2, "\"mesh_enabled\":0") != NULL);
+
+    CHECK(login_as("secret") == 0);
+}
+
+static void test_post_config_web_network_env(void)
+{
+    const char *device_ip = env_or_empty("WEB_TEST_DEVICE_IP");
+    const char *gateway = env_or_empty("WEB_TEST_GATEWAY");
+    const char *netmask = env_or_empty("WEB_TEST_NETMASK");
+    const char *dns = env_or_empty("WEB_TEST_DNS");
+    int required = getenv("WEB_TEST_REQUIRE") != NULL;
+
+    if (!device_ip[0] || !gateway[0] || !netmask[0] || !dns[0]) {
+        CHECK(!required);
+        return;
+    }
+
+    char body[1024];
+    snprintf(body, sizeof(body),
+             "{\"device_name\":\"web-net\",\"admin_password\":\"secret\","
+             "\"wifi_ssid\":\"plant\",\"wifi_password\":\"wifi-pass\","
+             "\"ap_ssid\":\"setup-a\",\"ap_password\":\"setup-pass\","
+             "\"device_ip\":\"%s\",\"gateway\":\"%s\","
+             "\"netmask\":\"%s\",\"dns\":\"%s\",\"dhcp_enabled\":0,"
+             "\"site_id\":\"field-b\",\"topic_prefix\":\"site/field-b\","
+             "\"mqtt_port\":1884,\"p2p_port\":4885,"
+             "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":0}",
+             device_ip, gateway, netmask, dns);
+
+    char req[1400];
+    snprintf(req, sizeof(req),
+             "POST /config HTTP/1.0\r\nX-Auth-Token: %s\r\n"
+             "Content-Length: %d\r\n\r\n%s",
+             auth_token, (int)strlen(body), body);
+    char resp[512];
+    int n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+
+    char resp2[4096];
+    snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    http_req(req, resp2, sizeof(resp2));
+    char expected[128];
+    snprintf(expected, sizeof(expected), "\"device_ip\":\"%s\"", device_ip);
+    CHECK(strstr(resp2, expected) != NULL);
+    snprintf(expected, sizeof(expected), "\"gateway\":\"%s\"", gateway);
+    CHECK(strstr(resp2, expected) != NULL);
+    snprintf(expected, sizeof(expected), "\"netmask\":\"%s\"", netmask);
+    CHECK(strstr(resp2, expected) != NULL);
+    snprintf(expected, sizeof(expected), "\"dns\":\"%s\"", dns);
+    CHECK(strstr(resp2, expected) != NULL);
 
     CHECK(login_as("secret") == 0);
 }
@@ -605,6 +669,7 @@ static void test_config_reset_valid(void)
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
     CHECK(strstr(resp, "\"admin_password\":\"admin\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.4.1\"") != NULL);
+    CHECK(strstr(resp, "\"dns\":\"192.168.4.1\"") != NULL);
 
     snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
              auth_token);
@@ -646,6 +711,7 @@ int main(void)
     RUN(test_post_config_requires_auth);
     RUN(test_get_config_defaults);
     RUN(test_post_config_valid);
+    RUN(test_post_config_web_network_env);
     RUN(test_post_config_invalid);
     RUN(test_get_peers_requires_auth);
     RUN(test_post_peer_requires_auth);
