@@ -39,10 +39,50 @@ static void persist_save(int idx)
     fclose(f);
 }
 
-#else  /* __ZEPHYR__ — NVS wired in Task 4 */
+#else  /* __ZEPHYR__ */
 
-static void persist_load(void) {}
-static void persist_save(int idx) { (void)idx; }
+#include <zephyr/fs/nvs.h>
+#include <zephyr/storage/flash_map.h>
+
+#define NVS_SECTOR_SIZE  DT_PROP(DT_CHOSEN(zephyr_flash), erase_block_size)
+#define NVS_SECTOR_COUNT 2
+#define NVS_PARTITION    storage_partition
+#define PEER_KEY_BASE    1   /* keys 1, 2, 3 for peers 0, 1, 2 */
+
+static struct nvs_fs nvs;
+static int nvs_ready;
+
+static int nvs_init_once(void)
+{
+    if (nvs_ready) return 0;
+    nvs.flash_device = FIXED_PARTITION_DEVICE(NVS_PARTITION);
+    if (!device_is_ready(nvs.flash_device)) return -ENODEV;
+    nvs.sector_size  = NVS_SECTOR_SIZE;
+    nvs.sector_count = NVS_SECTOR_COUNT;
+    nvs.offset       = FIXED_PARTITION_OFFSET(NVS_PARTITION);
+    int rc = nvs_mount(&nvs);
+    if (rc == 0) nvs_ready = 1;
+    return rc;
+}
+
+static void persist_load(void)
+{
+    if (nvs_init_once() < 0) return;
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
+        ssize_t n = nvs_read(&nvs, (uint16_t)(PEER_KEY_BASE + i),
+                             &peers[i], sizeof(peers[i]));
+        if (n != (ssize_t)sizeof(peers[i])) {
+            memset(&peers[i], 0, sizeof(peers[i]));
+        }
+    }
+}
+
+static void persist_save(int idx)
+{
+    if (nvs_init_once() < 0) return;
+    nvs_write(&nvs, (uint16_t)(PEER_KEY_BASE + idx),
+              &peers[idx], sizeof(peers[idx]));
+}
 
 #endif /* __ZEPHYR__ */
 
