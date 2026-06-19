@@ -46,8 +46,9 @@ static int json_uint16_field(const char *json, const char *key, uint16_t *out)
     if (!p) return -1;
     p += strlen(search);
     while (*p == ' ') p++;
-    unsigned long v = strtoul(p, NULL, 10);
-    if (v > 65535UL) return -1;
+    char *endp;
+    unsigned long v = strtoul(p, &endp, 10);
+    if (endp == p || v > 65535UL) return -1;
     *out = (uint16_t)v;
     return 0;
 }
@@ -115,7 +116,7 @@ static int extract_content_length(const char *headers)
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#define PLAT_SEND(fd, buf, len) send((fd), (buf), (size_t)(len), 0)
+#define PLAT_SEND(fd, buf, len) send((fd), (buf), (size_t)(len), MSG_NOSIGNAL)
 #define PLAT_RECV(fd, buf, len) recv((fd), (buf), (size_t)(len), 0)
 #define PLAT_CLOSE(fd)          close(fd)
 #else
@@ -168,10 +169,12 @@ static void handle_get_peers(int fd)
         field_bridge_peer_t p;
         if (product_config_get_peer(i, &p) != 0) continue;
         if (i > 0) buf[pos++] = ',';
-        pos += snprintf(buf + pos, (size_t)(sizeof(buf) - pos),
-                        "{\"name\":\"%s\",\"host\":\"%s\","
-                        "\"mqtt_port\":%u,\"p2p_port\":%u,\"enabled\":%u}",
-                        p.name, p.host, p.mqtt_port, p.p2p_port, p.enabled);
+        int written = snprintf(buf + pos, (size_t)(sizeof(buf) - pos),
+                               "{\"name\":\"%s\",\"host\":\"%s\","
+                               "\"mqtt_port\":%u,\"p2p_port\":%u,\"enabled\":%u}",
+                               p.name, p.host, p.mqtt_port, p.p2p_port, p.enabled);
+        if (written < 0 || written >= (int)(sizeof(buf) - pos)) break;
+        pos += written;
     }
     buf[pos++] = ']';
     buf[pos]   = '\0';
