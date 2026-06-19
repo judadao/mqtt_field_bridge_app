@@ -101,7 +101,8 @@ static void test_set_all_slots(void)
 static void test_set_overwrite(void)
 {
     field_bridge_peer_t a = { .name = "a", .host = "1.1.1.1",
-                               .mqtt_port = 1883, .enabled = 1 };
+                               .mqtt_port = 1883, .p2p_port = 4884,
+                               .enabled = 1 };
     field_bridge_peer_t b = { .name = "b", .host = "2.2.2.2",
                                .mqtt_port = 1884, .enabled = 0 };
     product_config_set_peer(0, &a);
@@ -180,21 +181,148 @@ static void test_disable_peer(void)
     CHECK(strcmp(out.host, "10.0.0.3") == 0);
 }
 
+static void test_settings_defaults(void)
+{
+    field_bridge_settings_t s;
+    CHECK(product_config_get_settings(&s) == 0);
+    CHECK(strcmp(s.system.device_name, "esp32-min-broker") == 0);
+    CHECK(strcmp(s.system.admin_password, "admin") == 0);
+    CHECK(strcmp(s.network.ap_ssid, "ESP32-Min-Broker") == 0);
+    CHECK(strcmp(s.network.device_ip, "192.168.4.1") == 0);
+    CHECK(s.network.dhcp_enabled == 1);
+    CHECK(strcmp(s.broker.site_id, "field-a") == 0);
+    CHECK(strcmp(s.broker.topic_prefix, "site/field-a") == 0);
+    CHECK(s.broker.mqtt_port == 1883);
+    CHECK(s.broker.p2p_port == 4884);
+    CHECK(s.broker.mesh_enabled == 1);
+    CHECK(product_config_check_admin_password("admin") == 1);
+    CHECK(product_config_check_admin_password("bad") == 0);
+}
+
+static void test_settings_set_and_get(void)
+{
+    field_bridge_settings_t in;
+    memset(&in, 0, sizeof(in));
+    strcpy(in.system.device_name, "field-node-1");
+    strcpy(in.system.admin_password, "secret");
+    strcpy(in.network.wifi_ssid, "plant-wifi");
+    strcpy(in.network.wifi_password, "wifi-pass");
+    strcpy(in.network.ap_ssid, "node-setup");
+    strcpy(in.network.ap_password, "setup-pass");
+    strcpy(in.network.device_ip, "192.168.10.1");
+    strcpy(in.network.gateway, "192.168.10.254");
+    strcpy(in.network.netmask, "255.255.255.0");
+    in.network.dhcp_enabled = 0;
+    strcpy(in.broker.site_id, "site-b");
+    strcpy(in.broker.topic_prefix, "site/site-b");
+    in.broker.mqtt_port = 1884;
+    in.broker.p2p_port = 4885;
+    in.broker.broker_enabled = 1;
+    in.broker.bridge_enabled = 0;
+    in.broker.mesh_enabled = 1;
+
+    CHECK(product_config_set_settings(&in) == 0);
+
+    field_bridge_settings_t out;
+    CHECK(product_config_get_settings(&out) == 0);
+    CHECK(strcmp(out.system.device_name, "field-node-1") == 0);
+    CHECK(strcmp(out.network.wifi_ssid, "plant-wifi") == 0);
+    CHECK(strcmp(out.network.device_ip, "192.168.10.1") == 0);
+    CHECK(out.network.dhcp_enabled == 0);
+    CHECK(strcmp(out.broker.site_id, "site-b") == 0);
+    CHECK(out.broker.mqtt_port == 1884);
+    CHECK(out.broker.bridge_enabled == 0);
+    CHECK(product_config_check_admin_password("secret") == 1);
+}
+
+static void test_settings_null_args(void)
+{
+    CHECK(product_config_get_settings(NULL) == -1);
+    CHECK(product_config_set_settings(NULL) == -1);
+    CHECK(product_config_check_admin_password(NULL) == 0);
+}
+
+static void test_reject_invalid_enabled_peer(void)
+{
+    field_bridge_peer_t p = { .name = "bad", .host = "1.2.3.4",
+                               .mqtt_port = 1883, .p2p_port = 4884,
+                               .enabled = 2 };
+    CHECK(product_config_set_peer(0, &p) == -1);
+}
+
+static void test_reject_enabled_peer_with_missing_fields(void)
+{
+    field_bridge_peer_t p = { .name = "bad", .host = "",
+                               .mqtt_port = 1883, .p2p_port = 4884,
+                               .enabled = 1 };
+    CHECK(product_config_set_peer(0, &p) == -1);
+    strcpy(p.host, "1.2.3.4");
+    p.mqtt_port = 0;
+    CHECK(product_config_set_peer(0, &p) == -1);
+    p.mqtt_port = 1883;
+    p.p2p_port = 0;
+    CHECK(product_config_set_peer(0, &p) == -1);
+}
+
+static void test_reject_invalid_settings(void)
+{
+    field_bridge_settings_t s;
+    CHECK(product_config_get_settings(&s) == 0);
+    s.system.admin_password[0] = '\0';
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.broker.mqtt_port = 0;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.network.dhcp_enabled = 2;
+    CHECK(product_config_set_settings(&s) == -1);
+}
+
+static void test_reset_all_restores_defaults_and_clears_peers(void)
+{
+    field_bridge_peer_t p = { .name = "peer", .host = "1.2.3.4",
+                               .mqtt_port = 1883, .p2p_port = 4884,
+                               .enabled = 1 };
+    CHECK(product_config_set_peer(0, &p) == 0);
+
+    field_bridge_settings_t s;
+    CHECK(product_config_get_settings(&s) == 0);
+    strcpy(s.system.device_name, "custom");
+    CHECK(product_config_set_settings(&s) == 0);
+
+    CHECK(product_config_reset_all() == 0);
+
+    CHECK(product_config_get_peer(0, &p) == 0);
+    CHECK(p.enabled == 0);
+    CHECK(p.host[0] == '\0');
+    CHECK(product_config_get_settings(&s) == 0);
+    CHECK(strcmp(s.system.device_name, "esp32-min-broker") == 0);
+    CHECK(strcmp(s.system.admin_password, "admin") == 0);
+}
+
 /* Persistence tests use an isolated temp file and manage their own init. */
 #ifndef __ZEPHYR__
 #include <stdlib.h>
 #define PERSIST_FILE "/tmp/mqtt_bridge_test_peers.bin"
+#define SETTINGS_PERSIST_FILE "/tmp/mqtt_bridge_test_settings.bin"
 
 #define RUN_PERSIST(fn) do {                                                \
     fail_before = tests_failed;                                             \
     printf("  %-50s ", #fn);                                                \
     unsetenv("BRIDGE_PEERS_FILE");                                          \
+    unsetenv("BRIDGE_SETTINGS_FILE");                                       \
     remove(PERSIST_FILE);                                                   \
+    remove(SETTINGS_PERSIST_FILE);                                          \
     setenv("BRIDGE_PEERS_FILE", PERSIST_FILE, 1);                          \
+    setenv("BRIDGE_SETTINGS_FILE", SETTINGS_PERSIST_FILE, 1);              \
     product_config_init();                                                  \
     fn();                                                                   \
     remove(PERSIST_FILE);                                                   \
+    remove(SETTINGS_PERSIST_FILE);                                          \
     unsetenv("BRIDGE_PEERS_FILE");                                          \
+    unsetenv("BRIDGE_SETTINGS_FILE");                                       \
     printf("%s\n", (tests_failed == fail_before) ? "ok" : "FAIL");         \
 } while (0)
 
@@ -239,6 +367,43 @@ static void test_persist_all_slots_survive_reinit(void)
         CHECK(out.enabled == 1);
     }
 }
+
+static void test_settings_persist_survives_reinit(void)
+{
+    field_bridge_settings_t in;
+    memset(&in, 0, sizeof(in));
+    strcpy(in.system.device_name, "persist-node");
+    strcpy(in.system.admin_password, "persist-pass");
+    strcpy(in.network.wifi_ssid, "persist-wifi");
+    strcpy(in.network.wifi_password, "persist-wifi-pass");
+    strcpy(in.network.ap_ssid, "persist-ap");
+    strcpy(in.network.ap_password, "persist-ap-pass");
+    strcpy(in.network.device_ip, "10.10.10.1");
+    strcpy(in.network.gateway, "10.10.10.254");
+    strcpy(in.network.netmask, "255.255.255.0");
+    in.network.dhcp_enabled = 0;
+    strcpy(in.broker.site_id, "persist-site");
+    strcpy(in.broker.topic_prefix, "site/persist-site");
+    in.broker.mqtt_port = 2883;
+    in.broker.p2p_port = 5884;
+    in.broker.broker_enabled = 1;
+    in.broker.bridge_enabled = 1;
+    in.broker.mesh_enabled = 0;
+
+    CHECK(product_config_set_settings(&in) == 0);
+
+    product_config_init();
+
+    field_bridge_settings_t out;
+    CHECK(product_config_get_settings(&out) == 0);
+    CHECK(strcmp(out.system.device_name, "persist-node") == 0);
+    CHECK(strcmp(out.network.wifi_ssid, "persist-wifi") == 0);
+    CHECK(strcmp(out.network.device_ip, "10.10.10.1") == 0);
+    CHECK(strcmp(out.broker.site_id, "persist-site") == 0);
+    CHECK(out.broker.p2p_port == 5884);
+    CHECK(out.broker.mesh_enabled == 0);
+    CHECK(product_config_check_admin_password("persist-pass") == 1);
+}
 #endif /* !__ZEPHYR__ */
 
 /* ── main ───────────────────────────────────────────────────────────────── */
@@ -248,6 +413,7 @@ int main(void)
 #ifndef __ZEPHYR__
     /* Isolate existing tests from any leftover persist file. */
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
+    setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
 #endif
     printf("=== unit_product_config ===\n");
 
@@ -262,10 +428,18 @@ int main(void)
     RUN(test_peer_count);
     RUN(test_name_boundary);
     RUN(test_disable_peer);
+    RUN(test_settings_defaults);
+    RUN(test_settings_set_and_get);
+    RUN(test_settings_null_args);
+    RUN(test_reject_invalid_enabled_peer);
+    RUN(test_reject_enabled_peer_with_missing_fields);
+    RUN(test_reject_invalid_settings);
+    RUN(test_reset_all_restores_defaults_and_clears_peers);
 
 #ifndef __ZEPHYR__
     RUN_PERSIST(test_persist_survives_reinit);
     RUN_PERSIST(test_persist_all_slots_survive_reinit);
+    RUN_PERSIST(test_settings_persist_survives_reinit);
 #endif
 
     printf("\n%d/%d tests passed", tests_passed, tests_run);

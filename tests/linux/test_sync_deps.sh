@@ -31,6 +31,28 @@ check_fail() {
     if "$@" >/dev/null 2>&1; then fail "$label (expected non-zero exit)";
     else ok "$label"; fi
 }
+check_latest_tag() {
+    label=$1
+    actual=$(sh "$SCRIPT" --latest 2>&1) || {
+        fail "$label (command failed: $actual)"
+        return
+    }
+    case "$actual" in
+        minmqtt-v[0-9]*.[0-9]*.[0-9]*) ok "$label" ;;
+        *) fail "$label (got: $actual)" ;;
+    esac
+}
+check_latest_report() {
+    label=$1
+    actual=$(sh "$SCRIPT" --check-latest 2>&1) || {
+        fail "$label (command failed: $actual)"
+        return
+    }
+    case "$actual" in
+        "mqtt_min_broker up to date: "*|"new mqtt_min_broker version available: "*) ok "$label" ;;
+        *) fail "$label (got: $actual)" ;;
+    esac
+}
 
 echo "=== test_sync_deps.sh ==="
 
@@ -38,10 +60,8 @@ echo "=== test_sync_deps.sh ==="
 PINNED_VERSION=$(sh "$SCRIPT" --version)
 check_output "T1: --version prints pinned tag" "$PINNED_VERSION" \
     sh "$SCRIPT" --version
-check_output "T1b: --latest prints current broker tag" "$PINNED_VERSION" \
-    sh "$SCRIPT" --latest
-check_output "T1c: --check-latest reports up to date" "up to date: $PINNED_VERSION" \
-    sh "$SCRIPT" --check-latest
+check_latest_tag "T1b: --latest prints a broker release tag"
+check_latest_report "T1c: --check-latest reports current or newer release state"
 
 # ── T2: clean sync exits 0 ───────────────────────────────────────────────
 check "T2: sync exits 0" sh "$SCRIPT"

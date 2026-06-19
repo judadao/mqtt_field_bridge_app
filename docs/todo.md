@@ -31,7 +31,7 @@ This TODO is for the product application repository. The broker dependency is
 - [ ] Confirm `west build` can include `deps/mqtt_min_broker` through
       `ZEPHYR_EXTRA_MODULES`.
 - [ ] Add board-specific overlays for the target ESP32 board.
-- [ ] Decide whether USB-localhost provisioning, AP-mode provisioning, or LAN IP
+- [x] Decide whether USB-localhost provisioning, AP-mode provisioning, or LAN IP
       provisioning is the first supported setup path.
 - [ ] Implement product network startup before broker startup.
 - [ ] Start broker only after network is ready.
@@ -40,12 +40,12 @@ This TODO is for the product application repository. The broker dependency is
 
 ## Product Config
 
-- [ ] Define persistent config schema for device role/name, WiFi, bridge peers,
+- [x] Define persistent config schema for device role/name, WiFi, bridge peers,
       site ID, and topic prefix.
 - [x] Store bridge peer config in flash/NVS or Zephyr settings.
 - [ ] Add defaults for common small and larger peer-count deployments.
-- [ ] Add config validation.
-- [ ] Add config reset path for field recovery.
+- [x] Add config validation.
+- [x] Add config reset path for field recovery.
 
 ## Bridge Peer Control
 
@@ -62,20 +62,20 @@ This TODO is for the product application repository. The broker dependency is
 ## Local HTML / Provisioning
 
 - [x] Implement HTTP server for the product app.
-- [ ] Add status endpoint with WiFi state, IP address, broker state, P2P role,
+- [x] Add status endpoint with WiFi state, IP address, broker state, P2P role,
       connected peers, and remote subscription count.
-- [ ] Add WiFi setup endpoint.
-- [ ] Add broker start/stop/status endpoints.
+- [x] Add WiFi setup endpoint.
+- [x] Add broker start/stop/status endpoints.
 - [x] Add peer configuration endpoints.
-- [ ] Add publish test endpoint.
+- [x] Add publish test endpoint.
 - [x] Add simple HTML UI for status and peer setup.
-- [ ] Add HTML UI for WiFi setup, broker/P2P state, and topic test.
-- [ ] Keep UI product-specific; do not move it into `mqtt_min_broker`.
+- [x] Add HTML UI for WiFi setup, broker/P2P state, and topic test.
+- [x] Keep UI product-specific; do not move it into `mqtt_min_broker`.
 
 ## Topic Workflow
 
-- [ ] Standardize topic prefix: `site/<site_id>/<stream>`.
-- [ ] Add product config for `site_id`.
+- [x] Standardize topic prefix: `site/<site_id>/<stream>`.
+- [x] Add product config for `site_id`.
 - [ ] Add status stream topic.
 - [ ] Add IO stream topic.
 - [ ] Add event stream topic.
@@ -89,8 +89,8 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Create scripted test where possible.
 - [x] Add scripted 10-node chain validation.
 - [x] Add scripted 10-node ring validation.
-- [ ] Validate peer restart recovery.
-- [ ] Validate source node continues locally when peers are offline.
+- [x] Validate peer restart recovery.
+- [x] Validate source node continues locally when peers are offline.
 - [ ] Validate peer reconnection after WiFi reconnect.
 - [ ] Record logs and expected status page output for each test.
 

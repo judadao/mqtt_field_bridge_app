@@ -8,6 +8,10 @@
 #endif
 #define FIELD_BRIDGE_NAME_MAX 32
 #define FIELD_BRIDGE_HOST_MAX 64
+#define FIELD_BRIDGE_WIFI_MAX 64
+#define FIELD_BRIDGE_PASSWORD_MAX 64
+#define FIELD_BRIDGE_SITE_MAX 32
+#define FIELD_BRIDGE_TOPIC_MAX 64
 
 typedef struct {
     char name[FIELD_BRIDGE_NAME_MAX];
@@ -17,9 +21,45 @@ typedef struct {
     uint8_t enabled;
 } field_bridge_peer_t;
 
+typedef struct {
+    char device_name[FIELD_BRIDGE_NAME_MAX];
+    char admin_password[FIELD_BRIDGE_PASSWORD_MAX];
+} field_bridge_system_settings_t;
+
+typedef struct {
+    char wifi_ssid[FIELD_BRIDGE_WIFI_MAX];
+    char wifi_password[FIELD_BRIDGE_PASSWORD_MAX];
+    char ap_ssid[FIELD_BRIDGE_WIFI_MAX];
+    char ap_password[FIELD_BRIDGE_PASSWORD_MAX];
+    char device_ip[FIELD_BRIDGE_HOST_MAX];
+    char gateway[FIELD_BRIDGE_HOST_MAX];
+    char netmask[FIELD_BRIDGE_HOST_MAX];
+    uint8_t dhcp_enabled;
+} field_bridge_network_settings_t;
+
+typedef struct {
+    char site_id[FIELD_BRIDGE_SITE_MAX];
+    char topic_prefix[FIELD_BRIDGE_TOPIC_MAX];
+    uint16_t mqtt_port;
+    uint16_t p2p_port;
+    uint8_t broker_enabled;
+    uint8_t bridge_enabled;
+    uint8_t mesh_enabled;
+} field_bridge_broker_settings_t;
+
+typedef struct {
+    field_bridge_system_settings_t system;
+    field_bridge_network_settings_t network;
+    field_bridge_broker_settings_t broker;
+} field_bridge_settings_t;
+
 void product_config_init(void);
 int product_config_peer_count(void);
 int product_config_get_peer(int index, field_bridge_peer_t *out);
 int product_config_set_peer(int index, const field_bridge_peer_t *peer);
+int product_config_get_settings(field_bridge_settings_t *out);
+int product_config_set_settings(const field_bridge_settings_t *settings);
+int product_config_check_admin_password(const char *password);
+int product_config_reset_all(void);
 
 #endif /* PRODUCT_CONFIG_H */

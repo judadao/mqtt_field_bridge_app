@@ -137,24 +137,60 @@ Useful knobs:
 
 ## Provisioning HTTP API
 
-The current product HTTP server is intentionally small and focused on peer
-configuration:
+The current product HTTP server is intentionally small and focused on local
+device provisioning: login, system settings, network settings, broker settings,
+and bridge mesh peer slots.
 
 ```bash
 # Status
 curl http://127.0.0.1:8080/status
 
+# Login with the default password and keep the token
+TOKEN=$(curl -s -X POST http://127.0.0.1:8080/login \
+  -H 'Content-Type: application/json' \
+  -d '{"password":"admin"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+# Read system, network, and broker settings
+curl http://127.0.0.1:8080/config \
+  -H "X-Auth-Token: $TOKEN"
+
+# Save system, network, and broker settings
+curl -X POST http://127.0.0.1:8080/config \
+  -H "X-Auth-Token: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"device_name":"node-a","admin_password":"admin","wifi_ssid":"plant","wifi_password":"wifi-pass","ap_ssid":"ESP32-Min-Broker","ap_password":"12345678","device_ip":"192.168.4.1","gateway":"192.168.4.1","netmask":"255.255.255.0","dhcp_enabled":1,"site_id":"field-a","topic_prefix":"site/field-a","mqtt_port":1883,"p2p_port":4884,"broker_enabled":1,"bridge_enabled":1,"mesh_enabled":1}'
+
 # List configured peers
-curl http://127.0.0.1:8080/peers
+curl http://127.0.0.1:8080/peers \
+  -H "X-Auth-Token: $TOKEN"
 
 # Configure peer slot 0
 curl -X POST http://127.0.0.1:8080/peers/0 \
+  -H "X-Auth-Token: $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name":"node2","host":"192.168.10.12","mqtt_port":1883,"p2p_port":4884,"enabled":1}'
+
+# Request broker start/stop state from the product control plane
+curl -X POST http://127.0.0.1:8080/broker/control \
+  -H "X-Auth-Token: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled":1}'
+
+# Record a product-level publish test payload
+curl -X POST http://127.0.0.1:8080/publish-test \
+  -H "X-Auth-Token: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"site/field-a/test","payload":"hello","qos":0,"retain":0}'
+
+# Reset settings and peer slots back to firmware defaults
+curl -X POST http://127.0.0.1:8080/config/reset \
+  -H "X-Auth-Token: $TOKEN"
 ```
 
-Peer slots default to 10 entries. Updating a peer persists the peer config and calls
-`bridge_control_apply_peers()`.
+Peer slots default to 10 entries. Updating a peer persists the peer config and
+calls `bridge_control_apply_peers()`. `/config`, `/config/reset`,
+`/broker/control`, `/publish-test`, and `/peers` require the `X-Auth-Token`
+returned by `/login`; `/status` and the HTML page are public.
 
 The same server also serves a local settings page:
 
@@ -162,23 +198,37 @@ The same server also serves a local settings page:
 http://<device-ip>:8080/
 ```
 
-The page lists peer slots, edits host and port values, toggles enabled state,
-and saves through the same JSON endpoints.
+The page starts with a login form. After login, it loads the same JSON API and
+shows three setting tabs:
+
+- `System Setting`: device name and admin password.
+- `Network Setting`: WiFi client values, setup AP values, default device IP,
+  gateway, netmask, and DHCP toggle.
+- `Broker Setting`: MQTT/P2P ports, site/topic fields, broker/bridge/mesh
+  toggles, and bridge peer slots.
+- `Topic Test`: topic, payload, QoS, and retain fields for a product-level test
+  publish payload.
 
 UI workflow:
 
-1. Open `http://<device-ip>:8080/` from a browser on the same LAN.
-2. Press `Refresh` to reload `/status` and `/peers`.
-3. For each bridge peer, set:
+1. Connect to the ESP32 min broker WiFi/AP or the same LAN.
+2. Open `http://<device-ip>:8080/`. The default setup IP is `192.168.4.1`.
+3. Login with the admin password. The firmware default is `admin`.
+4. Edit `System Setting`, `Network Setting`, or `Broker Setting`.
+5. For each bridge peer, set:
    - `Name`: local label for the peer.
    - `Host / IP`: peer broker address.
    - `MQTT Port`: peer MQTT listener port.
    - `P2P Port`: peer bridge/P2P listener port.
    - `Enabled`: whether this peer should be applied.
-4. Press `Save` on one slot to persist only that peer.
-5. Press `Save All` after editing multiple slots.
-6. Press `Disable All` to clear every enabled toggle and persist the disabled
-   state for all slots.
+6. Press `Save` on one slot to persist only that peer.
+7. Press `Save All Peers` after editing multiple slots. The page compares each row
+   with the last loaded values and only sends changed slots.
+8. Press `Disable All Peers` to clear every enabled toggle and persist the disabled
+   state only for slots that changed.
+9. Press `Start Broker` or `Stop Broker` to request broker control state.
+10. Use `Topic Test` to record a test topic/payload through the provisioning API.
+11. Press `Reset Config` to restore defaults, clear peers, and require login again.
 
 The raw status panel shows the latest JSON returned by the device, which is
 useful during field setup and debugging.
@@ -189,19 +239,33 @@ Browser-to-device operation flow:
 flowchart TD
     A[Open local settings page] --> B[GET /]
     B --> C[Browser renders HTML, CSS, and JS]
-    C --> D[GET /status]
-    C --> E[GET /peers]
-    D --> F[Show device status]
-    E --> G[Render peer slots]
-    G --> H{User action}
-    H -->|Save one slot| I[POST /peers/<index>]
-    H -->|Save All| J[Sequential POST /peers/0..N]
-    H -->|Disable All| K[Clear enabled toggles]
-    K --> J
-    I --> L[Persist peer config]
-    J --> L
-    L --> M[bridge_control_apply_peers]
-    M --> N[Refresh /status and /peers]
+    C --> D[POST /login]
+    D --> E[Store returned token]
+    E --> F[GET /status]
+    E --> G[GET /config with X-Auth-Token]
+    E --> H[GET /peers with X-Auth-Token]
+    F --> I[Show status]
+    G --> J[Render system/network/broker settings]
+    H --> K[Render peer slots]
+    J --> L{User action}
+    K --> L
+    L -->|Save settings| M[POST /config with token]
+    L -->|Save one slot| N[POST /peers/<index> with token]
+    L -->|Save All Peers| O[Sequential POST changed slots]
+    L -->|Disable All Peers| P[Clear enabled toggles]
+    L -->|Broker control| U[POST /broker/control with token]
+    L -->|Topic test| V[POST /publish-test with token]
+    L -->|Reset config| W[POST /config/reset with token]
+    P --> O
+    M --> Q[Persist settings]
+    N --> R[Persist peer config]
+    O --> R
+    R --> S[bridge_control_apply_peers]
+    Q --> T[Refresh /status, /config, and /peers]
+    S --> T
+    U --> T
+    V --> T
+    W --> X[Clear token and show login]
 ```
 
 UI action mapping:
@@ -209,11 +273,16 @@ UI action mapping:
 | UI action | HTTP/API flow | Program flow | Notes |
 |-----------|---------------|--------------|-------|
 | Open settings page | `GET /` or `GET /index.html` | `handle_client` -> `send_html` | Static page is served from firmware; no external assets. |
-| Refresh | `GET /status`, then `GET /peers` | `handle_get_status`, `handle_get_peers` | Updates status cards, peer count, and raw JSON panel. |
-| Save one slot | `POST /peers/<index>` | Decode JSON -> `product_config_set_peer` -> `bridge_control_apply_peers` | Persists one peer and reapplies active peers. |
-| Save All | Sequential `POST /peers/0..N` | Same as single-slot save for each row | Sequential writes avoid opening many concurrent connections to the embedded HTTP server. |
+| Login | `POST /login` | Password check -> issue token | The page stores the token and sends it as `X-Auth-Token`. |
+| Refresh | `GET /status`, then authenticated `GET /config` and `GET /peers` | `handle_get_status`, `handle_get_config`, `handle_get_peers` | Updates status cards, settings forms, peer slots, and raw JSON panel. |
+| Save settings | Authenticated `POST /config` | Decode JSON -> `product_config_set_settings` | Persists system, network, and broker settings. |
+| Save one slot | Authenticated `POST /peers/<index>` | Decode JSON -> `product_config_set_peer` -> `bridge_control_apply_peers` | Persists one peer and reapplies active peers. |
+| Save All Peers | Sequential authenticated `POST /peers/<index>` only for changed rows | Same as single-slot save for each changed row | Dirty-save reduces flash writes, HTTP requests, and peer reapply work. |
 | Disable one slot | `POST /peers/<index>` with `enabled:0` | Persist disabled peer -> reapply peers | Keeps host and port values for later reuse. |
-| Disable All | Clear enabled toggles, then Save All | Sequential disabled writes -> reapply peers | Fast field recovery path when isolating a node. |
+| Disable All Peers | Clear enabled toggles, then Save All Peers | Sequential disabled writes only for changed rows -> reapply peers | Fast field recovery path when isolating a node without rewriting already-disabled slots. |
+| Broker control | Authenticated `POST /broker/control` | `product_runtime_set_broker_enabled` | Records requested control state; true live stop still requires broker dependency lifecycle support. |
+| Topic test | Authenticated `POST /publish-test` | Validate and record test payload | Provides a provisioning/API path for field topic test input. |
+| Reset config | Authenticated `POST /config/reset` | Clear peers -> restore defaults -> clear token | Field recovery path; user logs in again with the default password. |
 
 Provisioning HTTP program flow:
 
@@ -224,20 +293,28 @@ flowchart TD
     C --> D{Route}
     D -->|GET / or /index.html| E[send_html index page]
     D -->|GET /status| F[Build compact JSON status]
-    D -->|GET /peers| G[Build peers JSON in static buffer]
-    D -->|POST /peers/<index>| H[Decode peer JSON]
-    H --> I{Valid index, ports, enabled}
-    I -->|No| J[JSON error response]
-    I -->|Yes| K[Persist peer config]
-    K --> L{Persist OK}
-    L -->|No| J
-    L -->|Yes| M[Apply peers]
-    F --> N[send_json]
-    G --> N
-    M --> N
-    E --> O[Close client]
+    D -->|POST /login| G[Check admin password and issue token]
+    D -->|GET or POST /config| H{Auth token valid}
+    D -->|POST /config/reset| H
+    D -->|POST /broker/control| H
+    D -->|POST /publish-test| H
+    D -->|GET /peers or POST /peers/<index>| H
+    H -->|No| I[auth required JSON error]
+    H -->|Yes /config| J[Read or persist settings]
+    H -->|Yes /peers| K[Read peers or decode peer JSON]
+    H -->|Yes control/test/reset| Q[Run product control action]
+    K --> L{Valid index, ports, enabled}
+    L -->|No| I
+    L -->|Yes| M[Persist peer config]
+    M --> N[Apply peers]
+    F --> O[send_json]
+    G --> O
     J --> O
     N --> O
+    Q --> O
+    E --> P[Close client]
+    I --> P
+    O --> P
 ```
 
 ## Topic Model
@@ -268,21 +345,30 @@ Implemented in this product repo:
 - Linux stress tests rebuild broker binaries after dependency changes and keep
   reconnect cycles conservative by default; use `RESTART_COUNT=10` for a longer
   reconnect run.
-- Peer config storage for 10 bridge peers by default, with Linux file persistence and
-  Zephyr NVS persistence path.
+- Validated system, network, broker, and peer config storage, with Linux file
+  persistence and Zephyr NVS persistence path.
+- Field recovery reset path that clears peer slots, restores defaults, and
+  invalidates the current login token.
 - Bridge peer apply logic that validates enabled peers before handing them to
   the broker/P2P layer.
-- Product-owned provisioning HTTP server with `/status`, `/peers`, and
+- Product-owned provisioning HTTP server with `/status`, `/login`, `/config`,
+  `/config/reset`, `/broker/control`, `/publish-test`, `/peers`, and
   `POST /peers/<index>` endpoints.
+- Firmware-served HTML settings page with login, System Setting, Network
+  Setting, Broker Setting / Bridge Mesh Setting, runtime status cards, broker
+  control buttons, reset, and Topic Test.
+- Linux HTTP/web unit tests for page content, login token flow, authenticated
+  settings APIs, authenticated peer APIs, broker control, publish test, reset,
+  and invalid request paths.
 - Linux unit, integration, reconnect stress, and throughput stress tests under
   `tests/linux/`.
 
 Still open:
 
 - Product network startup and board overlays for target ESP32 hardware.
-- WiFi setup, broker control, publish-test endpoints, and the HTML UI.
-- Full device/site config schema for role/name, WiFi, `site_id`, and topic
-  prefix.
+- Applying saved WiFi/network settings to the target ESP32 networking driver.
+- Live broker stop/restart after boot; current broker dependency exposes a
+  blocking run loop but no stop lifecycle API.
 - Hardware validation logs and manual field checklist for larger peer counts.
 
 ## Latest Test Result
@@ -297,14 +383,15 @@ make -C tests/linux scale-ring-tests
 
 Result:
 
-- `unit_product_config`: 161/161 checks passed.
+- `unit_product_config`: 216/216 checks passed.
+- `unit_product_runtime`: 34/34 checks passed.
 - `unit_bridge_control`: 7/7 tests passed.
-- `unit_provisioning_http`: 35/35 checks passed.
+- `unit_provisioning_http`: 146/146 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.
-- `stress_throughput.sh`: 2,330,804 messages received in 10 seconds
-  (`233,080 msg/s`), above the 500-message minimum; all three brokers survived.
+- `stress_throughput.sh`: 2,288,862 messages received in 10 seconds
+  (`228,886 msg/s`), above the 500-message minimum; all three brokers survived.
 - `test_chain_scale.sh`: 10-node chain passed; B10 received a B1 publish
   through the connected bridge graph and all 10 brokers survived.
 - `TOPOLOGY=ring test_chain_scale.sh`: 10-node ring passed with the same

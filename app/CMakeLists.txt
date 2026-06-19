@@ -6,6 +6,7 @@ project(mqtt_field_bridge_app)
 target_sources(app PRIVATE
   src/main.c
   src/product_config.c
+  src/product_runtime.c
   src/bridge_control.c
   src/provisioning_http.c
 )
