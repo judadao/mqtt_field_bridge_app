@@ -42,13 +42,31 @@ $(OUTDIR)/unit_bridge_control: unit_bridge_control.c \
 	    $(APP_SRC)/product_config.c \
 	    -o $@
 
-unit-tests: $(OUTDIR)/unit_product_config $(OUTDIR)/unit_bridge_control
+$(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
+                                   $(APP_SRC)/provisioning_http.c \
+                                   $(APP_SRC)/provisioning_http.h \
+                                   $(APP_SRC)/product_config.c \
+                                   $(APP_SRC)/bridge_control.c \
+                                   | $(OUTDIR)
+	$(CC) $(CFLAGS) \
+	    unit_provisioning_http.c \
+	    $(APP_SRC)/provisioning_http.c \
+	    $(APP_SRC)/product_config.c \
+	    $(APP_SRC)/bridge_control.c \
+	    -o $@ -lpthread
+
+unit-tests: $(OUTDIR)/unit_product_config \
+            $(OUTDIR)/unit_bridge_control \
+            $(OUTDIR)/unit_provisioning_http
 	@echo ""
 	@echo "--- unit_product_config ---"
 	$(OUTDIR)/unit_product_config
 	@echo ""
 	@echo "--- unit_bridge_control ---"
 	$(OUTDIR)/unit_bridge_control
+	@echo ""
+	@echo "--- unit_provisioning_http ---"
+	$(OUTDIR)/unit_provisioning_http
 
 # ── integration tests ──────────────────────────────────────────────────────
 integration-tests: broker-p2p
