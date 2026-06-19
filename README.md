@@ -202,39 +202,36 @@ http://<device-ip>:8080/
 ```
 
 The page starts with a login form. After login, it loads the same JSON API and
-shows three setting tabs:
+shows a compact overview beside the editable network summary, followed by
+feature tabs:
 
-- `System Setting`: device name and admin password.
 - `Network Setting`: WiFi client values, setup AP values, default device IP,
   gateway, netmask, DNS, and DHCP toggle.
-- `Broker Setting`: MQTT/P2P ports, site/topic fields, broker/bridge/mesh
-  toggles, and bridge peer slots.
-- `Topic Test`: topic, payload, QoS, and retain fields for a product-level test
-  publish payload.
+- `Broker Setting`: broker/mesh feature toggles, MQTT/P2P ports, and site ID.
+- `Bridge Peers`: bridge peer feature toggle and peer rows added on demand.
+- `System Setting`: device name, admin password, and reset.
 
 UI workflow:
 
 1. Connect to the ESP32 min broker WiFi/AP or the same LAN.
 2. Open `http://<device-ip>:8080/`. The default setup IP is `192.168.4.1`.
 3. Login with the admin password. The firmware default is `admin`.
-4. Edit `System Setting`, `Network Setting`, or `Broker Setting`.
-5. For each bridge peer, set:
+4. Review `Overview`; press `Edit` beside Network to jump to network fields.
+5. Use the feature toggles at the top of Broker and Bridge Peers before saving.
+6. In `Bridge Peers`, press `Add Peer` to create the next peer row.
+7. For each bridge peer, set:
    - `Name`: local label for the peer.
    - `Host / IP`: peer broker address.
    - `MQTT Port`: peer MQTT listener port.
    - `P2P Port`: peer bridge/P2P listener port.
    - `Enabled`: whether this peer should be applied.
-6. Press `Save` on one slot to persist only that peer.
-7. Press `Save All Peers` after editing multiple slots. The page compares each row
+8. Press `Save` on one slot to persist only that peer.
+9. Press `Save Peer Changes` after editing multiple slots. The page compares each row
    with the last loaded values and only sends changed slots.
-8. Press `Disable All Peers` to clear every enabled toggle and persist the disabled
+10. Press `Disable All Peers` to clear every enabled toggle and persist the disabled
    state only for slots that changed.
-9. Press `Start Broker` or `Stop Broker` to request broker control state.
-10. Use `Topic Test` to record a test topic/payload through the provisioning API.
-11. Press `Reset Config` to restore defaults, clear peers, and require login again.
-
-The raw status panel shows the latest JSON returned by the device, which is
-useful during field setup and debugging.
+11. Press `Start Broker` or `Stop Broker` to request broker control state.
+12. Press `Reset Config` to restore defaults, clear peers, and require login again.
 
 Browser-to-device operation flow:
 
@@ -254,12 +251,13 @@ flowchart TD
     K --> L
     L -->|Save settings| M[POST /config with token]
     L -->|Save one slot| N[POST /peers/<index> with token]
-    L -->|Save All Peers| O[Sequential POST changed slots]
+    L -->|Add Peer| Y[Show next empty peer slot]
+    L -->|Save Peer Changes| O[Sequential POST changed slots]
     L -->|Disable All Peers| P[Clear enabled toggles]
     L -->|Broker control| U[POST /broker/control with token]
-    L -->|Topic test| V[POST /publish-test with token]
     L -->|Reset config| W[POST /config/reset with token]
     P --> O
+    Y --> O
     M --> Q[Persist settings]
     N --> R[Persist peer config]
     O --> R
@@ -267,7 +265,6 @@ flowchart TD
     Q --> T[Refresh /status, /config, and /peers]
     S --> T
     U --> T
-    V --> T
     W --> X[Clear token and show login]
 ```
 
@@ -277,14 +274,14 @@ UI action mapping:
 |-----------|---------------|--------------|-------|
 | Open settings page | `GET /` or `GET /index.html` | `handle_client` -> `send_html` | Static page is served from firmware; no external assets. |
 | Login | `POST /login` | Password check -> issue token | The page stores the token and sends it as `X-Auth-Token`. |
-| Refresh | `GET /status`, then authenticated `GET /config` and `GET /peers` | `handle_get_status`, `handle_get_config`, `handle_get_peers` | Updates status cards, settings forms, peer slots, and raw JSON panel. |
+| Refresh | `GET /status`, then authenticated `GET /config` and `GET /peers` | `handle_get_status`, `handle_get_config`, `handle_get_peers` | Updates overview, settings forms, and visible peer rows. |
 | Save settings | Authenticated `POST /config` | Decode JSON -> `product_config_set_settings` | Persists system, network, and broker settings. |
 | Save one slot | Authenticated `POST /peers/<index>` | Decode JSON -> `product_config_set_peer` -> `bridge_control_apply_peers` | Persists one peer and reapplies active peers. |
-| Save All Peers | Sequential authenticated `POST /peers/<index>` only for changed rows | Same as single-slot save for each changed row | Dirty-save reduces flash writes, HTTP requests, and peer reapply work. |
+| Add Peer | Browser-only row add | Uses next empty peer slot | Empty default deployments stay uncluttered until a peer is added. |
+| Save Peer Changes | Sequential authenticated `POST /peers/<index>` only for changed rows | Same as single-slot save for each changed row | Dirty-save reduces flash writes, HTTP requests, and peer reapply work. |
 | Disable one slot | `POST /peers/<index>` with `enabled:0` | Persist disabled peer -> reapply peers | Keeps host and port values for later reuse. |
-| Disable All Peers | Clear enabled toggles, then Save All Peers | Sequential disabled writes only for changed rows -> reapply peers | Fast field recovery path when isolating a node without rewriting already-disabled slots. |
+| Disable All Peers | Clear enabled toggles, then Save Peer Changes | Sequential disabled writes only for changed rows -> reapply peers | Fast field recovery path when isolating a node without rewriting already-disabled slots. |
 | Broker control | Authenticated `POST /broker/control` | `product_runtime_set_broker_enabled` | Records requested control state; true live stop still requires broker dependency lifecycle support. |
-| Topic test | Authenticated `POST /publish-test` | Validate and record test payload | Provides a provisioning/API path for field topic test input. |
 | Reset config | Authenticated `POST /config/reset` | Clear peers -> restore defaults -> clear token | Field recovery path; user logs in again with the default password. |
 
 Provisioning HTTP program flow:
@@ -366,9 +363,8 @@ Implemented in this product repo:
   `/config/reset`, `/broker/control`, `/publish-test`, `/peers`,
   `/peer-status`, and
   `POST /peers/<index>` endpoints.
-- Firmware-served HTML settings page with login, System Setting, Network
-  Setting, Broker Setting / Bridge Mesh Setting, runtime status cards, broker
-  control buttons, reset, and Topic Test.
+- Firmware-served HTML settings page with login-only first view, overview,
+  editable network summary, Broker, Bridge Peers, and System tabs.
 - Network settings include device IP, gateway, netmask, DNS, and DHCP toggle.
 - Linux HTTP/web unit tests for page content, login token flow, authenticated
   settings APIs, authenticated peer APIs, broker control, publish test, reset,
@@ -428,7 +424,7 @@ Product releases use `bridge-vX.Y.Z` tags. Broker dependency releases use
 Current product release tag in this branch:
 
 ```text
-bridge-v0.1.8
+bridge-v0.1.9
 ```
 
 ## Dependency Rule

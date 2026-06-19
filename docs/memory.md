@@ -42,9 +42,8 @@ Completed product-owned provisioning/runtime surface:
   `X-Auth-Token`.
 - `/config`, `/config/reset`, `/peers`, `/broker/control`, and `/publish-test`
   are implemented and covered by Linux HTTP tests.
-- Firmware-served HTML now covers Login, System Setting, Network Setting,
-  Broker Setting / Bridge Mesh Setting, runtime status cards, broker control,
-  reset, and Topic Test.
+- Firmware-served HTML now covers Login, Network, Broker, Bridge Peers, and
+  System tabs with runtime overview, broker control, reset, and Add Peer flow.
 - Unit coverage now includes `unit_product_runtime` and `unit_product_topics`;
   last local unit run passed `unit_product_config` 227/227,
   `unit_product_runtime` 54/54, `unit_product_topics` 20/20,
@@ -60,8 +59,9 @@ Completed product-owned provisioning/runtime surface:
   the provisioning UI. `tests/linux/test_web_network_config.sh` reads ignored
   `tests/linux/local_web_network.env` for site-specific static-IP web tests.
 - Provisioning UI now keeps all operational controls behind login, shows a
-  compact overview and quick actions first, and collapses Network, Broker,
-  Peers, System, Topic Test, and Raw Status into field-focused sections.
+  compact overview beside an editable network summary, uses tabs for Network,
+  Broker, Bridge Peers, and System, removes Topic Test/Raw Status from the UI,
+  and adds peers only through an Add Peer action.
 
 Remaining meaningful blockers:
 

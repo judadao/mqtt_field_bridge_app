@@ -76,6 +76,9 @@ This TODO is for the product application repository. The broker dependency is
       status, and mobile layout improvements.
 - [x] Collapse provisioning UI sections, keep controls hidden until login, and
       place the important network/status summary first.
+- [x] Move provisioning UI to feature tabs, remove Topic Test/Raw Status from
+      the page, hide topic prefix from broker settings, and add peer rows only
+      through Add Peer.
 - [x] Add DNS to network settings and Linux web/config coverage.
 - [x] Add ignored local static-IP shell test for provisioning web config.
 - [x] Keep UI product-specific; do not move it into `mqtt_min_broker`.
