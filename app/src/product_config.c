@@ -48,7 +48,7 @@ static int persist_save(int idx)
 #define NVS_SECTOR_SIZE  DT_PROP(DT_CHOSEN(zephyr_flash), erase_block_size)
 #define NVS_SECTOR_COUNT 2
 #define NVS_PARTITION    storage_partition
-#define PEER_KEY_BASE    1   /* keys 1, 2, 3 for peers 0, 1, 2 */
+#define PEER_KEY_BASE    1
 
 static struct nvs_fs nvs;
 static int nvs_ready;

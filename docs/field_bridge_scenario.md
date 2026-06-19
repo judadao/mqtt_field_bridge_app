@@ -1,10 +1,15 @@
 # Field Bridge Scenario
 
-The product app targets a three-notebook field setup:
+The product app targets configurable field broker meshes. The first validation
+setup uses three notebooks, but the peer table defaults to 10 slots and can be
+raised at build time for larger deployments:
 
-- Note 1 has an ESP32 broker and receives or owns field data.
-- Note 2 has an ESP32 broker and subscribes to topics through the mesh.
-- Note 3 has an ESP32 broker and behaves like Note 2.
+- A source node has an ESP32 broker and receives or owns field data.
+- Peer nodes have ESP32 brokers and subscribe to topics through the mesh.
+- Larger lab setups can use 10 brokers or more when memory and network capacity
+  are sized for the target.
+- The bridge graph only needs to be connected. For example, node 1 bridged to
+  node 2 and node 3 bridged to node 2 should behave as one broker network.
 
 The product app owns:
 
@@ -24,7 +29,7 @@ Suggested topic prefix:
 site/<site_id>/<stream>
 ```
 
-Suggested subscription from Note 2 or Note 3:
+Suggested peer subscription:
 
 ```text
 site/field-a/data/#

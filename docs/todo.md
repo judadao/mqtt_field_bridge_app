@@ -43,7 +43,7 @@ This TODO is for the product application repository. The broker dependency is
 - [ ] Define persistent config schema for device role/name, WiFi, bridge peers,
       site ID, and topic prefix.
 - [x] Store bridge peer config in flash/NVS or Zephyr settings.
-- [ ] Add defaults for Note 1, Note 2, and Note 3.
+- [ ] Add defaults for common small and larger peer-count deployments.
 - [ ] Add config validation.
 - [ ] Add config reset path for field recovery.
 
@@ -79,17 +79,17 @@ This TODO is for the product application repository. The broker dependency is
 - [ ] Add status stream topic.
 - [ ] Add IO stream topic.
 - [ ] Add event stream topic.
-- [ ] Add test publisher flow for Note 1.
-- [ ] Add test subscriber flow for Note 2 and Note 3.
-- [ ] Verify Note 2 and Note 3 receive Note 1 field data through P2P routing.
+- [ ] Add test publisher flow for a source node.
+- [ ] Add test subscriber flow for peer nodes.
+- [ ] Verify peer nodes receive source-node field data through P2P routing.
 
 ## Field Validation
 
-- [ ] Create 3-node manual test checklist.
+- [ ] Create manual test checklist for 3-node and 10-node deployments.
 - [x] Create scripted test where possible.
-- [ ] Validate Note 2 restart recovery.
-- [ ] Validate Note 3 restart recovery.
-- [ ] Validate Note 1 continues locally when Note 2 or Note 3 is offline.
+- [ ] Add scripted 10-node chain/ring validation.
+- [ ] Validate peer restart recovery.
+- [ ] Validate source node continues locally when peers are offline.
 - [ ] Validate peer reconnection after WiFi reconnect.
 - [ ] Record logs and expected status page output for each test.
 

@@ -100,7 +100,7 @@ static void test_get_index_html_alias(void)
 
 static void test_get_peers_empty(void)
 {
-    char resp[1024];
+    char resp[4096];
     int n = http_req("GET /peers HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
@@ -123,7 +123,7 @@ static void test_post_peer_valid(void)
     CHECK(strstr(resp, "200 OK") != NULL);
 
     /* Verify change via GET /peers */
-    char resp2[1024];
+    char resp2[4096];
     http_req("GET /peers HTTP/1.0\r\n\r\n", resp2, sizeof(resp2));
     CHECK(strstr(resp2, "192.168.1.2") != NULL);
     CHECK(strstr(resp2, "1883") != NULL);
@@ -143,7 +143,7 @@ static void test_post_peer_escapes_json_strings(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
 
-    char resp2[2048];
+    char resp2[4096];
     http_req("GET /peers HTTP/1.0\r\n\r\n", resp2, sizeof(resp2));
     CHECK(strstr(resp2, "node\\\"two") != NULL);
     CHECK(strstr(resp2, "lab\\\\node") != NULL);

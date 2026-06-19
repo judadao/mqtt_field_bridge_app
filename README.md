@@ -1,7 +1,6 @@
 # mqtt_field_bridge_app
 
-Product application for the Note 1 / Note 2 / Note 3 MQTT field bridge
-scenario.
+Product application for configurable MQTT field bridge scenarios.
 
 This repository consumes `mqtt_min_broker` as a pinned dependency under
 `deps/mqtt_min_broker`. Product builds should use the broker version declared in
@@ -12,13 +11,18 @@ Current pinned broker release: `minmqtt-v0.1.12`.
 ## What This App Does
 
 `mqtt_field_bridge_app` is the product layer around `mqtt_min_broker` for a
-small field-deployed MQTT mesh. The intended deployment is three ESP32-class
-nodes:
+field-deployed MQTT mesh. The first validation setup uses three ESP32-class
+nodes, but the product config is sized for larger peer lists:
 
-- Note 1 receives or produces field data.
-- Note 2 and Note 3 subscribe to that data through broker-to-broker P2P routing.
+- One or more edge nodes receive or produce field data.
+- Multiple peer nodes subscribe to that data through broker-to-broker P2P routing.
 - Each node keeps a local MQTT broker available, so local clients can continue
   to publish or subscribe even when another field node is temporarily offline.
+- The product peer table defaults to 10 slots and can be raised at build time
+  with `FIELD_BRIDGE_PEER_MAX` if the target has enough memory and flash.
+- Broker nodes do not need to form a full mesh. If node 1 bridges to node 2 and
+  node 3 bridges to node 2, all three are expected to behave as one connected
+  broker network through node 2.
 
 The broker dependency handles MQTT packet parsing, sessions, topic matching,
 P2P discovery, and inter-node routing. This product app owns the field-specific
@@ -27,10 +31,10 @@ workflow decisions.
 
 ## Usage Scenarios
 
-- Field telemetry bridge: publish field data on Note 1 and route matching
-  subscriptions to Note 2 and Note 3 over the P2P broker mesh.
-- Local-first operation: keep Note 1 local MQTT delivery working while Note 2 or
-  Note 3 is offline, rebooting, or reconnecting.
+- Field telemetry bridge: publish field data on one node and route matching
+  subscriptions to any reachable peer node over the P2P broker network.
+- Local-first operation: keep local MQTT delivery working while peer nodes are
+  offline, rebooting, or reconnecting.
 - Site staging and provisioning: configure peer host/IP, MQTT port, P2P port,
   and enabled state through product-owned config APIs before field deployment.
 - Broker dependency release validation: pin a broker tag in `deps.json`, sync it
@@ -51,6 +55,9 @@ workflow decisions.
   verifies that the pinned tag exists before checkout.
 - Offline-tolerant field behavior: tests cover local delivery while a peer node
   is offline and recovery after peer restart.
+- Scalable peer configuration: the local settings page and JSON API expose all
+  configured peer slots, so 10-broker lab and field setups do not need a UI
+  redesign or full-mesh peer wiring.
 
 ## Repo Layout
 
@@ -109,7 +116,7 @@ the fastest path for day-to-day validation:
 # Unit tests only
 make -C tests/linux unit-tests
 
-# Broker dependency sync and 3-node routing scenario
+# Broker dependency sync and chain-topology routing scenario
 make -C tests/linux integration-tests
 
 # Reconnect and throughput stress tests
@@ -146,8 +153,7 @@ curl -X POST http://127.0.0.1:8080/peers/0 \
   -d '{"name":"node2","host":"192.168.10.12","mqtt_port":1883,"p2p_port":4884,"enabled":1}'
 ```
 
-Peer slots are fixed at three entries for the Note 1 / Note 2 / Note 3 field
-scenario. Updating a peer persists the peer config and calls
+Peer slots default to 10 entries. Updating a peer persists the peer config and calls
 `bridge_control_apply_peers()`.
 
 The same server also serves a local settings page:
@@ -173,9 +179,9 @@ Planned streams:
 - `io`: field IO payloads.
 - `event`: field events and alarms.
 
-The Linux integration tests already exercise the topic routing shape with topics
-such as `site/field-a/data/io` and wildcard subscribers on
-`site/field-a/data/#`.
+The Linux integration tests exercise the topic routing shape with topics such as
+`site/field-a/data/io` and wildcard subscribers on `site/field-a/data/#`, using
+a chain topology rather than a full mesh.
 
 ## Current Status
 
@@ -187,7 +193,7 @@ Implemented in this product repo:
 - Linux stress tests rebuild broker binaries after dependency changes and keep
   reconnect cycles conservative by default; use `RESTART_COUNT=10` for a longer
   reconnect run.
-- Peer config storage for three bridge peers, with Linux file persistence and
+- Peer config storage for 10 bridge peers by default, with Linux file persistence and
   Zephyr NVS persistence path.
 - Bridge peer apply logic that validates enabled peers before handing them to
   the broker/P2P layer.
@@ -202,7 +208,7 @@ Still open:
 - WiFi setup, broker control, publish-test endpoints, and the HTML UI.
 - Full device/site config schema for role/name, WiFi, `site_id`, and topic
   prefix.
-- Hardware validation logs and manual field checklist for Note 1/2/3.
+- Hardware validation logs and manual field checklist for larger peer counts.
 
 ## Latest Test Result
 
@@ -214,14 +220,14 @@ make -C tests/linux test
 
 Result:
 
-- `unit_product_config`: 70/70 checks passed.
+- `unit_product_config`: 161/161 checks passed.
 - `unit_bridge_control`: 7/7 tests passed.
 - `unit_provisioning_http`: 32/32 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.
-- `stress_throughput.sh`: 2,177,145 messages received in 10 seconds
-  (`217,714 msg/s`), above the 500-message minimum; all three brokers survived.
+- `stress_throughput.sh`: 2,330,804 messages received in 10 seconds
+  (`233,080 msg/s`), above the 500-message minimum; all three brokers survived.
 
 ## Release And Tagging
 

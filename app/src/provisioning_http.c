@@ -251,7 +251,7 @@ static int append_json_str(char *buf, int cap, int *pos, const char *s)
 
 static void handle_get_peers(int fd)
 {
-    char buf[1024];
+    char buf[4096];
     int pos = 0;
     buf[pos++] = '[';
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {

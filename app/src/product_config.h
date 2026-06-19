@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
-#define FIELD_BRIDGE_PEER_MAX 3
+#ifndef FIELD_BRIDGE_PEER_MAX
+#define FIELD_BRIDGE_PEER_MAX 10
+#endif
 #define FIELD_BRIDGE_NAME_MAX 32
 #define FIELD_BRIDGE_HOST_MAX 64
 

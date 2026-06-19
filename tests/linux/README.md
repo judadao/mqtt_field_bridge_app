@@ -35,7 +35,7 @@ make -C tests/linux test
 
 | Variable | Default | Applies to |
 |----------|---------|-----------|
-| `SETTLE_SEC` | 5 | 3node, reconnect, throughput |
+| `SETTLE_SEC` | 8 for 3node, 5 for stress | 3node, reconnect, throughput |
 | `VERIFY_TIMEOUT_SEC` | 5 | reconnect |
 | `RESTART_COUNT` | 5 | reconnect |
 | `PUB_COUNT` | 5 | throughput |

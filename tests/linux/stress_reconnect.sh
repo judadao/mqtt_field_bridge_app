@@ -39,6 +39,14 @@ trap cleanup EXIT INT TERM
 
 mkdir -p "$OUT"
 
+_needs_rebuild() {
+    out=$1
+    [ ! -x "$out" ] && return 0
+    find "$BROKER_DIR/src" "$BROKER_DIR/include" "$BROKER_DIR/platform" \
+        -type f \( -name '*.c' -o -name '*.h' \) -newer "$out" \
+        | grep -q .
+}
+
 wait_for_lines() {
     file=$1
     want=$2
@@ -57,6 +65,9 @@ wait_for_lines() {
 _build() {
     name=$1; mqtt_port=$2; p2p_port=$3
     out="$OUT/broker_${name}"
+    if ! _needs_rebuild "$out"; then
+        return 0
+    fi
     printf '  Building broker_%s...\n' "$name"
     gcc -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
         -DCONFIG_MQTT_P2P_DYNAMIC \
@@ -84,7 +95,7 @@ _build b2 $B2_MQTT $B2_P2P
 
 echo "=== stress_reconnect.sh (${RESTART_COUNT} cycles) ==="
 
-fuser -k ${B1_MQTT}/tcp ${B2_MQTT}/tcp ${B1_P2P}/tcp ${B2_P2P}/tcp 2>/dev/null || true
+fuser -k ${B1_MQTT}/tcp ${B2_MQTT}/tcp ${B1_P2P}/tcp ${B2_P2P}/tcp >/dev/null 2>&1 || true
 sleep 0.3
 
 MQTT_P2P_PEERS="127.0.0.1:$B2_P2P" "$OUT/broker_b1" >/tmp/sr_b1.log 2>&1 & B1_PID=$!
