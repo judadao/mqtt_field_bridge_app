@@ -61,7 +61,6 @@ stop_workload() {
 _build() {
     name=$1; mqtt_port=$2; p2p_port=$3
     out="$OUT/broker_${name}"
-    [ -x "$out" ] && return 0
     printf '  Building broker_%s...\n' "$name"
     gcc -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
         -DCONFIG_MQTT_P2P_DYNAMIC \

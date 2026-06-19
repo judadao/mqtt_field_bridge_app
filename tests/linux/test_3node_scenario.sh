@@ -35,9 +35,8 @@ mkdir -p "$OUT"
 _build() {
     name=$1; mqtt_port=$2; p2p_port=$3
     tgt="$OUT/broker_${name}"
-    [ -x "$tgt" ] && return 0
     printf '  Building broker_%s...\n' "$name"
-    gcc -Wall -std=c11 -g -D_POSIX_C_SOURCE=200809L \
+    gcc -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
         -DCONFIG_MQTT_P2P_DYNAMIC \
         -DMQTT_BROKER_PORT="$mqtt_port" \
         -DP2P_PORT="$p2p_port" \

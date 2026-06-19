@@ -15,13 +15,13 @@ minmqtt-vX.Y.Z
 Example:
 
 ```text
-minmqtt-v0.1.0
+minmqtt-v0.1.12
 ```
 
 The product app references this tag in `deps.json`:
 
 ```json
-"version": "minmqtt-v0.1.0"
+"version": "minmqtt-v0.1.12"
 ```
 
 ## Product Bridge Tags

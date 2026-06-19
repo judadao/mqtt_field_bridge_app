@@ -6,6 +6,8 @@ This repository consumes `mqtt_min_broker` as a pinned dependency under
 `deps/mqtt_min_broker`. Product builds should use the broker version declared in
 `deps.json`, not a floating local checkout.
 
+Current pinned broker release: `minmqtt-v0.1.12`.
+
 ## Repo Layout
 
 ```text
@@ -47,6 +49,8 @@ inside `deps/mqtt_min_broker`.
 Implemented in this product repo:
 
 - Pinned broker dependency sync through `deps.json` and `scripts/sync_deps.sh`.
+- Broker dependency updated to `minmqtt-v0.1.12`, which includes parser-level
+  malformed packet hardening.
 - Peer config storage for three bridge peers, with Linux file persistence and
   Zephyr NVS persistence path.
 - Bridge peer apply logic that validates enabled peers before handing them to

@@ -35,7 +35,8 @@ check_fail() {
 echo "=== test_sync_deps.sh ==="
 
 # ── T1: --version prints pinned tag ──────────────────────────────────────
-check_output "T1: --version prints minmqtt-v0.1.0" "minmqtt-v0.1.0" \
+PINNED_VERSION=$(sh "$SCRIPT" --version)
+check_output "T1: --version prints pinned tag" "$PINNED_VERSION" \
     sh "$SCRIPT" --version
 
 # ── T2: clean sync exits 0 ───────────────────────────────────────────────
@@ -67,7 +68,7 @@ check "T6: sync succeeds after dirty cleanup" sh "$SCRIPT"
 # Temporarily patch deps.json to reference a nonexistent tag.
 DEPS_JSON="$ROOT_DIR/deps.json"
 ORIG=$(cat "$DEPS_JSON")
-printf '%s\n' "$ORIG" | sed 's/minmqtt-v0.1.0/minmqtt-v99.99.99/' > "$DEPS_JSON.tmp"
+printf '%s\n' "$ORIG" | sed "s/$PINNED_VERSION/minmqtt-v99.99.99/" > "$DEPS_JSON.tmp"
 mv "$DEPS_JSON.tmp" "$DEPS_JSON"
 check_output "T7: missing tag prints helpful error" "not found" \
     sh "$SCRIPT"

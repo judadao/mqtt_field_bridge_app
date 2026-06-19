@@ -7,16 +7,16 @@ This TODO is for the product application repository. The broker dependency is
 
 - [x] Keep this repo as the product app repo, separate from `mqtt_min_broker`.
 - [x] Use `deps.json` to pin the broker module tag.
-- [ ] Use product tags with the `bridge-vX.Y.Z` format.
-- [ ] Use broker dependency tags with the `minmqtt-vX.Y.Z` format when the
+- [x] Use product tags with the `bridge-vX.Y.Z` format.
+- [x] Use broker dependency tags with the `minmqtt-vX.Y.Z` format when the
       broker repo is ready to adopt the prefixed scheme.
-- [ ] Do not patch `deps/mqtt_min_broker` permanently from this repo.
-- [ ] When broker fixes are needed, create an issue/TODO against
+- [x] Do not patch `deps/mqtt_min_broker` permanently from this repo.
+- [x] When broker fixes are needed, create an issue/TODO against
       `mqtt_min_broker`, fix there, tag there, then bump `deps.json` here.
 
 ## Dependency Sync
 
-> **minmqtt-v0.1.0 is the current pinned broker tag** (tagged 2026-06-19).
+> **minmqtt-v0.1.12 is the current pinned broker tag** (tagged 2026-06-19).
 > `deps.json` is already set. Run `scripts/sync_deps.sh` to check out the pinned version.
 
 - [x] Replace the simple `sed` parser in `scripts/sync_deps.sh` with a more

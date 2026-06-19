@@ -2,7 +2,7 @@
   "deps": {
     "mqtt_min_broker": {
       "repo": "../mqtt_min_broker",
-      "version": "minmqtt-v0.1.0",
+      "version": "minmqtt-v0.1.12",
       "path": "deps/mqtt_min_broker"
     }
   },
