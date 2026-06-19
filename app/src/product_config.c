@@ -30,13 +30,14 @@ static void persist_load(void)
     fclose(f);
 }
 
-static void persist_save(int idx)
+static int persist_save(int idx)
 {
     (void)idx;
     FILE *f = fopen(peers_file_path(), "wb");
-    if (!f) return;
+    if (!f) return 0;
     (void)fwrite(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
     fclose(f);
+    return 0;
 }
 
 #else  /* __ZEPHYR__ */
@@ -51,17 +52,26 @@ static void persist_save(int idx)
 
 static struct nvs_fs nvs;
 static int nvs_ready;
+static K_MUTEX_DEFINE(nvs_init_lock);
 
 static int nvs_init_once(void)
 {
-    if (nvs_ready) return 0;
+    k_mutex_lock(&nvs_init_lock, K_FOREVER);
+    if (nvs_ready) {
+        k_mutex_unlock(&nvs_init_lock);
+        return 0;
+    }
     nvs.flash_device = FIXED_PARTITION_DEVICE(NVS_PARTITION);
-    if (!device_is_ready(nvs.flash_device)) return -ENODEV;
+    if (!device_is_ready(nvs.flash_device)) {
+        k_mutex_unlock(&nvs_init_lock);
+        return -ENODEV;
+    }
     nvs.sector_size  = NVS_SECTOR_SIZE;
     nvs.sector_count = NVS_SECTOR_COUNT;
     nvs.offset       = FIXED_PARTITION_OFFSET(NVS_PARTITION);
     int rc = nvs_mount(&nvs);
     if (rc == 0) nvs_ready = 1;
+    k_mutex_unlock(&nvs_init_lock);
     return rc;
 }
 
@@ -77,11 +87,16 @@ static void persist_load(void)
     }
 }
 
-static void persist_save(int idx)
+static int persist_save(int idx)
 {
-    if (nvs_init_once() < 0) return;
-    nvs_write(&nvs, (uint16_t)(PEER_KEY_BASE + idx),
-              &peers[idx], sizeof(peers[idx]));
+    if (nvs_init_once() < 0) return -ENODEV;
+    ssize_t rc = nvs_write(&nvs, (uint16_t)(PEER_KEY_BASE + idx),
+                           &peers[idx], sizeof(peers[idx]));
+    if (rc < 0) {
+        LOG_ERR("nvs_write peer %d failed: %d", idx, (int)rc);
+        return (int)rc;
+    }
+    return 0;
 }
 
 #endif /* __ZEPHYR__ */
@@ -115,6 +130,5 @@ int product_config_set_peer(int index, const field_bridge_peer_t *peer)
     }
 
     peers[index] = *peer;
-    persist_save(index);
-    return 0;
+    return persist_save(index);
 }
