@@ -216,6 +216,7 @@ Last verified locally on 2026-06-19 with:
 
 ```bash
 make -C tests/linux test
+make -C tests/linux scale-tests
 ```
 
 Result:
@@ -228,6 +229,8 @@ Result:
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.
 - `stress_throughput.sh`: 2,330,804 messages received in 10 seconds
   (`233,080 msg/s`), above the 500-message minimum; all three brokers survived.
+- `test_chain_scale.sh`: 10-node chain passed; B10 received a B1 publish
+  through the connected bridge graph and all 10 brokers survived.
 
 ## Release And Tagging
 
