@@ -39,6 +39,39 @@ case "$BROKER_REPO" in
         BROKER_REPO_ABS=$(realpath -m "$ROOT_DIR/$BROKER_REPO") ;;
 esac
 
+latest_broker_tag() {
+    git ls-remote --tags "$BROKER_REPO_ABS" "refs/tags/minmqtt-v*" 2>/dev/null \
+        | sed 's#.*refs/tags/##; s/\^{}//' \
+        | sort -u \
+        | sort -V \
+        | tail -n 1
+}
+
+if [ "${1:-}" = "--latest" ]; then
+    latest=$(latest_broker_tag)
+    if [ -z "$latest" ]; then
+        printf 'error: no minmqtt-v* tags found in %s\n' "$BROKER_REPO_ABS" >&2
+        exit 1
+    fi
+    printf '%s\n' "$latest"
+    exit 0
+fi
+
+if [ "${1:-}" = "--check-latest" ]; then
+    latest=$(latest_broker_tag)
+    if [ -z "$latest" ]; then
+        printf 'error: no minmqtt-v* tags found in %s\n' "$BROKER_REPO_ABS" >&2
+        exit 1
+    fi
+    if [ "$latest" = "$BROKER_VERSION" ]; then
+        printf 'mqtt_min_broker up to date: %s\n' "$BROKER_VERSION"
+    else
+        printf 'new mqtt_min_broker version available: pinned %s, latest %s\n' \
+            "$BROKER_VERSION" "$latest"
+    fi
+    exit 0
+fi
+
 # ---------------------------------------------------------------------------
 # Validate the pinned tag exists in the source repo before doing any work
 # ---------------------------------------------------------------------------

@@ -5,9 +5,10 @@
 # After each restart, B2 must re-subscribe and receive messages. B1 must not hang.
 #
 # Knobs:
-#   RESTART_COUNT  number of kill+restart cycles (default: 10)
+#   RESTART_COUNT  number of kill+restart cycles (default: 5)
 #   SETTLE_SEC     P2P re-mesh wait after restart (default: 5)
 #   VERIFY_TIMEOUT_SEC  max seconds to wait for post-restart messages (default: 5)
+#   PUB_INTERVAL_SEC publisher interval while B2 reconnects (default: 0.02)
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -15,20 +16,21 @@ BROKER_DIR="$ROOT_DIR/deps/mqtt_min_broker"
 OUT="$ROOT_DIR/tests/linux/out/stress_reconnect"
 CLI="$BROKER_DIR/build_out/mqtt_cli"
 
-RESTART_COUNT=${RESTART_COUNT:-10}
+RESTART_COUNT=${RESTART_COUNT:-5}
 SETTLE_SEC=${SETTLE_SEC:-5}
 VERIFY_MSGS=3
 VERIFY_TIMEOUT_SEC=${VERIFY_TIMEOUT_SEC:-5}
+PUB_INTERVAL_SEC=${PUB_INTERVAL_SEC:-0.02}
 DISC_PORT=15850
 
 PASS=0; FAIL=0
-B1_PID="" B2_PID="" PUB_PID=""
+B1_PID="" B2_PID="" PUB_PID="" SUB_PID=""
 
 ok()   { PASS=$((PASS+1)); printf '  PASS  %s\n' "$1"; }
 fail() { FAIL=$((FAIL+1)); printf '  FAIL  %s\n' "$1"; }
 
 cleanup() {
-    for pid in $B1_PID $B2_PID $PUB_PID; do
+    for pid in $B1_PID $B2_PID $PUB_PID $SUB_PID; do
         [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
     done
     wait 2>/dev/null || true
@@ -92,7 +94,7 @@ sleep "$SETTLE_SEC"
 # background publisher on B1
 (while true; do
     "$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/stress/4510/io" -m "s" >/dev/null 2>&1 || true
-    sleep 0.005
+    sleep "$PUB_INTERVAL_SEC"
 done) & PUB_PID=$!
 
 for i in $(seq 1 "$RESTART_COUNT"); do

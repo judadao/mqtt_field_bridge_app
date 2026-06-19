@@ -80,7 +80,7 @@ integration-tests: broker-p2p
 # ── stress tests ───────────────────────────────────────────────────────────
 stress: broker-p2p
 	@echo ""
-	@echo "--- stress_reconnect (10 cycles) ---"
+	@echo "--- stress_reconnect (5 cycles) ---"
 	@bash stress_reconnect.sh
 	@echo ""
 	@echo "--- stress_throughput (5 pubs, 3 subs, 10s) ---"

@@ -38,6 +38,10 @@ echo "=== test_sync_deps.sh ==="
 PINNED_VERSION=$(sh "$SCRIPT" --version)
 check_output "T1: --version prints pinned tag" "$PINNED_VERSION" \
     sh "$SCRIPT" --version
+check_output "T1b: --latest prints current broker tag" "$PINNED_VERSION" \
+    sh "$SCRIPT" --latest
+check_output "T1c: --check-latest reports up to date" "up to date: $PINNED_VERSION" \
+    sh "$SCRIPT" --check-latest
 
 # ── T2: clean sync exits 0 ───────────────────────────────────────────────
 check "T2: sync exits 0" sh "$SCRIPT"

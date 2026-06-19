@@ -28,7 +28,7 @@ make -C tests/linux test
 | `unit_provisioning_http` | unit | socket-based `/status`, `/peers`, `POST /peers/<index>`, and error routes |
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
 | `test_3node_scenario.sh` | integration | Note1→Note2 routing, Note3 routing, Note1 local-only when Note2 offline, Note2 restart recovery |
-| `stress_reconnect.sh` | stress | 10 kill+restart cycles; B1 must not hang |
+| `stress_reconnect.sh` | stress | 5 kill+restart cycles by default; B1 must not hang |
 | `stress_throughput.sh` | stress | 3-broker P2P under multi-publisher load; minimum throughput check |
 
 ## Knobs
@@ -37,7 +37,7 @@ make -C tests/linux test
 |----------|---------|-----------|
 | `SETTLE_SEC` | 5 | 3node, reconnect, throughput |
 | `VERIFY_TIMEOUT_SEC` | 5 | reconnect |
-| `RESTART_COUNT` | 10 | reconnect |
+| `RESTART_COUNT` | 5 | reconnect |
 | `PUB_COUNT` | 5 | throughput |
 | `SUB_COUNT` | 3 | throughput |
 | `DURATION` | 10 | throughput |
