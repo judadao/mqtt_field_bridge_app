@@ -71,7 +71,7 @@ fi
 # ---------------------------------------------------------------------------
 # Fetch latest tags and check out the pinned version
 # ---------------------------------------------------------------------------
-git -C "$ROOT_DIR/$BROKER_PATH" fetch --tags
+git -C "$ROOT_DIR/$BROKER_PATH" fetch --tags --force
 git -C "$ROOT_DIR/$BROKER_PATH" checkout "$BROKER_VERSION"
 
 printf 'mqtt_min_broker synced to %s\n' "$BROKER_VERSION"
