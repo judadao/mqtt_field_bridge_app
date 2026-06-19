@@ -5,7 +5,7 @@ This TODO is for the product application repository. The broker dependency is
 
 ## Repo And Versioning
 
-- [ ] Keep this repo as the product app repo, separate from `mqtt_min_broker`.
+- [x] Keep this repo as the product app repo, separate from `mqtt_min_broker`.
 - [x] Use `deps.json` to pin the broker module tag.
 - [ ] Use product tags with the `bridge-vX.Y.Z` format.
 - [ ] Use broker dependency tags with the `minmqtt-vX.Y.Z` format when the
@@ -19,12 +19,12 @@ This TODO is for the product application repository. The broker dependency is
 > **minmqtt-v0.1.0 is the current pinned broker tag** (tagged 2026-06-19).
 > `deps.json` is already set. Run `scripts/sync_deps.sh` to check out the pinned version.
 
-- [ ] Replace the simple `sed` parser in `scripts/sync_deps.sh` with a more
+- [x] Replace the simple `sed` parser in `scripts/sync_deps.sh` with a more
       robust JSON parser if `jq` is available in the build environment.
-- [ ] Validate that the pinned broker tag exists before checkout.
-- [ ] Fail the build if `deps/mqtt_min_broker` is dirty.
-- [ ] Add a command to print the currently pinned broker version.
-- [ ] Add CI or a local check that `deps.json` and `deps/mqtt_min_broker` match.
+- [x] Validate that the pinned broker tag exists before checkout.
+- [x] Fail the build if `deps/mqtt_min_broker` is dirty.
+- [x] Add a command to print the currently pinned broker version.
+- [x] Add a local check that `deps.json` and `deps/mqtt_min_broker` match.
 
 ## Product App Bootstrap
 
@@ -42,17 +42,17 @@ This TODO is for the product application repository. The broker dependency is
 
 - [ ] Define persistent config schema for device role/name, WiFi, bridge peers,
       site ID, and 4510 topic prefix.
-- [ ] Store config in flash/NVS or Zephyr settings.
+- [x] Store bridge peer config in flash/NVS or Zephyr settings.
 - [ ] Add defaults for Note 1, Note 2, and Note 3.
 - [ ] Add config validation.
 - [ ] Add config reset path for field recovery.
 
 ## Bridge Peer Control
 
-- [ ] Define peer fields: peer name, host/IP, MQTT port, P2P port, enabled flag.
-- [ ] Add API to list peers.
-- [ ] Add API to add/update peers.
-- [ ] Add API to disable/delete peers.
+- [x] Define peer fields: peer name, host/IP, MQTT port, P2P port, enabled flag.
+- [x] Add API to list peers.
+- [x] Add API to add/update peers.
+- [x] Add API to disable/delete peers.
 - [ ] Apply peer changes without reboot when possible.
 - [ ] Add static seed support in `mqtt_min_broker` if current P2P discovery is
       not enough for the field flow.
@@ -61,12 +61,12 @@ This TODO is for the product application repository. The broker dependency is
 
 ## Local HTML / Provisioning
 
-- [ ] Implement HTTP server for the product app.
+- [x] Implement HTTP server for the product app.
 - [ ] Add status endpoint with WiFi state, IP address, broker state, P2P role,
       connected peers, and remote subscription count.
 - [ ] Add WiFi setup endpoint.
 - [ ] Add broker start/stop/status endpoints.
-- [ ] Add peer configuration endpoints.
+- [x] Add peer configuration endpoints.
 - [ ] Add publish test endpoint.
 - [ ] Add simple HTML UI for status, WiFi setup, peer setup, broker/P2P state,
       and 4510 topic test.
@@ -86,7 +86,7 @@ This TODO is for the product application repository. The broker dependency is
 ## Field Validation
 
 - [ ] Create 3-node manual test checklist.
-- [ ] Create scripted test where possible.
+- [x] Create scripted test where possible.
 - [ ] Validate Note 2 restart recovery.
 - [ ] Validate Note 3 restart recovery.
 - [ ] Validate Note 1 continues locally when Note 2 or Note 3 is offline.

@@ -67,12 +67,12 @@ check "T6: sync succeeds after dirty cleanup" sh "$SCRIPT"
 # Temporarily patch deps.json to reference a nonexistent tag.
 DEPS_JSON="$ROOT_DIR/deps.json"
 ORIG=$(cat "$DEPS_JSON")
-printf '%s' "$ORIG" | sed 's/minmqtt-v0.1.0/minmqtt-v99.99.99/' > "$DEPS_JSON.tmp"
+printf '%s\n' "$ORIG" | sed 's/minmqtt-v0.1.0/minmqtt-v99.99.99/' > "$DEPS_JSON.tmp"
 mv "$DEPS_JSON.tmp" "$DEPS_JSON"
 check_output "T7: missing tag prints helpful error" "not found" \
     sh "$SCRIPT"
 check_fail "T7: missing tag exits non-zero" sh "$SCRIPT"
-printf '%s' "$ORIG" > "$DEPS_JSON"   # restore
+printf '%s\n' "$ORIG" > "$DEPS_JSON"   # restore
 
 # ── summary ──────────────────────────────────────────────────────────────
 echo ""

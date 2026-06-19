@@ -42,6 +42,28 @@ The product app owns WiFi provisioning, local HTML UI, bridge peer
 configuration, and the 4510 field workflow. The broker implementation remains
 inside `deps/mqtt_min_broker`.
 
+## Current Status
+
+Implemented in this product repo:
+
+- Pinned broker dependency sync through `deps.json` and `scripts/sync_deps.sh`.
+- Peer config storage for three bridge peers, with Linux file persistence and
+  Zephyr NVS persistence path.
+- Bridge peer apply logic that validates enabled peers before handing them to
+  the broker/P2P layer.
+- Product-owned provisioning HTTP server with `/status`, `/peers`, and
+  `POST /peers/<index>` endpoints.
+- Linux unit, integration, reconnect stress, and throughput stress tests under
+  `tests/linux/`.
+
+Still open:
+
+- Product network startup and board overlays for target ESP32 hardware.
+- WiFi setup, broker control, publish-test endpoints, and the HTML UI.
+- Full device/site config schema for role/name, WiFi, `site_id`, and 4510 topic
+  prefix.
+- Hardware validation logs and manual field checklist for Note 1/2/3.
+
 ## Dependency Rule
 
 Update `deps.json` only after `mqtt_min_broker` has a new released tag.

@@ -31,7 +31,8 @@ After sourcing `env.sh`, `west` and the ESP32 cross-compiler are in PATH and `./
 
 ## Linux Build (dev/test — no hardware required)
 
-The broker dep builds on Linux. Product logic (product_config, bridge_control) can be tested without Zephyr using `tests/linux/`:
+The broker dep builds on Linux. Product logic (product_config, bridge_control,
+provisioning_http) can be tested without Zephyr using `tests/linux/`:
 
 ```bash
 make -C tests/linux all   # build Linux test binaries
@@ -45,17 +46,17 @@ See `tests/linux/README.md` for per-test instructions and stress test knobs.
 This is a **Zephyr RTOS application** targeting ESP32. It is the product layer on top of `mqtt_min_broker`, which is consumed as a pinned Zephyr extra module from `deps/mqtt_min_broker`.
 
 **Startup order** (`main.c`):
-1. `product_config_init()` — initializes in-RAM peer config table (NVS not yet wired)
-2. `bridge_control_init()` — stub; will apply peer list to broker P2P layer
-3. `provisioning_http_start()` — stub; will serve the local HTML/WiFi setup UI
+1. `product_config_init()` — initializes peer config and loads Linux file or Zephyr NVS persistence
+2. `bridge_control_init()` — applies enabled peers through `bridge_control_apply_peers()`
+3. `provisioning_http_start()` — starts the product-owned HTTP server for status and peer config
 4. `client_pool_init()` / `broker_init()` / `p2p_start()` / `broker_run()` — start the embedded broker from the dep
 
 `CONFIG_MQTT_STANDALONE=n` in `prj.conf` disables the broker's own `main()` so the product app owns the entry point.
 
 **Module boundaries:**
-- `product_config` — owns the peer table (`field_bridge_peer_t[3]`); the only place to read/write peer config
-- `bridge_control` — translates peer config into broker/P2P calls; call `bridge_control_apply_peers()` after any peer config change
-- `provisioning_http` — HTTP server for WiFi setup, status, and peer configuration; product-owned, never moved into the broker dep
+- `product_config` — owns the peer table (`field_bridge_peer_t[3]`) and persistence; the only place to read/write peer config
+- `bridge_control` — validates enabled peer config and is the product integration point for broker/P2P peer application
+- `provisioning_http` — HTTP server for status and peer configuration today; WiFi setup, broker control, publish test, and HTML UI remain product-owned TODOs
 - `deps/mqtt_min_broker` — broker implementation; treat as read-only from this repo
 
 ## Dependency Rule

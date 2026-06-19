@@ -9,7 +9,7 @@
 #   PUB_COUNT            publishers on B1 (default: 5)
 #   SUB_COUNT            subscribers on B2 and B3 (default: 3)
 #   DURATION             test duration in seconds (default: 10)
-#   SETTLE_SEC           P2P formation wait (default: 3)
+#   SETTLE_SEC           P2P formation wait (default: 5)
 #   MIN_THROUGHPUT_MSG   minimum total msgs expected (default: 500)
 set -eu
 
@@ -37,11 +37,27 @@ cleanup() {
         [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
     done
     wait 2>/dev/null || true
-    for f in /tmp/tp_sub_*.txt; do rm -f "$f"; done
 }
 trap cleanup EXIT INT TERM
 
 mkdir -p "$OUT"
+
+stop_workload() {
+    for pid in $ALL_PIDS; do
+        kill "$pid" 2>/dev/null || true
+    done
+
+    sleep 0.5
+
+    for pid in $ALL_PIDS; do
+        kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+    done
+
+    for pid in $ALL_PIDS; do
+        wait "$pid" 2>/dev/null || true
+    done
+}
+
 _build() {
     name=$1; mqtt_port=$2; p2p_port=$3
     out="$OUT/broker_${name}"
@@ -91,12 +107,12 @@ sleep "$SETTLE_SEC"
 SUB_FILES=""
 j=0
 while [ $j -lt "$SUB_COUNT" ]; do
-    f="/tmp/tp_sub_b2_${j}.txt"; SUB_FILES="$SUB_FILES $f"
+    f="$OUT/sub_b2_${j}.out"; : >"$f"; SUB_FILES="$SUB_FILES $f"
     "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/tp/4510/#" \
-        -c 99999 >"$f" 2>/dev/null & ALL_PIDS="$ALL_PIDS $!"
-    f="/tmp/tp_sub_b3_${j}.txt"; SUB_FILES="$SUB_FILES $f"
+        >"$f" 2>"$OUT/sub_b2_${j}.err" & ALL_PIDS="$ALL_PIDS $!"
+    f="$OUT/sub_b3_${j}.out"; : >"$f"; SUB_FILES="$SUB_FILES $f"
     "$CLI" sub -h 127.0.0.1 -p "$B3_MQTT" -t "site/tp/4510/#" \
-        -c 99999 >"$f" 2>/dev/null & ALL_PIDS="$ALL_PIDS $!"
+        >"$f" 2>"$OUT/sub_b3_${j}.err" & ALL_PIDS="$ALL_PIDS $!"
     j=$((j+1))
 done
 sleep 0.3
@@ -115,9 +131,8 @@ done
 printf '  Publishing for %ds...\n' "$DURATION"
 sleep "$DURATION"
 
-# stop publishers then subs
-for pid in $ALL_PIDS; do kill "$pid" 2>/dev/null || true; done
-wait 2>/dev/null || true
+# stop publishers and subscribers, but keep brokers alive for survival checks
+stop_workload
 
 total=0
 for f in $SUB_FILES; do

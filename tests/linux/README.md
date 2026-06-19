@@ -23,7 +23,9 @@ make -C tests/linux test
 
 | Test | Type | What it covers |
 |------|------|----------------|
-| `unit_product_config` | unit | peer CRUD, boundary, null-safety |
+| `unit_product_config` | unit | peer CRUD, boundary, null-safety, Linux persistence |
+| `unit_bridge_control` | unit | enabled peer filtering and invalid peer skipping |
+| `unit_provisioning_http` | unit | socket-based `/status`, `/peers`, `POST /peers/<index>`, and error routes |
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
 | `test_3node_scenario.sh` | integration | Note1→Note2 routing, Note3 routing, Note1 local-only when Note2 offline, Note2 restart recovery |
 | `stress_reconnect.sh` | stress | 10 kill+restart cycles; B1 must not hang |
@@ -33,8 +35,8 @@ make -C tests/linux test
 
 | Variable | Default | Applies to |
 |----------|---------|-----------|
-| `SETTLE_SEC` | 3 | 3node, reconnect, throughput |
-| `MSG_COUNT` | 5 | 3node |
+| `SETTLE_SEC` | 5 | 3node, reconnect, throughput |
+| `VERIFY_TIMEOUT_SEC` | 5 | reconnect |
 | `RESTART_COUNT` | 10 | reconnect |
 | `PUB_COUNT` | 5 | throughput |
 | `SUB_COUNT` | 3 | throughput |

@@ -5,7 +5,7 @@
 # P2P mesh on localhost, and verifies message routing.
 #
 # Knobs:
-#   SETTLE_SEC   P2P mesh formation wait (default: 3)
+#   SETTLE_SEC   P2P mesh formation wait (default: 5)
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)

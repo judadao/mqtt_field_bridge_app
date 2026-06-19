@@ -6,7 +6,8 @@
 #
 # Knobs:
 #   RESTART_COUNT  number of kill+restart cycles (default: 10)
-#   SETTLE_SEC     P2P re-mesh wait after restart (default: 3)
+#   SETTLE_SEC     P2P re-mesh wait after restart (default: 5)
+#   VERIFY_TIMEOUT_SEC  max seconds to wait for post-restart messages (default: 5)
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -17,6 +18,7 @@ CLI="$BROKER_DIR/build_out/mqtt_cli"
 RESTART_COUNT=${RESTART_COUNT:-10}
 SETTLE_SEC=${SETTLE_SEC:-5}
 VERIFY_MSGS=3
+VERIFY_TIMEOUT_SEC=${VERIFY_TIMEOUT_SEC:-5}
 DISC_PORT=15850
 
 PASS=0; FAIL=0
@@ -34,6 +36,22 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 mkdir -p "$OUT"
+
+wait_for_lines() {
+    file=$1
+    want=$2
+    timeout=$3
+    start=$(date +%s)
+
+    while :; do
+        n=$(wc -l <"$file" 2>/dev/null || echo 0)
+        [ "$n" -ge "$want" ] && return 0
+        now=$(date +%s)
+        [ $((now - start)) -ge "$timeout" ] && return 1
+        sleep 0.1
+    done
+}
+
 _build() {
     name=$1; mqtt_port=$2; p2p_port=$3
     out="$OUT/broker_${name}"
@@ -87,11 +105,14 @@ for i in $(seq 1 "$RESTART_COUNT"); do
         "$OUT/broker_b2" >/tmp/sr_b2_${i}.log 2>&1 & B2_PID=$!
     sleep "$SETTLE_SEC"
 
-    RECV=$(mktemp /tmp/sr_recv_XXXXXX)
+    RECV="$OUT/cycle_${i}_recv.out"
+    : >"$RECV"
     "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/stress/4510/#" \
-        -c "$VERIFY_MSGS" >"$RECV" 2>/dev/null & SUB_PID=$!
-    sleep 1; kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true
-    n=$(wc -l <"$RECV" || echo 0); rm -f "$RECV"
+        >"$RECV" 2>"$OUT/cycle_${i}_sub.err" & SUB_PID=$!
+    wait_for_lines "$RECV" "$VERIFY_MSGS" "$VERIFY_TIMEOUT_SEC" || true
+    kill "$SUB_PID" 2>/dev/null || true
+    wait "$SUB_PID" 2>/dev/null || true
+    n=$(wc -l <"$RECV" || echo 0)
     [ "$n" -ge "$VERIFY_MSGS" ] \
         && ok "cycle $i: B2 received $n msgs after restart" \
         || fail "cycle $i: B2 only $n/$VERIFY_MSGS msgs"
