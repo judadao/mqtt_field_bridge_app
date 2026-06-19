@@ -399,7 +399,7 @@ make -C tests/linux scale-ring-tests
 
 Result:
 
-- `unit_product_config`: 216/216 checks passed.
+- `unit_product_config`: 227/227 checks passed.
 - `unit_product_runtime`: 54/54 checks passed.
 - `unit_product_topics`: 20/20 checks passed.
 - `unit_bridge_control`: 12/12 tests passed.
@@ -423,7 +423,7 @@ Product releases use `bridge-vX.Y.Z` tags. Broker dependency releases use
 Current product release tag in this branch:
 
 ```text
-bridge-v0.1.4
+bridge-v0.1.6
 ```
 
 ## Dependency Rule
