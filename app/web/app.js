@@ -122,8 +122,8 @@ function collect() {
   return {
     device_name: $('device_name').value,
     admin_password: $('admin_password').value,
-    wifi_ssid: $('wifi_ssid').value,
-    wifi_password: $('wifi_password').value,
+    wifi_ssid: cfg.wifi_ssid || '',
+    wifi_password: cfg.wifi_password || '',
     ap_ssid: $('ap_ssid').value,
     ap_password: $('ap_password').value,
     device_ip: $('device_ip').value,
@@ -312,7 +312,7 @@ async function load() {
   ]);
   put(c);
   peers = p.map(norm);
-  $('wifi-state').textContent = s.wifi_state || '-';
+  $('wifi-state').textContent = c.ap_ssid ? `${c.ap_ssid} / ${c.device_ip || '-'}` : 'AP active';
   $('broker-state').textContent = s.broker_state || '-';
   $('p2p-state').textContent = `${s.p2p_role || '-'} / peers ${s.connected_peers || 0}`;
   st.textContent = 'Online';

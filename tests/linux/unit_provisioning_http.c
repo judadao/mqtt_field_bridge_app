@@ -142,6 +142,7 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "class=\"tabs\"") != NULL);
     CHECK(strstr(resp, "System Setting") != NULL);
     CHECK(strstr(resp, "Network Setting") != NULL);
+    CHECK(strstr(resp, "Provisioning AP") != NULL);
     CHECK(strstr(resp, "Broker Setting") != NULL);
     CHECK(strstr(resp, "Bridge Peers") != NULL);
     CHECK(strstr(resp, "Network Mode") != NULL);
@@ -184,7 +185,8 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "/broker/control") != NULL);
     CHECK(strstr(resp, "192.168.4.1") == NULL);
     CHECK(strstr(resp, "id=\"device_name\"") != NULL);
-    CHECK(strstr(resp, "id=\"wifi_ssid\"") != NULL);
+    CHECK(strstr(resp, "id=\"wifi_ssid\"") == NULL);
+    CHECK(strstr(resp, "id=\"wifi_password\"") == NULL);
     CHECK(strstr(resp, "id=\"cfg_mqtt_port\"") != NULL);
     CHECK(strstr(resp, "id=\"broker_enabled\"") != NULL);
     CHECK(strstr(resp, "id=\"bridge_enabled\"") == NULL);
