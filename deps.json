@@ -1,0 +1,15 @@
+{
+  "deps": {
+    "mqtt_min_broker": {
+      "repo": "../mqtt_min_broker",
+      "version": "minmqtt-v0.1.0",
+      "path": "deps/mqtt_min_broker"
+    }
+  },
+  "zephyr": {
+    "min_version": "v3.5.0"
+  },
+  "build": {
+    "board": "esp32"
+  }
+}

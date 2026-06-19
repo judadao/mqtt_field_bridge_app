@@ -1,0 +1,6 @@
+build/
+build_out/
+deps/mqtt_min_broker/
+*.log
+*.tmp
+prj.local.conf
