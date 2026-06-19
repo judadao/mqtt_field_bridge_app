@@ -59,6 +59,9 @@ Completed product-owned provisioning/runtime surface:
 - Network settings now include DNS in persistent config, `/config` JSON, and
   the provisioning UI. `tests/linux/test_web_network_config.sh` reads ignored
   `tests/linux/local_web_network.env` for site-specific static-IP web tests.
+- Provisioning UI now keeps all operational controls behind login, shows a
+  compact overview and quick actions first, and collapses Network, Broker,
+  Peers, System, Topic Test, and Raw Status into field-focused sections.
 
 Remaining meaningful blockers:
 

@@ -428,7 +428,7 @@ Product releases use `bridge-vX.Y.Z` tags. Broker dependency releases use
 Current product release tag in this branch:
 
 ```text
-bridge-v0.1.7
+bridge-v0.1.8
 ```
 
 ## Dependency Rule

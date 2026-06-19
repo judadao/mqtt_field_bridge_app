@@ -18,9 +18,7 @@ export WEB_TEST_DHCP_ENABLED="${WEB_TEST_DHCP_ENABLED:-0}"
 
 mkdir -p "$DIR/out"
 
-if [ ! -x "$DIR/out/run_web_config_server" ]; then
-    make -C "$DIR" out/run_web_config_server >/dev/null
-fi
+make -C "$DIR" out/run_web_config_server >/dev/null
 
 cd "$DIR"
 exec "$DIR/out/run_web_config_server"
