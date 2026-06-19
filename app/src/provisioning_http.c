@@ -313,11 +313,53 @@ void provisioning_http_start(void)
     LOG_INF("provisioning HTTP listening on port %d", PROVISIONING_HTTP_PORT);
 }
 
-#else  /* __ZEPHYR__ — k_thread wired in Task 5 */
+#else  /* __ZEPHYR__ */
+
+#include <zephyr/kernel.h>
+
+#define PROV_HTTP_STACK_SIZE 4096
+K_THREAD_STACK_DEFINE(prov_http_stack, PROV_HTTP_STACK_SIZE);
+static struct k_thread prov_http_thread;
+
+static void server_thread_entry(void *p1, void *p2, void *p3)
+{
+    ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
+    server_loop();
+}
 
 void provisioning_http_start(void)
 {
-    LOG_INF("provisioning HTTP: Zephyr not yet wired (Task 5)");
+    struct sockaddr_in addr;
+    int opt = 1;
+
+    g_server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (g_server_fd < 0) {
+        LOG_ERR("provisioning HTTP socket failed: %d", errno);
+        return;
+    }
+    setsockopt(g_server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family      = AF_INET;
+    addr.sin_port        = htons(PROVISIONING_HTTP_PORT);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(g_server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ||
+        listen(g_server_fd, 4) < 0) {
+        LOG_ERR("provisioning HTTP bind/listen failed: %d", errno);
+        close(g_server_fd);
+        g_server_fd = -1;
+        return;
+    }
+
+    k_thread_create(&prov_http_thread,
+                    prov_http_stack,
+                    K_THREAD_STACK_SIZEOF(prov_http_stack),
+                    server_thread_entry,
+                    NULL, NULL, NULL,
+                    7, 0, K_NO_WAIT);
+    k_thread_name_set(&prov_http_thread, "prov_http");
+    LOG_INF("provisioning HTTP listening on port %d", PROVISIONING_HTTP_PORT);
 }
 
 #endif /* __ZEPHYR__ */
