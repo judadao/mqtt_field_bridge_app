@@ -201,6 +201,17 @@ The same server also serves a local settings page:
 http://<device-ip>:8080/
 ```
 
+The provisioning page source lives under `app/web/`:
+
+- `index.html` — lightweight HTML template.
+- `styles.css` — embedded page styles.
+- `app.js` — browser behavior.
+
+`scripts/build_provisioning_web.js` inlines those files into
+`app/src/generated/provisioning_index.h`, which is included by
+`provisioning_http.c`. The Linux Makefile and Zephyr CMake target regenerate the
+header when the web source changes.
+
 The page starts with a login form. After login, it loads the same JSON API and
 shows a compact overview beside the editable network summary, followed by
 feature tabs:

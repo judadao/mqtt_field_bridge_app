@@ -75,6 +75,22 @@ static void test_apply_one_enabled(void)
     CHECK(last_seed_port == 4884);
 }
 
+static void test_apply_global_bridge_disabled(void)
+{
+    field_bridge_peer_t p = {
+        .name = "note2", .host = "192.168.1.2",
+        .mqtt_port = 1883, .p2p_port = 4884, .enabled = 1,
+    };
+    field_bridge_settings_t settings;
+
+    product_config_set_peer(0, &p);
+    CHECK(product_config_get_settings(&settings) == 0);
+    settings.broker.bridge_enabled = 0;
+    CHECK(product_config_set_settings(&settings) == 0);
+    CHECK(bridge_control_apply_peers() == 0);
+    CHECK(seed_add_count == 0);
+}
+
 static void test_apply_hostname_not_static_seed(void)
 {
     field_bridge_peer_t p = {
@@ -147,9 +163,11 @@ int main(void)
 #ifndef __ZEPHYR__
     /* Isolate tests from any leftover persist file. */
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
+    setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
 #endif
     RUN(test_apply_all_disabled);
     RUN(test_apply_one_enabled);
+    RUN(test_apply_global_bridge_disabled);
     RUN(test_apply_hostname_not_static_seed);
     RUN(test_apply_empty_host_skipped);
     RUN(test_apply_zero_mqtt_port_skipped);

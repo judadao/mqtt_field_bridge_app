@@ -39,6 +39,8 @@ make -C tests/linux test
 | `unit_bridge_control` | unit | enabled peer filtering and invalid peer skipping |
 | `unit_provisioning_http` | unit | socket-based local HTML page, `/status`, `/peers`, `POST /peers/<index>`, and error routes |
 | `test_web_network_config.sh` | shell/unit | provisioning web `/config` save/read using ignored local static IP, gateway, netmask, and DNS values |
+| `ui_browser_test.js` | browser | headless Chrome UI flow for login, add peer, peer-index save/delete routing, and event-log fetch failures |
+| `test_bridge_wifi_join_sim.sh` | shell/sim | three mock provisioning nodes; bridge WiFi scan selection writes and deletes the intended peer index |
 | `run_web_config_server.sh` | manual | starts the Linux provisioning web UI at `http://127.0.0.1:8080/` using ignored local static network values |
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
 | `test_3node_scenario.sh` | integration | Node1→Node2 routing, Node3 routing, Node1 local-only when Node2 offline, Node2 restart recovery |

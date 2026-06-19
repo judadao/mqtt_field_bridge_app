@@ -342,22 +342,28 @@ static void test_apply_defaults_rejects_unknown_profile(void)
 #include <stdlib.h>
 #define PERSIST_FILE "/tmp/mqtt_bridge_test_peers.bin"
 #define SETTINGS_PERSIST_FILE "/tmp/mqtt_bridge_test_settings.bin"
+#define BRIDGE_WIFI_PERSIST_FILE "/tmp/mqtt_bridge_test_bridge_wifi.bin"
 
 #define RUN_PERSIST(fn) do {                                                \
     fail_before = tests_failed;                                             \
     printf("  %-50s ", #fn);                                                \
     unsetenv("BRIDGE_PEERS_FILE");                                          \
     unsetenv("BRIDGE_SETTINGS_FILE");                                       \
+    unsetenv("BRIDGE_WIFI_FILE");                                           \
     remove(PERSIST_FILE);                                                   \
     remove(SETTINGS_PERSIST_FILE);                                          \
+    remove(BRIDGE_WIFI_PERSIST_FILE);                                       \
     setenv("BRIDGE_PEERS_FILE", PERSIST_FILE, 1);                          \
     setenv("BRIDGE_SETTINGS_FILE", SETTINGS_PERSIST_FILE, 1);              \
+    setenv("BRIDGE_WIFI_FILE", BRIDGE_WIFI_PERSIST_FILE, 1);               \
     product_config_init();                                                  \
     fn();                                                                   \
     remove(PERSIST_FILE);                                                   \
     remove(SETTINGS_PERSIST_FILE);                                          \
+    remove(BRIDGE_WIFI_PERSIST_FILE);                                       \
     unsetenv("BRIDGE_PEERS_FILE");                                          \
     unsetenv("BRIDGE_SETTINGS_FILE");                                       \
+    unsetenv("BRIDGE_WIFI_FILE");                                           \
     printf("%s\n", (tests_failed == fail_before) ? "ok" : "FAIL");         \
 } while (0)
 
@@ -441,6 +447,38 @@ static void test_settings_persist_survives_reinit(void)
     CHECK(out.broker.mesh_enabled == 0);
     CHECK(product_config_check_admin_password("persist-pass") == 1);
 }
+
+static void test_bridge_wifi_persist_survives_reinit(void)
+{
+    field_bridge_wifi_state_t in;
+    memset(&in, 0, sizeof(in));
+    strcpy(in.current.ssid, "MQTT-BRIDGE-node1");
+    strcpy(in.current.password, "12345678");
+    strcpy(in.current.peer_name, "node1");
+    strcpy(in.current.host, "127.0.0.1");
+    in.current.mqtt_port = 11883;
+    in.current.p2p_port = 14884;
+    strcpy(in.local_sta_ip, "127.0.0.2");
+    strcpy(in.gateway_ip, "127.0.0.1");
+    in.enabled = 1;
+    in.connected = 1;
+    strcpy(in.last_event, "joined peer index 0");
+    CHECK(product_config_set_bridge_wifi(&in) == 0);
+    CHECK(product_config_add_recent_bridge_wifi(&in.current) == 0);
+
+    product_config_init();
+
+    field_bridge_wifi_state_t out;
+    CHECK(product_config_get_bridge_wifi(&out) == 0);
+    CHECK(out.enabled == 1);
+    CHECK(out.connected == 1);
+    CHECK(strcmp(out.current.ssid, "MQTT-BRIDGE-node1") == 0);
+    CHECK(strcmp(out.current.host, "127.0.0.1") == 0);
+    CHECK(strcmp(out.local_sta_ip, "127.0.0.2") == 0);
+    CHECK(strcmp(out.gateway_ip, "127.0.0.1") == 0);
+    CHECK(out.current.p2p_port == 14884);
+    CHECK(strcmp(out.recent[0].ssid, "MQTT-BRIDGE-node1") == 0);
+}
 #endif /* !__ZEPHYR__ */
 
 /* ── main ───────────────────────────────────────────────────────────────── */
@@ -451,6 +489,7 @@ int main(void)
     /* Isolate existing tests from any leftover persist file. */
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
     setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
+    setenv("BRIDGE_WIFI_FILE", "/dev/null", 1);
 #endif
     printf("=== unit_product_config ===\n");
 
@@ -479,6 +518,7 @@ int main(void)
     RUN_PERSIST(test_persist_survives_reinit);
     RUN_PERSIST(test_persist_all_slots_survive_reinit);
     RUN_PERSIST(test_settings_persist_survives_reinit);
+    RUN_PERSIST(test_bridge_wifi_persist_survives_reinit);
 #endif
 
     printf("\n%d/%d tests passed", tests_passed, tests_run);

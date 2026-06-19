@@ -11,6 +11,7 @@
 #include "product_runtime.h"
 #include "product_topics.h"
 #include "bridge_control.h"
+#include "generated/provisioning_index.h"
 
 LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
 
@@ -141,6 +142,52 @@ static int json_decode_publish_test(const char *json, field_bridge_publish_test_
     return 0;
 }
 
+typedef struct {
+    field_bridge_wifi_entry_t entry;
+    int peer_index;
+} bridge_wifi_join_req_t;
+
+static int json_decode_bridge_wifi_join(const char *json,
+                                        bridge_wifi_join_req_t *out)
+{
+    uint16_t peer_index;
+
+    memset(out, 0, sizeof(*out));
+    if (json_str_field(json, "ssid", out->entry.ssid,
+                       sizeof(out->entry.ssid)) != 0) return -1;
+    json_str_field(json, "password", out->entry.password,
+                   sizeof(out->entry.password));
+    json_str_field(json, "peer_name", out->entry.peer_name,
+                   sizeof(out->entry.peer_name));
+    if (json_str_field(json, "host", out->entry.host,
+                       sizeof(out->entry.host)) != 0) return -1;
+    if (json_uint16_field(json, "mqtt_port",
+                          &out->entry.mqtt_port) != 0) return -1;
+    if (json_uint16_field(json, "p2p_port",
+                          &out->entry.p2p_port) != 0) return -1;
+    if (json_uint16_field(json, "peer_index", &peer_index) != 0) return -1;
+    if (peer_index >= FIELD_BRIDGE_PEER_MAX) return -1;
+    out->peer_index = (int)peer_index;
+    return 0;
+}
+
+static void resolve_bridge_wifi_mock_ips(const field_bridge_wifi_entry_t *entry,
+                                         char *local_sta_ip, size_t local_cap,
+                                         char *gateway_ip, size_t gateway_cap)
+{
+#ifndef __ZEPHYR__
+    snprintf(local_sta_ip, local_cap, "%s", "127.0.0.10");
+    snprintf(gateway_ip, gateway_cap, "%s", entry->host);
+#else
+    /*
+     * ESP32 implementation should fill these from the STA netif after DHCP:
+     * local_sta_ip = this node's STA address, gateway_ip = selected AP address.
+     */
+    snprintf(local_sta_ip, local_cap, "%s", "");
+    snprintf(gateway_ip, gateway_cap, "%s", entry->host);
+#endif
+}
+
 /* ── HTTP helpers ────────────────────────────────────────────────────────── */
 
 static int parse_request_line(const char *buf,
@@ -225,6 +272,7 @@ static void send_response_type(int fd, int status, const char *content_type,
     const char *reason = (status == 200) ? "OK" :
                          (status == 400) ? "Bad Request" :
                          (status == 403) ? "Forbidden" :
+                         (status == 409) ? "Conflict" :
                          (status == 404) ? "Not Found" : "Internal Error";
     int body_len = body ? (int)strlen(body) : 0;
     char hdr[256];
@@ -277,57 +325,6 @@ static void issue_session_token(const char *password)
     session_seq++;
     snprintf(session_token, sizeof(session_token), "%08x%08x", session_seq, mix);
 }
-
-static const char index_html[] =
-"<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-"<title>Field Bridge Settings</title>"
-"<style>"
-":root{color-scheme:light dark;--bg:#f5f7f4;--fg:#17201d;--muted:#64736d;--line:#d8ded9;--panel:#fffdfa;--panel2:#f9fbf8;--accent:#0f766e;--accent2:#b45309;--ok:#15803d;--bad:#b42318;--warn:#b45309;--tab:#edf4f1;--focus:#14b8a6}"
-"@media(prefers-color-scheme:dark){:root{--bg:#101512;--fg:#edf4ef;--muted:#9caaa3;--line:#33413b;--panel:#171d1a;--panel2:#1d2521;--accent:#2dd4bf;--accent2:#f59e0b;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--tab:#202b26;--focus:#5eead4}}"
-"*{box-sizing:border-box}html{min-height:100%}body{margin:0;min-height:100%;background:linear-gradient(180deg,var(--panel2),var(--bg) 280px);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}"
-"header{background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(0,0,0,.02)}"
-".bar{max-width:1040px;margin:0 auto;padding:18px 20px}main{max-width:1040px;margin:0 auto;padding:18px 20px 28px}.hide{display:none!important}h1{margin:0;font-size:22px;font-weight:700}h2{font-size:14px;letter-spacing:0;text-transform:uppercase;color:var(--muted);margin:0 0 12px}.muted{color:var(--muted)}"
-".bar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.stack{display:grid;gap:12px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(16,24,20,.04)}"
-".panel>h2:first-child{display:flex;align-items:center;gap:8px}.panel>h2:first-child:before{content:\"\";width:7px;height:7px;border-radius:99px;background:var(--accent)}"
-".hero{display:grid;grid-template-columns:1fr 1fr;gap:12px}.kv{width:100%;border-collapse:collapse}.kv th,.kv td{text-align:left;border-bottom:1px solid var(--line);padding:8px 6px}.kv th{width:36%;color:var(--muted);font-size:12px;font-weight:700}.kv tr:last-child th,.kv tr:last-child td{border-bottom:0}.value{font-weight:700}.tabs{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap;background:var(--tab);border:1px solid var(--line);border-radius:8px;padding:4px}.tab{background:transparent;color:var(--muted);border-color:transparent}.tab.active{background:var(--panel);color:var(--fg);border-color:var(--line);box-shadow:0 1px 2px rgba(16,24,20,.05)}.feature-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 12px;padding:10px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}.empty{padding:14px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);background:var(--panel2)}"
-".peer{display:grid;grid-template-columns:1fr 1.3fr .8fr .8fr auto;gap:10px;align-items:end;border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.peer:nth-child(odd){background:linear-gradient(90deg,transparent,var(--panel2));border-radius:8px}"
-"label{display:grid;gap:5px;font-size:12px;color:var(--muted);font-weight:600}input{width:100%;min-height:36px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--fg);outline:none}input:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(20,184,166,.18)}input[type=checkbox]{width:22px;height:22px;min-height:22px;accent-color:var(--accent)}"
-".actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}button{border:1px solid var(--accent);background:var(--accent);color:white;border-radius:6px;padding:9px 12px;cursor:pointer;font-weight:700;min-height:36px}button:hover{filter:brightness(1.04)}button.secondary{background:transparent;color:var(--accent)}button:disabled{opacity:.55;cursor:wait}"
-".toolbar{display:flex;gap:8px;flex-wrap:wrap}"
-".pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 10px;background:var(--panel2);font-weight:700}.pill:before{content:\"\";width:7px;height:7px;border-radius:99px;background:var(--muted)}.pill.ok:before,.ok:before{background:var(--ok)}.pill.bad:before,.bad:before{background:var(--bad)}.ok{color:var(--ok)}.bad{color:var(--bad)}"
-".small{font-size:12px}@media(max-width:760px){main{padding:14px}.grid,.peer,.hero{grid-template-columns:1fr}.actions{justify-content:flex-start}.tabs{display:grid;grid-template-columns:1fr}.tab{text-align:left}}"
-"</style></head><body><header><div class=\"bar\"><div><h1>Field Bridge Settings</h1><div class=\"muted\">ESP32 min broker local setup</div></div><button id=\"refresh\" class=\"secondary hide\">Refresh</button></div></header>"
-"<main><section id=\"login\" class=\"panel\"><h2>Login</h2><form id=\"login-form\" class=\"grid\"><label>Admin Password<input id=\"login-password\" type=\"password\" value=\"admin\"></label><div class=\"actions\"><button type=\"submit\">Login</button><span id=\"login-state\" class=\"muted\">Default password: admin</span></div></form></section>"
-"<section id=\"app\" class=\"hide\"><section class=\"hero\"><div class=\"panel\"><h2>Overview</h2><table class=\"kv\"><tr><th>Status</th><td><span id=\"status\" class=\"pill muted\">Loading</span></td></tr><tr><th>Broker</th><td id=\"broker-state\" class=\"value\">-</td></tr><tr><th>P2P</th><td id=\"p2p-state\" class=\"value\">-</td></tr><tr><th>WiFi</th><td><span id=\"wifi-state\" class=\"pill muted\">-</span></td></tr></table></div><div class=\"panel\"><div class=\"bar\"><h2>Network</h2><button type=\"button\" id=\"edit-network\" class=\"secondary\">Edit</button></div><table class=\"kv\"><tr><th>Device IP</th><td id=\"ip-state\" class=\"value\">-</td></tr><tr><th>Gateway</th><td id=\"summary-gateway\" class=\"value\">-</td></tr><tr><th>Netmask</th><td id=\"summary-netmask\" class=\"value\">-</td></tr><tr><th>DNS</th><td id=\"summary-dns\" class=\"value\">-</td></tr></table></div></section><div id=\"save-state\" class=\"pill muted\">No changes</div>"
-"<nav class=\"tabs\"><button class=\"tab active\" data-tab=\"network\">Network</button><button class=\"tab\" data-tab=\"broker\">Broker</button><button class=\"tab\" data-tab=\"peers\">Bridge Peers</button><button class=\"tab\" data-tab=\"system\">System</button></nav>"
-"<section id=\"network\" class=\"panel view\"><h2>Network Setting</h2><div class=\"grid\"><label>Device Default IP<input id=\"device_ip\" maxlength=\"63\"></label><label>Gateway<input id=\"gateway\" maxlength=\"63\"></label><label>Netmask<input id=\"netmask\" maxlength=\"63\"></label><label>DNS<input id=\"dns\" maxlength=\"63\"></label><label>WiFi SSID<input id=\"wifi_ssid\" maxlength=\"63\"></label><label>WiFi Password<input id=\"wifi_password\" type=\"password\" maxlength=\"63\"></label><label>DHCP Enabled<input id=\"dhcp_enabled\" type=\"checkbox\"></label><label>AP SSID<input id=\"ap_ssid\" maxlength=\"63\"></label><label>AP Password<input id=\"ap_password\" type=\"password\" maxlength=\"63\"></label></div><div class=\"actions\"><button type=\"button\" id=\"save-network\">Save Network</button></div></section>"
-"<section id=\"broker\" class=\"panel view hide\"><h2>Broker Setting</h2><div class=\"feature-row\"><label>Broker Enabled<input id=\"broker_enabled\" type=\"checkbox\"></label><label>Mesh Enabled<input id=\"mesh_enabled\" type=\"checkbox\"></label><button type=\"button\" id=\"broker-start\">Start Broker</button><button type=\"button\" id=\"broker-stop\" class=\"secondary\">Stop Broker</button></div><div class=\"grid\"><label>Site ID<input id=\"site_id\" maxlength=\"31\"></label><label>MQTT Port<input id=\"cfg_mqtt_port\" type=\"number\" min=\"1\" max=\"65535\"></label><label>P2P Port<input id=\"cfg_p2p_port\" type=\"number\" min=\"1\" max=\"65535\"></label></div><div class=\"actions\"><button type=\"button\" id=\"save-broker\">Save Broker</button></div></section>"
-"<section id=\"peers\" class=\"panel view hide\"><h2>Bridge Peers</h2><div class=\"feature-row\"><label>Bridge Peers Enabled<input id=\"bridge_enabled\" type=\"checkbox\"></label><button type=\"button\" id=\"add-peer\">Add Peer</button><button type=\"button\" id=\"disable-all\" class=\"secondary\">Disable All Peers</button></div><form id=\"peer-form\"></form><div id=\"peer-empty\" class=\"empty\">No bridge peers configured</div><div class=\"actions\"><button type=\"button\" id=\"save-all\">Save Peer Changes</button></div></section>"
-"<section id=\"system\" class=\"panel view hide\"><h2>System Setting</h2><div class=\"grid\"><label>Device Name<input id=\"device_name\" maxlength=\"31\"></label><label>Admin Password<input id=\"admin_password\" type=\"password\" maxlength=\"63\"></label></div><div class=\"actions\"><button type=\"button\" id=\"save-system\">Save System</button><button type=\"button\" id=\"reset-config\" class=\"secondary\">Reset Config</button></div></section></section></main>"
-"<script>"
-"const $=id=>document.getElementById(id),form=$('peer-form'),st=$('status'),ss=$('save-state');let baseline=[],cfg={},token='',peers=[];"
-"function esc(s){return String(s||'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]))}"
-"async function json(url,opt={}){opt.headers=opt.headers||{};if(token)opt.headers['X-Auth-Token']=token;const r=await fetch(url,opt);if(!r.ok)throw new Error(await r.text());return r.json()}"
-"function norm(p){return {name:p.name||'',host:p.host||'',mqtt_port:+(p.mqtt_port||1883),p2p_port:+(p.p2p_port||4884),enabled:p.enabled?1:0}}"
-"function row(p,i){p=norm(p);return `<div class=\"peer\" data-i=\"${i}\"><label>Name<input name=\"name\" maxlength=\"31\" value=\"${esc(p.name)}\"></label><label>Host / IP<input name=\"host\" maxlength=\"63\" value=\"${esc(p.host)}\"></label><label>MQTT Port<input name=\"mqtt_port\" type=\"number\" min=\"1\" max=\"65535\" value=\"${p.mqtt_port}\"></label><label>P2P Port<input name=\"p2p_port\" type=\"number\" min=\"1\" max=\"65535\" value=\"${p.p2p_port}\"></label><label>Enabled<input name=\"enabled\" type=\"checkbox\" ${p.enabled?'checked':''}></label><div class=\"actions\"><button type=\"button\" onclick=\"savePeer(${i})\">Save</button><button class=\"secondary\" type=\"button\" onclick=\"disablePeer(${i})\">Disable</button></div></div>`}"
-"function put(c){cfg=c;for(const k in c){const e=$(k);if(!e)continue;if(e.type==='checkbox')e.checked=!!c[k];else e.value=c[k]||''}$('ip-state').textContent=c.device_ip||'-';$('summary-gateway').textContent=c.gateway||'-';$('summary-netmask').textContent=c.netmask||'-';$('summary-dns').textContent=c.dns||'-'}"
-"function collect(){return {device_name:$('device_name').value,admin_password:$('admin_password').value,wifi_ssid:$('wifi_ssid').value,wifi_password:$('wifi_password').value,ap_ssid:$('ap_ssid').value,ap_password:$('ap_password').value,device_ip:$('device_ip').value,gateway:$('gateway').value,netmask:$('netmask').value,dns:$('dns').value,dhcp_enabled:$('dhcp_enabled').checked?1:0,site_id:$('site_id').value,topic_prefix:cfg.topic_prefix||'site/field-a',mqtt_port:+$('cfg_mqtt_port').value,p2p_port:+$('cfg_p2p_port').value,broker_enabled:$('broker_enabled').checked?1:0,bridge_enabled:$('bridge_enabled').checked?1:0,mesh_enabled:$('mesh_enabled').checked?1:0}}"
-"function renderPeers(){const visible=peers.map((p,i)=>({p:norm(p),i})).filter(x=>x.p.enabled||x.p.name||x.p.host);form.innerHTML=visible.map(x=>row(x.p,x.i)).join('');$('peer-empty').classList.toggle('hide',visible.length>0)}"
-"async function load(){st.textContent='Loading';st.className='pill muted';const s=await json('/status'),c=await json('/config'),p=await json('/peers');put(c);peers=p.map(norm);baseline=peers.map(x=>JSON.stringify(x));renderPeers();$('wifi-state').textContent=s.wifi_state||'-';$('broker-state').textContent=s.broker_state||'-';$('p2p-state').textContent=`${s.p2p_role||'-'} / peers ${s.connected_peers||0}`;st.textContent='Online';st.className='pill ok'}"
-"function data(i){const e=form.querySelector(`[data-i=\"${i}\"]`);return norm({name:e.querySelector('[name=name]').value,host:e.querySelector('[name=host]').value,mqtt_port:e.querySelector('[name=mqtt_port]').value,p2p_port:e.querySelector('[name=p2p_port]').value,enabled:e.querySelector('[name=enabled]').checked?1:0})}"
-"async function saveConfig(part){ss.textContent='Saving';ss.className='pill muted';await json('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});ss.textContent=`${part} saved`;ss.className='pill ok';await load()}"
-"async function resetConfig(){ss.textContent='Resetting';ss.className='pill muted';await json('/config/reset',{method:'POST'});token='';$('login').classList.remove('hide');$('app').classList.add('hide');$('refresh').classList.add('hide');$('login-password').value='admin';$('login-state').textContent='Config reset; login again';$('login-state').className='muted'}"
-"async function brokerControl(enabled){await json('/broker/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});await load()}"
-"async function savePeer(i){ss.textContent='Saving';ss.className='pill muted';await json(`/peers/${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data(i))});ss.textContent=`Slot ${i} saved`;ss.className='pill ok';await load()}"
-"async function disablePeer(i){const p=data(i);p.enabled=0;await json(`/peers/${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});ss.textContent=`Slot ${i} disabled`;ss.className='pill ok';await load()}"
-"async function saveAll(){ss.textContent='Saving changes';ss.className='pill muted';const rows=[...form.querySelectorAll('[data-i]')];let saved=0;for(const r of rows){const i=+r.dataset.i,p=data(i),next=JSON.stringify(p);if(next===baseline[i])continue;await json(`/peers/${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:next});saved++}ss.textContent=saved?`${saved} changed slots saved`:'No slot changes';ss.className='pill ok';if(saved)await load()}"
-"async function disableAll(){for(const e of form.querySelectorAll('[name=enabled]'))e.checked=false;await saveAll()}"
-"function addPeer(){const used=new Set([...form.querySelectorAll('[data-i]')].map(e=>+e.dataset.i));let i=peers.findIndex((p,n)=>!used.has(n)&&!p.enabled&&!p.name&&!p.host);if(i<0)i=peers.findIndex((p,n)=>!used.has(n));if(i<0)return;peers[i]=norm({enabled:1});form.insertAdjacentHTML('beforeend',row(peers[i],i));$('peer-empty').classList.add('hide')}"
-"function showTab(id){for(const b of document.querySelectorAll('.tab'))b.classList.toggle('active',b.dataset.tab===id);for(const v of document.querySelectorAll('.view'))v.classList.toggle('hide',v.id!==id)}"
-"$('login-form').onsubmit=async e=>{e.preventDefault();try{const r=await json('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('login-password').value})});token=r.token;$('login').classList.add('hide');$('app').classList.remove('hide');$('refresh').classList.remove('hide');await load()}catch(x){$('login-state').textContent='Login failed';$('login-state').className='bad'}};"
-"for(const b of document.querySelectorAll('.tab'))b.onclick=()=>showTab(b.dataset.tab);$('edit-network').onclick=()=>showTab('network');$('refresh').onclick=load;$('save-system').onclick=()=>saveConfig('System');$('reset-config').onclick=resetConfig;$('save-network').onclick=()=>saveConfig('Network');$('save-broker').onclick=()=>saveConfig('Broker');$('broker-start').onclick=()=>brokerControl(1);$('broker-stop').onclick=()=>brokerControl(0);$('save-all').onclick=saveAll;$('disable-all').onclick=disableAll;$('add-peer').onclick=addPeer;"
-"</script></body></html>";
 
 static void handle_get_status(int fd)
 {
@@ -514,6 +511,8 @@ static void handle_post_config(int fd, const char *body)
         send_json(fd, 500, "{\"error\":\"persist failed\"}");
         return;
     }
+    product_runtime_network_start(&settings);
+    bridge_control_apply_peers();
     send_json(fd, 200, "{\"status\":\"ok\"}");
 }
 
@@ -650,6 +649,288 @@ overflow:
     send_json(fd, 500, "{\"error\":\"peer status too large\"}");
 }
 
+static int append_bridge_wifi_entry(char *buf, int cap, int *pos,
+                                    const field_bridge_wifi_entry_t *entry)
+{
+    int written = snprintf(buf + *pos, (size_t)(cap - *pos),
+                           "{\"ssid\":");
+    if (written < 0 || written >= cap - *pos) return -1;
+    *pos += written;
+    if (append_json_str(buf, cap, pos, entry->ssid) != 0) return -1;
+    written = snprintf(buf + *pos, (size_t)(cap - *pos), ",\"peer_name\":");
+    if (written < 0 || written >= cap - *pos) return -1;
+    *pos += written;
+    if (append_json_str(buf, cap, pos, entry->peer_name) != 0) return -1;
+    written = snprintf(buf + *pos, (size_t)(cap - *pos), ",\"host\":");
+    if (written < 0 || written >= cap - *pos) return -1;
+    *pos += written;
+    if (append_json_str(buf, cap, pos, entry->host) != 0) return -1;
+    written = snprintf(buf + *pos, (size_t)(cap - *pos),
+                       ",\"mqtt_port\":%u,\"p2p_port\":%u}",
+                       entry->mqtt_port, entry->p2p_port);
+    if (written < 0 || written >= cap - *pos) return -1;
+    *pos += written;
+    return 0;
+}
+
+static void handle_wifi_scan(int fd)
+{
+    field_bridge_wifi_state_t state;
+    if (product_config_get_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
+        return;
+    }
+    if (!state.enabled) {
+        send_json(fd, 409, "{\"error\":\"bridge wifi disabled\"}");
+        return;
+    }
+#ifndef __ZEPHYR__
+    send_json(fd, 200,
+              "[{\"ssid\":\"MQTT-BRIDGE-node1\",\"peer_name\":\"node1\","
+              "\"host\":\"127.0.0.2\",\"mqtt_port\":11883,"
+              "\"p2p_port\":14884,\"rssi\":-51,\"channel\":1,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node2\",\"peer_name\":\"node2\","
+              "\"host\":\"127.0.0.3\",\"mqtt_port\":11884,"
+              "\"p2p_port\":14886,\"rssi\":-63,\"channel\":6,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node3\",\"peer_name\":\"node3\","
+              "\"host\":\"127.0.0.4\",\"mqtt_port\":11885,"
+              "\"p2p_port\":14888,\"rssi\":-70,\"channel\":11,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node4\",\"peer_name\":\"node4\","
+              "\"host\":\"127.0.0.5\",\"mqtt_port\":11886,"
+              "\"p2p_port\":14890,\"rssi\":-72,\"channel\":3,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node5\",\"peer_name\":\"node5\","
+              "\"host\":\"127.0.0.6\",\"mqtt_port\":11887,"
+              "\"p2p_port\":14892,\"rssi\":-74,\"channel\":4,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node6\",\"peer_name\":\"node6\","
+              "\"host\":\"127.0.0.7\",\"mqtt_port\":11888,"
+              "\"p2p_port\":14894,\"rssi\":-76,\"channel\":5,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node7\",\"peer_name\":\"node7\","
+              "\"host\":\"127.0.0.8\",\"mqtt_port\":11889,"
+              "\"p2p_port\":14896,\"rssi\":-78,\"channel\":7,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node8\",\"peer_name\":\"node8\","
+              "\"host\":\"127.0.0.9\",\"mqtt_port\":11890,"
+              "\"p2p_port\":14898,\"rssi\":-80,\"channel\":8,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node9\",\"peer_name\":\"node9\","
+              "\"host\":\"127.0.0.10\",\"mqtt_port\":11891,"
+              "\"p2p_port\":14900,\"rssi\":-82,\"channel\":9,"
+              "\"security\":\"wpa2\"},"
+              "{\"ssid\":\"MQTT-BRIDGE-node10\",\"peer_name\":\"node10\","
+              "\"host\":\"127.0.0.11\",\"mqtt_port\":11892,"
+              "\"p2p_port\":14902,\"rssi\":-84,\"channel\":10,"
+              "\"security\":\"wpa2\"}]");
+#else
+    send_json(fd, 200, "[]");
+#endif
+}
+
+static void handle_bridge_wifi_current(int fd)
+{
+    field_bridge_wifi_state_t state;
+    char *buf = config_json_buf;
+    const int cap = CONFIG_JSON_BUF_SIZE;
+    int pos = 0;
+    int written;
+
+    if (product_config_get_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
+        return;
+    }
+
+    written = snprintf(buf + pos, (size_t)(cap - pos),
+                       "{\"enabled\":%u,\"connected\":%u,\"status\":\"%s\","
+                       "\"current\":",
+                       state.enabled, state.connected,
+                       state.connected ? "connected" : "disconnected");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_bridge_wifi_entry(buf, cap, &pos, &state.current) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos),
+                       ",\"local_sta_ip\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, state.local_sta_ip) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos),
+                       ",\"gateway_ip\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, state.gateway_ip) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos),
+                       ",\"peer_broker_ip\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, state.current.host) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"last_error\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, state.last_error) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"last_event\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, state.last_event) != 0) goto overflow;
+    if (pos >= cap - 2) goto overflow;
+    buf[pos++] = '}';
+    buf[pos] = '\0';
+    send_json(fd, 200, buf);
+    return;
+
+overflow:
+    send_json(fd, 500, "{\"error\":\"bridge wifi current too large\"}");
+}
+
+static void handle_bridge_wifi_enabled(int fd, const char *body)
+{
+    field_bridge_wifi_state_t state;
+    uint8_t enabled;
+
+    if (json_decode_broker_control(body, &enabled) != 0) {
+        send_json(fd, 400, "{\"error\":\"invalid bridge wifi enabled JSON\"}");
+        return;
+    }
+    if (product_config_get_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
+        return;
+    }
+    state.enabled = enabled;
+    state.connected = 0;
+    state.last_error[0] = '\0';
+    snprintf(state.last_event, sizeof(state.last_event),
+             enabled ? "bridge wifi enabled" : "bridge wifi disabled");
+    if (product_config_set_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi persist failed\"}");
+        return;
+    }
+    send_json(fd, 200, enabled ? "{\"status\":\"enabled\"}" :
+              "{\"status\":\"disabled\"}");
+}
+
+static void handle_bridge_wifi_disconnect(int fd)
+{
+    field_bridge_wifi_state_t state;
+    field_bridge_peer_t peer;
+
+    if (product_config_get_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
+        return;
+    }
+
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
+        if (product_config_get_peer(i, &peer) != 0) {
+            continue;
+        }
+        if (peer.enabled &&
+            strcmp(peer.host, state.current.host) == 0 &&
+            peer.mqtt_port == state.current.mqtt_port &&
+            peer.p2p_port == state.current.p2p_port) {
+            memset(&peer, 0, sizeof(peer));
+            (void)product_config_set_peer(i, &peer);
+        }
+    }
+
+    state.connected = 0;
+    state.local_sta_ip[0] = '\0';
+    state.gateway_ip[0] = '\0';
+    state.last_error[0] = '\0';
+    snprintf(state.last_event, sizeof(state.last_event), "disconnected");
+    if (product_config_set_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi persist failed\"}");
+        return;
+    }
+    bridge_control_apply_peers();
+    send_json(fd, 200, "{\"status\":\"disconnected\"}");
+}
+
+static void handle_bridge_wifi_recent(int fd)
+{
+    field_bridge_wifi_state_t state;
+    char *buf = peers_json_buf;
+    const int cap = PEERS_JSON_BUF_SIZE;
+    int pos = 0;
+    int written_count = 0;
+
+    if (product_config_get_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
+        return;
+    }
+
+    buf[pos++] = '[';
+    for (int i = 0; i < FIELD_BRIDGE_RECENT_WIFI_MAX; i++) {
+        if (state.recent[i].ssid[0] == '\0') continue;
+        if (written_count++ > 0) buf[pos++] = ',';
+        if (append_bridge_wifi_entry(buf, cap, &pos, &state.recent[i]) != 0) {
+            send_json(fd, 500, "{\"error\":\"bridge wifi recent too large\"}");
+            return;
+        }
+    }
+    buf[pos++] = ']';
+    buf[pos] = '\0';
+    send_json(fd, 200, buf);
+}
+
+static void handle_bridge_wifi_join(int fd, const char *body)
+{
+    bridge_wifi_join_req_t req;
+    field_bridge_wifi_state_t state;
+    field_bridge_peer_t peer;
+
+    if (json_decode_bridge_wifi_join(body, &req) != 0) {
+        send_json(fd, 400, "{\"error\":\"invalid bridge wifi join JSON\"}");
+        return;
+    }
+    if (product_config_get_bridge_wifi(&state) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
+        return;
+    }
+    if (!state.enabled) {
+        state.connected = 0;
+        state.last_error[0] = '\0';
+        snprintf(state.last_event, sizeof(state.last_event),
+                 "bridge wifi disabled");
+        (void)product_config_set_bridge_wifi(&state);
+        send_json(fd, 409, "{\"error\":\"bridge wifi disabled\"}");
+        return;
+    }
+
+    state.current = req.entry;
+    state.enabled = 1;
+    state.connected = 1;
+    resolve_bridge_wifi_mock_ips(&req.entry,
+                                 state.local_sta_ip,
+                                 sizeof(state.local_sta_ip),
+                                 state.gateway_ip,
+                                 sizeof(state.gateway_ip));
+    state.last_error[0] = '\0';
+    snprintf(state.last_event, sizeof(state.last_event),
+             "joined peer index %d", req.peer_index);
+    if (product_config_set_bridge_wifi(&state) != 0 ||
+        product_config_add_recent_bridge_wifi(&req.entry) != 0) {
+        send_json(fd, 500, "{\"error\":\"bridge wifi persist failed\"}");
+        return;
+    }
+
+    memset(&peer, 0, sizeof(peer));
+    strncpy(peer.name,
+            req.entry.peer_name[0] ? req.entry.peer_name : req.entry.ssid,
+            sizeof(peer.name) - 1);
+    strncpy(peer.host, req.entry.host, sizeof(peer.host) - 1);
+    peer.mqtt_port = req.entry.mqtt_port;
+    peer.p2p_port = req.entry.p2p_port;
+    peer.enabled = 1;
+    if (product_config_set_peer(req.peer_index, &peer) != 0) {
+        send_json(fd, 500, "{\"error\":\"peer persist failed\"}");
+        return;
+    }
+    bridge_control_apply_peers();
+    send_json(fd, 200, "{\"status\":\"joined\"}");
+}
+
 static void handle_post_peer(int fd, int idx, const char *body)
 {
     if (idx < 0 || idx >= FIELD_BRIDGE_PEER_MAX) {
@@ -739,6 +1020,29 @@ static void handle_client(int fd)
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/peer-status") == 0) {
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
         else handle_get_peer_status(fd);
+    } else if (strcmp(method, "GET") == 0 && strcmp(path, "/wifi/scan") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_wifi_scan(fd);
+    } else if (strcmp(method, "GET") == 0 &&
+               strcmp(path, "/bridge-wifi/current") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_bridge_wifi_current(fd);
+    } else if (strcmp(method, "GET") == 0 &&
+               strcmp(path, "/bridge-wifi/recent") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_bridge_wifi_recent(fd);
+    } else if (strcmp(method, "POST") == 0 &&
+               strcmp(path, "/bridge-wifi/join") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_bridge_wifi_join(fd, body_start);
+    } else if (strcmp(method, "POST") == 0 &&
+               strcmp(path, "/bridge-wifi/enabled") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_bridge_wifi_enabled(fd, body_start);
+    } else if (strcmp(method, "POST") == 0 &&
+               strcmp(path, "/bridge-wifi/disconnect") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_bridge_wifi_disconnect(fd);
     } else if (strcmp(method, "POST") == 0 && strncmp(path, "/peers/", 7) == 0) {
         int idx = atoi(path + 7);
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");

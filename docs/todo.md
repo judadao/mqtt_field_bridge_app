@@ -60,6 +60,36 @@ This TODO is for the product application repository. The broker dependency is
       not enough for the field flow.
 - [x] Show peer connection state: unknown, connecting, connected, disconnected,
       and last error.
+- [x] Add Linux mock simulation for selecting bridge WiFi nodes by peer index.
+- [x] Add `/wifi/scan` endpoint with Linux mock backend.
+- [ ] Add Zephyr ESP32 backend for `/wifi/scan`.
+- [x] Add persistent bridge WiFi state: current SSID, recent SSID list,
+      last connection status, and last error/time.
+- [x] Add UI flow for `Scan Bridge WiFi` and `Add as Peer Index N`.
+- [x] Add `Join Bridge WiFi` action that saves WiFi credentials and adds the
+      selected node as a peer.
+- [x] Make the current Bridge WiFi broker peer auto-managed in the UI, with
+      host/ports reflecting the active Bridge WiFi target instead of manual
+      editing.
+- [x] Remove manual peer action controls from the provisioning UI; show only
+      the active Bridge WiFi broker peer name and connection data.
+- [x] Move the mesh/bridge feature checkbox into Bridge Peers as `Auto Bridge`;
+      remove the separate Bridge Feature checkbox from the UI.
+- [x] Add Bridge WiFi disconnect action and keep Recent entries from showing
+      `Current` when the Bridge WiFi state is disconnected.
+- [x] Show Bridge WiFi IP roles separately: local STA IP, selected AP/gateway
+      IP, and peer broker IP.
+- [x] Rename provisioning `Device IP` UI wording to AP/provisioning/broker IP
+      so it is not confused with STA WiFi IP.
+- [x] Enforce one active bridge WiFi connection at a time; joining a different
+      bridge AP must switch the current bridge WiFi before applying peers.
+- [x] Add reconnect from recent bridge WiFi list.
+- [ ] Add delete/remove action for recent Bridge WiFi entries.
+- [ ] On ESP32 join, derive peer broker IP from the connected AP/gateway IP
+      after DHCP instead of trusting scan mock metadata.
+- [ ] On ESP32 join, expose the real local STA IP assigned by the selected AP.
+- [x] Add browser coverage for Scan WiFi, Current Bridge WiFi, Recent Bridge
+      WiFi, Join/Switch, and failed join event-log behavior.
 
 ## Local HTML / Provisioning
 
@@ -81,6 +111,7 @@ This TODO is for the product application repository. The broker dependency is
       through Add Peer.
 - [x] Add DNS to network settings and Linux web/config coverage.
 - [x] Add ignored local static-IP shell test for provisioning web config.
+- [x] Add browser UI test for peer-index save/delete and event-log failures.
 - [x] Keep UI product-specific; do not move it into `mqtt_min_broker`.
 
 ## Topic Workflow

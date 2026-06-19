@@ -8,6 +8,7 @@ LOG_MODULE_REGISTER(product_config, LOG_LEVEL_INF);
 
 static field_bridge_peer_t peers[FIELD_BRIDGE_PEER_MAX];
 static field_bridge_settings_t settings;
+static field_bridge_wifi_state_t bridge_wifi;
 
 static void settings_defaults(void)
 {
@@ -51,6 +52,14 @@ static void settings_large_defaults(void)
             sizeof(settings.broker.site_id) - 1);
     strncpy(settings.broker.topic_prefix, "site/field-large",
             sizeof(settings.broker.topic_prefix) - 1);
+}
+
+static void bridge_wifi_defaults(void)
+{
+    memset(&bridge_wifi, 0, sizeof(bridge_wifi));
+    bridge_wifi.enabled = 1;
+    strncpy(bridge_wifi.last_event, "disconnected",
+            sizeof(bridge_wifi.last_event) - 1);
 }
 
 static int valid_bool(uint8_t v)
@@ -112,6 +121,37 @@ static int validate_settings(const field_bridge_settings_t *cfg)
     return 0;
 }
 
+static int validate_bridge_wifi_entry(const field_bridge_wifi_entry_t *entry)
+{
+    if (!entry) {
+        return -1;
+    }
+    if (entry->ssid[0] == '\0') {
+        return 0;
+    }
+    if (!valid_nonempty(entry->host) ||
+        !valid_port(entry->mqtt_port) ||
+        !valid_port(entry->p2p_port)) {
+        return -1;
+    }
+    return 0;
+}
+
+static int validate_bridge_wifi(const field_bridge_wifi_state_t *state)
+{
+    if (!state || !valid_bool(state->enabled) ||
+        !valid_bool(state->connected) ||
+        validate_bridge_wifi_entry(&state->current) != 0) {
+        return -1;
+    }
+    for (int i = 0; i < FIELD_BRIDGE_RECENT_WIFI_MAX; i++) {
+        if (validate_bridge_wifi_entry(&state->recent[i]) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 #ifndef __ZEPHYR__
 #include <stdio.h>
 #include <stdlib.h>
@@ -126,6 +166,12 @@ static const char *settings_file_path(void)
 {
     const char *p = getenv("BRIDGE_SETTINGS_FILE");
     return p ? p : "/tmp/mqtt_bridge_settings.bin";
+}
+
+static const char *bridge_wifi_file_path(void)
+{
+    const char *p = getenv("BRIDGE_WIFI_FILE");
+    return p ? p : "/tmp/mqtt_bridge_wifi.bin";
 }
 
 static void persist_load(void)
@@ -145,6 +191,15 @@ static void persist_load(void)
         size_t n = fread(&settings, sizeof(settings), 1, f);
         if (n != 1 || validate_settings(&settings) != 0) {
             settings_defaults();
+        }
+        fclose(f);
+    }
+
+    f = fopen(bridge_wifi_file_path(), "rb");
+    if (f) {
+        size_t n = fread(&bridge_wifi, sizeof(bridge_wifi), 1, f);
+        if (n != 1 || validate_bridge_wifi(&bridge_wifi) != 0) {
+            bridge_wifi_defaults();
         }
         fclose(f);
     }
@@ -169,6 +224,15 @@ static int persist_save_settings(void)
     return 0;
 }
 
+static int persist_save_bridge_wifi(void)
+{
+    FILE *f = fopen(bridge_wifi_file_path(), "wb");
+    if (!f) return 0;
+    (void)fwrite(&bridge_wifi, sizeof(bridge_wifi), 1, f);
+    fclose(f);
+    return 0;
+}
+
 #else  /* __ZEPHYR__ */
 
 #include <zephyr/fs/nvs.h>
@@ -179,6 +243,7 @@ static int persist_save_settings(void)
 #define NVS_PARTITION    storage_partition
 #define PEER_KEY_BASE    1
 #define SETTINGS_KEY     100
+#define BRIDGE_WIFI_KEY  101
 
 static struct nvs_fs nvs;
 static int nvs_ready;
@@ -219,6 +284,11 @@ static void persist_load(void)
     if (n != (ssize_t)sizeof(settings) || validate_settings(&settings) != 0) {
         settings_defaults();
     }
+    n = nvs_read(&nvs, BRIDGE_WIFI_KEY, &bridge_wifi, sizeof(bridge_wifi));
+    if (n != (ssize_t)sizeof(bridge_wifi) ||
+        validate_bridge_wifi(&bridge_wifi) != 0) {
+        bridge_wifi_defaults();
+    }
 }
 
 static int persist_save(int idx)
@@ -244,11 +314,24 @@ static int persist_save_settings(void)
     return 0;
 }
 
+static int persist_save_bridge_wifi(void)
+{
+    if (nvs_init_once() < 0) return -ENODEV;
+    ssize_t rc = nvs_write(&nvs, BRIDGE_WIFI_KEY,
+                           &bridge_wifi, sizeof(bridge_wifi));
+    if (rc < 0) {
+        LOG_ERR("nvs_write bridge wifi failed: %d", (int)rc);
+        return (int)rc;
+    }
+    return 0;
+}
+
 #endif /* __ZEPHYR__ */
 
 void product_config_init(void)
 {
     memset(peers, 0, sizeof(peers));
+    bridge_wifi_defaults();
     settings_defaults();
     persist_load();
     LOG_INF("product config initialized");
@@ -297,7 +380,50 @@ int product_config_set_settings(const field_bridge_settings_t *new_settings)
     }
 
     settings = *new_settings;
-    return persist_save_settings();
+    if (persist_save_settings() != 0) {
+        return -1;
+    }
+    return persist_save_bridge_wifi();
+}
+
+int product_config_get_bridge_wifi(field_bridge_wifi_state_t *out)
+{
+    if (!out) {
+        return -1;
+    }
+    *out = bridge_wifi;
+    return 0;
+}
+
+int product_config_set_bridge_wifi(const field_bridge_wifi_state_t *state)
+{
+    if (validate_bridge_wifi(state) != 0) {
+        return -1;
+    }
+    bridge_wifi = *state;
+    return persist_save_bridge_wifi();
+}
+
+int product_config_add_recent_bridge_wifi(const field_bridge_wifi_entry_t *entry)
+{
+    if (validate_bridge_wifi_entry(entry) != 0 || entry->ssid[0] == '\0') {
+        return -1;
+    }
+
+    for (int i = 0; i < FIELD_BRIDGE_RECENT_WIFI_MAX; i++) {
+        if (strcmp(bridge_wifi.recent[i].ssid, entry->ssid) == 0) {
+            for (int j = i; j > 0; j--) {
+                bridge_wifi.recent[j] = bridge_wifi.recent[j - 1];
+            }
+            bridge_wifi.recent[0] = *entry;
+            return persist_save_bridge_wifi();
+        }
+    }
+    for (int i = FIELD_BRIDGE_RECENT_WIFI_MAX - 1; i > 0; i--) {
+        bridge_wifi.recent[i] = bridge_wifi.recent[i - 1];
+    }
+    bridge_wifi.recent[0] = *entry;
+    return persist_save_bridge_wifi();
 }
 
 int product_config_check_admin_password(const char *password)
@@ -311,18 +437,23 @@ int product_config_check_admin_password(const char *password)
 int product_config_reset_all(void)
 {
     memset(peers, 0, sizeof(peers));
+    bridge_wifi_defaults();
     settings_defaults();
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
         if (persist_save(i) != 0) {
             return -1;
         }
     }
-    return persist_save_settings();
+    if (persist_save_settings() != 0) {
+        return -1;
+    }
+    return persist_save_bridge_wifi();
 }
 
 int product_config_apply_defaults(field_bridge_defaults_profile_t profile)
 {
     memset(peers, 0, sizeof(peers));
+    bridge_wifi_defaults();
     switch (profile) {
     case FIELD_BRIDGE_PROFILE_SMALL:
         settings_defaults();
@@ -338,5 +469,8 @@ int product_config_apply_defaults(field_bridge_defaults_profile_t profile)
             return -1;
         }
     }
-    return persist_save_settings();
+    if (persist_save_settings() != 0) {
+        return -1;
+    }
+    return persist_save_bridge_wifi();
 }

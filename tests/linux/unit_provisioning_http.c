@@ -127,7 +127,7 @@ static void test_get_status(void)
 
 static void test_get_index_html(void)
 {
-    char resp[24000];
+    char resp[64000];
     int n = http_req("GET / HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
@@ -138,15 +138,42 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "Login") != NULL);
     CHECK(strstr(resp, "Default password: admin") != NULL);
     CHECK(strstr(resp, "Overview") != NULL);
-    CHECK(strstr(resp, "id=\"edit-network\"") != NULL);
+    CHECK(strstr(resp, "id=\"edit-network\"") == NULL);
     CHECK(strstr(resp, "class=\"tabs\"") != NULL);
     CHECK(strstr(resp, "System Setting") != NULL);
     CHECK(strstr(resp, "Network Setting") != NULL);
     CHECK(strstr(resp, "Broker Setting") != NULL);
     CHECK(strstr(resp, "Bridge Peers") != NULL);
-    CHECK(strstr(resp, "Device Default IP") != NULL);
-    CHECK(strstr(resp, "id=\"add-peer\"") != NULL);
-    CHECK(strstr(resp, "No bridge peers configured") != NULL);
+    CHECK(strstr(resp, "Network Mode") != NULL);
+    CHECK(strstr(resp, "Broker Feature") != NULL);
+    CHECK(strstr(resp, "Broker Controls") != NULL);
+    CHECK(strstr(resp, "Bridge Feature") == NULL);
+    CHECK(strstr(resp, "Auto Bridge") != NULL);
+    CHECK(strstr(resp, "Mesh Enabled") == NULL);
+    CHECK(strstr(resp, "Bridge WiFi") != NULL);
+    CHECK(strstr(resp, "Current Bridge WiFi") != NULL);
+    CHECK(strstr(resp, "Available Bridge WiFi") != NULL);
+    CHECK(strstr(resp, "Recent Bridge WiFi") != NULL);
+    CHECK(strstr(resp, "id=\"scan-bridge-wifi\"") != NULL);
+    CHECK(strstr(resp, "Auto Bridge Peer") < strstr(resp, "Available Bridge WiFi"));
+    CHECK(strstr(resp, "Available Bridge WiFi") < strstr(resp, "Recent Bridge WiFi"));
+    CHECK(strstr(resp, "Current Bridge WiFi") > strstr(resp, "Connection Details"));
+    CHECK(strstr(resp, "id=\"bridge-details\"") != NULL);
+    CHECK(strstr(resp, "<summary>Connection Details</summary>") != NULL);
+    CHECK(strstr(resp, "id=\"bridge-current\"") != NULL);
+    CHECK(strstr(resp, "Local STA IP") != NULL);
+    CHECK(strstr(resp, "Gateway / AP IP") != NULL);
+    CHECK(strstr(resp, "Peer Broker IP") != NULL);
+    CHECK(strstr(resp, "id=\"bridge-scan-list\"") != NULL);
+    CHECK(strstr(resp, "id=\"bridge-recent-list\"") != NULL);
+    CHECK(strstr(resp, "Auto Bridge Peer") != NULL);
+    CHECK(strstr(resp, "AP / Provisioning IP") != NULL);
+    CHECK(strstr(resp, "id=\"add-peer\"") == NULL);
+    CHECK(strstr(resp, "Peer Actions") == NULL);
+    CHECK(strstr(resp, "Save Peer Changes") == NULL);
+    CHECK(strstr(resp, "Event Log / Time") != NULL);
+    CHECK(strstr(resp, "id=\"event-log\"") != NULL);
+    CHECK(strstr(resp, "No Bridge WiFi peer connected") != NULL);
     CHECK(strstr(resp, "Topic Test") == NULL);
     CHECK(strstr(resp, "Raw Status") == NULL);
     CHECK(strstr(resp, "Topic Prefix") == NULL);
@@ -160,17 +187,39 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "id=\"wifi_ssid\"") != NULL);
     CHECK(strstr(resp, "id=\"cfg_mqtt_port\"") != NULL);
     CHECK(strstr(resp, "id=\"broker_enabled\"") != NULL);
-    CHECK(strstr(resp, "id=\"bridge_enabled\"") != NULL);
+    CHECK(strstr(resp, "id=\"bridge_enabled\"") == NULL);
     CHECK(strstr(resp, "id=\"mesh_enabled\"") != NULL);
+    CHECK(strstr(resp, "cfg_mqtt_port") != NULL);
+    CHECK(strstr(resp, "save-toast hide") != NULL);
+    CHECK(strstr(resp, ">No changes</div>") == NULL);
+    CHECK(strstr(resp, "--primary:#006a6a") != NULL);
+    CHECK(strstr(resp, "--accent:#") == NULL);
     CHECK(strstr(resp, "X-Auth-Token") != NULL);
-    CHECK(strstr(resp, "token=r.token") != NULL);
+    CHECK(strstr(resp, "token = r.token") != NULL);
+    CHECK(strstr(resp, "notice('Saving'") != NULL ||
+          strstr(resp, "notice('Saving',") != NULL);
     CHECK(strstr(resp, "peer-form") != NULL);
-    CHECK(strstr(resp, "save-all") != NULL);
-    CHECK(strstr(resp, "disable-all") != NULL);
+    CHECK(strstr(resp, "peer-summary") != NULL);
+    CHECK(strstr(resp, "WiFi Broker") != NULL);
+    CHECK(strstr(resp, "Peer Index") != NULL);
+    CHECK(strstr(resp, "Edit/Save") == NULL);
+    CHECK(strstr(resp, "savePeer") == NULL);
+    CHECK(strstr(resp, "Saving peer index") == NULL);
+    CHECK(strstr(resp, "Peer index") == NULL ||
+          strstr(resp, "Peer Index") != NULL);
+    CHECK(strstr(resp, "deletePeer") == NULL);
+    CHECK(strstr(resp, "deleteAll") == NULL);
+    CHECK(strstr(resp, "save-all") == NULL);
+    CHECK(strstr(resp, "enable-all") == NULL);
+    CHECK(strstr(resp, "disable-all") == NULL);
+    CHECK(strstr(resp, "Delete All") == NULL);
+    CHECK(strstr(resp, "Disable All Peers") == NULL);
     CHECK(strstr(resp, "/login") != NULL);
     CHECK(strstr(resp, "/config") != NULL);
-    CHECK(strstr(resp, "No slot changes") != NULL);
-    CHECK(strstr(resp, "changed slots saved") != NULL);
+    CHECK(strstr(resp, "await json('/config'") != NULL);
+    CHECK(strstr(resp, "logLine(`${prefix}: ${m}`)") != NULL);
+    CHECK(strstr(resp, "No slot changes") == NULL);
+    CHECK(strstr(resp, "Auto Bridge WiFi") != NULL);
 }
 
 static void test_get_index_html_alias(void)
@@ -216,7 +265,7 @@ static void test_login_invalid(void)
 static void test_get_config_defaults(void)
 {
     CHECK(auth_token[0] != '\0');
-    char resp[4096];
+    char resp[8192];
     char req[256];
     snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
              auth_token);
@@ -298,6 +347,12 @@ static void test_post_config_valid(void)
     CHECK(strstr(resp2, "\"dns\":\"1.1.1.1\"") != NULL);
     CHECK(strstr(resp2, "\"site_id\":\"field-b\"") != NULL);
     CHECK(strstr(resp2, "\"mesh_enabled\":0") != NULL);
+
+    char resp3[1024];
+    n = http_req("GET /status HTTP/1.0\r\n\r\n", resp3, sizeof(resp3));
+    CHECK(n > 0);
+    CHECK(strstr(resp3, "\"ip_addr\":\"192.168.9.1\"") != NULL);
+    CHECK(strstr(resp3, "\"wifi_state\":\"configured\"") != NULL);
 
     CHECK(login_as("secret") == 0);
 }
@@ -532,7 +587,7 @@ static void test_post_config_invalid(void)
 
 static void test_get_peers_empty(void)
 {
-    char resp[4096];
+    char resp[8192];
     char req[256];
     snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
              auth_token);
@@ -556,6 +611,148 @@ static void test_get_peer_status(void)
     CHECK(strstr(resp, "\"index\":0") != NULL);
     CHECK(strstr(resp, "\"state\":\"disabled\"") != NULL);
     CHECK(strstr(resp, "\"last_error\":\"\"") != NULL);
+}
+
+static void test_bridge_wifi_requires_auth(void)
+{
+    char resp[1024];
+    int n = http_req("GET /wifi/scan HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+
+    n = http_req("GET /bridge-wifi/current HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+
+    n = http_req("GET /bridge-wifi/recent HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+
+    n = http_req("POST /bridge-wifi/enabled HTTP/1.0\r\n"
+                 "Content-Length: 13\r\n\r\n{\"enabled\":1}",
+                 resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+
+    n = http_req("POST /bridge-wifi/disconnect HTTP/1.0\r\n\r\n",
+                 resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+}
+
+static void test_bridge_wifi_scan_current_recent_and_join(void)
+{
+    char req[1024];
+    char resp[4096];
+    int n;
+
+    snprintf(req, sizeof(req), "GET /wifi/scan HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
+    CHECK(strstr(resp, "MQTT-BRIDGE-node10") != NULL);
+    CHECK(strstr(resp, "\"p2p_port\":14884") != NULL);
+    CHECK(strstr(resp, "\"host\":\"127.0.0.11\"") != NULL);
+
+    snprintf(req, sizeof(req),
+             "GET /bridge-wifi/current HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "\"enabled\":1") != NULL);
+    CHECK(strstr(resp, "\"connected\":0") != NULL);
+    CHECK(strstr(resp, "\"status\":\"disconnected\"") != NULL);
+
+    const char *disable_body = "{\"enabled\":0}";
+    snprintf(req, sizeof(req),
+             "POST /bridge-wifi/enabled HTTP/1.0\r\nX-Auth-Token: %s\r\n"
+             "Content-Length: %d\r\n\r\n%s",
+             auth_token, (int)strlen(disable_body), disable_body);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "disabled") != NULL);
+
+    snprintf(req, sizeof(req), "GET /wifi/scan HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "409 Conflict") != NULL);
+    CHECK(strstr(resp, "bridge wifi disabled") != NULL);
+
+    const char *enable_body = "{\"enabled\":1}";
+    snprintf(req, sizeof(req),
+             "POST /bridge-wifi/enabled HTTP/1.0\r\nX-Auth-Token: %s\r\n"
+             "Content-Length: %d\r\n\r\n%s",
+             auth_token, (int)strlen(enable_body), enable_body);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+
+    const char *body =
+        "{\"ssid\":\"MQTT-BRIDGE-node1\",\"password\":\"12345678\","
+        "\"peer_name\":\"node1\",\"host\":\"127.0.0.2\","
+        "\"mqtt_port\":11883,\"p2p_port\":14884,\"peer_index\":2}";
+    snprintf(req, sizeof(req),
+             "POST /bridge-wifi/join HTTP/1.0\r\nX-Auth-Token: %s\r\n"
+             "Content-Length: %d\r\n\r\n%s",
+             auth_token, (int)strlen(body), body);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "joined") != NULL);
+
+    snprintf(req, sizeof(req),
+             "GET /bridge-wifi/current HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "\"enabled\":1") != NULL);
+    CHECK(strstr(resp, "\"connected\":1") != NULL);
+    CHECK(strstr(resp, "\"status\":\"connected\"") != NULL);
+    CHECK(strstr(resp, "\"local_sta_ip\":\"127.0.0.10\"") != NULL);
+    CHECK(strstr(resp, "\"gateway_ip\":\"127.0.0.2\"") != NULL);
+    CHECK(strstr(resp, "\"peer_broker_ip\":\"127.0.0.2\"") != NULL);
+    CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
+    CHECK(strstr(resp, "joined peer index 2") != NULL);
+
+    snprintf(req, sizeof(req),
+             "GET /bridge-wifi/recent HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
+
+    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "\"name\":\"node1\"") != NULL);
+    CHECK(strstr(resp, "\"p2p_port\":14884") != NULL);
+
+    snprintf(req, sizeof(req),
+             "POST /bridge-wifi/disconnect HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "disconnected") != NULL);
+
+    snprintf(req, sizeof(req),
+             "GET /bridge-wifi/current HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "\"connected\":0") != NULL);
+    CHECK(strstr(resp, "\"status\":\"disconnected\"") != NULL);
+
+    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "\"name\":\"node1\"") == NULL);
 }
 
 static void test_post_peer_valid(void)
@@ -702,6 +899,7 @@ int main(void)
 
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
     setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
+    setenv("BRIDGE_WIFI_FILE", "/dev/null", 1);
     product_config_init();
     product_runtime_init();
     field_bridge_settings_t settings;
@@ -735,6 +933,8 @@ int main(void)
     RUN(test_config_reset_requires_auth);
     RUN(test_get_peers_empty);
     RUN(test_get_peer_status);
+    RUN(test_bridge_wifi_requires_auth);
+    RUN(test_bridge_wifi_scan_current_recent_and_join);
     RUN(test_post_peer_valid);
     RUN(test_post_peer_escapes_json_strings);
     RUN(test_post_peer_invalid_json);

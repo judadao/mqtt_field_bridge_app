@@ -1,6 +1,10 @@
 ROOT    := ../..
 BROKER  := $(ROOT)/deps/mqtt_min_broker
 APP_SRC := $(ROOT)/app/src
+WEB_DIR := $(ROOT)/app/web
+WEB_SRC := $(WEB_DIR)/index.html $(WEB_DIR)/styles.css $(WEB_DIR)/app.js
+WEB_HDR := $(APP_SRC)/generated/provisioning_index.h
+WEB_EMBED := $(ROOT)/scripts/build_provisioning_web.js
 
 CC     = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
@@ -11,13 +15,16 @@ OUTDIR = out
 
 .PHONY: all test unit-tests unit_product_config unit_product_runtime \
         unit_product_topics unit_bridge_control \
-        unit_provisioning_http web-network-test run-web-server integration-tests stress scale-tests \
+        unit_provisioning_http web-network-test ui-browser-test bridge-wifi-sim-test run-web-server run_web_config_server integration-tests stress scale-tests \
         scale-ring-tests clean broker-p2p
 
 all: unit-tests
 
 $(OUTDIR):
 	mkdir -p $(OUTDIR)
+
+$(WEB_HDR): $(WEB_SRC) $(WEB_EMBED)
+	node $(WEB_EMBED) $(WEB_DIR) $(WEB_HDR) index_html
 
 # ── broker prerequisite ────────────────────────────────────────────────────
 broker-p2p:
@@ -70,6 +77,7 @@ $(OUTDIR)/unit_product_topics: unit_product_topics.c \
 $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
                                    $(APP_SRC)/provisioning_http.c \
                                    $(APP_SRC)/provisioning_http.h \
+                                   $(WEB_HDR) \
                                    $(APP_SRC)/product_config.c \
                                    $(APP_SRC)/product_runtime.c \
                                    $(APP_SRC)/product_topics.c \
@@ -87,6 +95,7 @@ $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
 $(OUTDIR)/run_web_config_server: run_web_config_server.c \
                                   $(APP_SRC)/provisioning_http.c \
                                   $(APP_SRC)/provisioning_http.h \
+                                  $(WEB_HDR) \
                                   $(APP_SRC)/product_config.c \
                                   $(APP_SRC)/product_runtime.c \
                                   $(APP_SRC)/product_topics.c \
@@ -140,8 +149,16 @@ unit_provisioning_http: $(OUTDIR)/unit_provisioning_http
 web-network-test: $(OUTDIR)/unit_provisioning_http
 	@bash test_web_network_config.sh
 
+ui-browser-test: $(OUTDIR)/run_web_config_server
+	@node ui_browser_test.js
+
+bridge-wifi-sim-test:
+	@bash test_bridge_wifi_join_sim.sh
+
 run-web-server: $(OUTDIR)/run_web_config_server
 	@bash run_web_config_server.sh
+
+run_web_config_server: run-web-server
 
 # ── integration tests ──────────────────────────────────────────────────────
 integration-tests: broker-p2p

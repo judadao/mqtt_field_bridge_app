@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Field Bridge Settings</title>
+<style>{{PROVISIONING_CSS}}</style>
+</head>
+<body>
+<header>
+<div class="bar">
+<div>
+<h1>Field Bridge Settings</h1>
+<div class="muted">ESP32 min broker local setup</div>
+</div>
+<button id="refresh" class="secondary hide">Refresh</button>
+</div>
+</header>
+<main>
+<section id="login" class="panel">
+<h2>Login</h2>
+<form id="login-form" class="grid">
+<label>Admin Password<input id="login-password" type="password" value="admin">
+</label>
+<div class="actions">
+<button type="submit">Login</button>
+<span id="login-state" class="muted">Default password: admin</span>
+</div>
+</form>
+</section>
+<section id="app" class="hide">
+<section class="hero">
+<div class="panel">
+<h2>Overview</h2>
+<table class="kv">
+<tr>
+<th>Status</th>
+<td>
+<span id="status" class="pill muted">Loading</span>
+</td>
+</tr>
+<tr>
+<th>Broker</th>
+<td id="broker-state" class="value">-</td>
+</tr>
+<tr>
+<th>P2P</th>
+<td id="p2p-state" class="value">-</td>
+</tr>
+<tr>
+<th>WiFi</th>
+<td>
+<span id="wifi-state" class="pill muted">-</span>
+</td>
+</tr>
+</table>
+</div>
+<div class="panel">
+<h2>Network</h2>
+<table class="kv">
+<tr>
+<th>AP / Broker IP</th>
+<td id="ip-state" class="value">-</td>
+</tr>
+<tr>
+<th>Gateway</th>
+<td id="summary-gateway" class="value">-</td>
+</tr>
+<tr>
+<th>Netmask</th>
+<td id="summary-netmask" class="value">-</td>
+</tr>
+<tr>
+<th>DNS</th>
+<td id="summary-dns" class="value">-</td>
+</tr>
+</table>
+</div>
+</section>
+<div id="save-state" class="pill muted save-toast hide" role="status" aria-live="polite">
+</div>
+<nav class="tabs">
+<button class="tab active" data-tab="network">Network</button>
+<button class="tab" data-tab="broker">Broker</button>
+<button class="tab" data-tab="peers">Bridge Peers</button>
+<button class="tab" data-tab="system">System</button>
+</nav>
+<section id="network" class="panel view">
+<h2>Network Setting</h2>
+<div class="feature-row">
+<div>
+<div class="feature-title">Network Mode</div>
+<div class="muted small">Connection-level setting</div>
+</div>
+<div class="feature-detail">
+<label>DHCP Enabled<input id="dhcp_enabled" type="checkbox">
+</label>
+</div>
+</div>
+<div class="grid">
+<label>AP / Provisioning IP<input id="device_ip" maxlength="63">
+</label>
+<label>AP Gateway<input id="gateway" maxlength="63">
+</label>
+<label>Netmask<input id="netmask" maxlength="63">
+</label>
+<label>DNS<input id="dns" maxlength="63">
+</label>
+<label>WiFi SSID<input id="wifi_ssid" maxlength="63">
+</label>
+<label>WiFi Password<input id="wifi_password" type="password" maxlength="63">
+</label>
+<label>AP SSID<input id="ap_ssid" maxlength="63">
+</label>
+<label>AP Password<input id="ap_password" type="password" maxlength="63">
+</label>
+</div>
+<div class="actions">
+<button type="button" id="save-network">Save Network</button>
+</div>
+</section>
+<section id="broker" class="panel view hide">
+<h2>Broker Setting</h2>
+<div class="feature-row">
+<div>
+<div class="feature-title">Broker Feature</div>
+<div class="muted small">Main broker service switch</div>
+</div>
+<div class="feature-detail">
+<label>Broker Enabled<input id="broker_enabled" type="checkbox">
+</label>
+</div>
+</div>
+<div class="feature-row">
+<div>
+<div class="feature-title">Broker Controls</div>
+<div class="muted small">Runtime action</div>
+</div>
+<div class="feature-detail">
+<button type="button" id="broker-start">Start Broker</button>
+<button type="button" id="broker-stop" class="secondary">Stop Broker</button>
+</div>
+</div>
+<div class="grid">
+<label>Site ID<input id="site_id" maxlength="31">
+</label>
+<label>MQTT Port<input id="cfg_mqtt_port" type="number" min="1" max="65535">
+</label>
+<label>P2P Port<input id="cfg_p2p_port" type="number" min="1" max="65535">
+</label>
+</div>
+<div class="actions">
+<button type="button" id="save-broker">Save Broker</button>
+</div>
+</section>
+<section id="peers" class="panel view hide">
+<h2>Bridge Peers</h2>
+<div class="feature-row">
+<div>
+<div class="feature-title">Auto Bridge</div>
+<div class="muted small">Automatically bridge to the selected WiFi broker</div>
+</div>
+<div class="feature-detail">
+<label>Auto Bridge<input id="mesh_enabled" type="checkbox">
+</label>
+</div>
+</div>
+<div class="feature-row">
+<div>
+<div class="feature-title">Bridge WiFi</div>
+<div class="muted small">One active bridge AP connection</div>
+</div>
+<div class="feature-detail">
+<label>Bridge WiFi Enabled<input id="bridge_wifi_enabled" type="checkbox">
+</label>
+<span id="bridge-current-state" class="pill muted">disconnected</span>
+</div>
+</div>
+<div class="bridge-wifi-panel">
+<div class="wifi-list-panel bridge-peer-panel">
+<div class="wifi-list-head">
+<div>
+<h3>Auto Bridge Peer</h3>
+<span class="muted small">Reflects current Bridge WiFi</span>
+</div>
+</div>
+<div id="peer-form" class="peer-summary-list">
+</div>
+<div id="peer-empty" class="empty">No Bridge WiFi peer connected</div>
+</div>
+<section class="wifi-list-panel">
+<div class="wifi-list-head">
+<div>
+<h3>Available Bridge WiFi</h3>
+<span class="muted small">Scan results</span>
+</div>
+<button type="button" id="scan-bridge-wifi" class="secondary">Scan WiFi</button>
+</div>
+<div id="bridge-scan-list" class="wifi-list scan-list">No scan results</div>
+</section>
+<section class="wifi-list-panel">
+<div class="wifi-list-head">
+<div>
+<h3>Recent Bridge WiFi</h3>
+<span class="muted small">Last 3 targets</span>
+</div>
+</div>
+<div id="bridge-recent-list" class="wifi-list recent-list">No recent bridge WiFi</div>
+</section>
+<details id="bridge-details" class="bridge-details">
+<summary>Connection Details</summary>
+<div class="bridge-status-grid">
+<div class="bridge-current-card">
+<div class="field-label">Current Bridge WiFi</div>
+<div id="bridge-current" class="bridge-name">-</div>
+<div id="bridge-current-detail" class="bridge-detail">-</div>
+<div class="bridge-ip-grid">
+<div><span>Local STA IP</span><strong id="bridge-local-sta-ip">-</strong></div>
+<div><span>Gateway / AP IP</span><strong id="bridge-gateway-ip">-</strong></div>
+<div><span>Peer Broker IP</span><strong id="bridge-peer-broker-ip">-</strong></div>
+</div>
+</div>
+<div class="bridge-log-card">
+<div class="field-label">Last Bridge Event</div>
+<div id="bridge-last-event" class="bridge-log">-</div>
+</div>
+<div class="bridge-log-card error">
+<div class="field-label">Last Bridge Error</div>
+<div id="bridge-last-error" class="bridge-log">-</div>
+</div>
+</div>
+</details>
+<label>Event Log / Time<div id="event-log" class="event-log">-</div>
+</label>
+</section>
+<section id="system" class="panel view hide">
+<h2>System Setting</h2>
+<div class="grid">
+<label>Device Name<input id="device_name" maxlength="31">
+</label>
+<label>Admin Password<input id="admin_password" type="password" maxlength="63">
+</label>
+</div>
+<div class="actions">
+<button type="button" id="save-system">Save System</button>
+<button type="button" id="reset-config" class="danger">Reset Config</button>
+</div>
+</section>
+</section>
+</main>
+<script>{{PROVISIONING_JS}}</script>
+</body>
+</html>

@@ -36,8 +36,15 @@ void bridge_control_init(void)
 int bridge_control_apply_peers(void)
 {
     int enabled = 0;
+    field_bridge_settings_t settings;
 
     p2p_static_seed_clear();
+
+    if (product_config_get_settings(&settings) != 0 ||
+        !settings.broker.bridge_enabled) {
+        LOG_INF("apply_peers: bridge disabled");
+        return 0;
+    }
 
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
         field_bridge_peer_t peer;
