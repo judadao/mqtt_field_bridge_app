@@ -165,6 +165,24 @@ http://<device-ip>:8080/
 The page lists peer slots, edits host and port values, toggles enabled state,
 and saves through the same JSON endpoints.
 
+UI workflow:
+
+1. Open `http://<device-ip>:8080/` from a browser on the same LAN.
+2. Press `Refresh` to reload `/status` and `/peers`.
+3. For each bridge peer, set:
+   - `Name`: local label for the peer.
+   - `Host / IP`: peer broker address.
+   - `MQTT Port`: peer MQTT listener port.
+   - `P2P Port`: peer bridge/P2P listener port.
+   - `Enabled`: whether this peer should be applied.
+4. Press `Save` on one slot to persist only that peer.
+5. Press `Save All` after editing multiple slots.
+6. Press `Disable All` to clear every enabled toggle and persist the disabled
+   state for all slots.
+
+The raw status panel shows the latest JSON returned by the device, which is
+useful during field setup and debugging.
+
 ## Topic Model
 
 The intended topic family is:
@@ -224,7 +242,7 @@ Result:
 
 - `unit_product_config`: 161/161 checks passed.
 - `unit_bridge_control`: 7/7 tests passed.
-- `unit_provisioning_http`: 33/33 checks passed.
+- `unit_provisioning_http`: 35/35 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.

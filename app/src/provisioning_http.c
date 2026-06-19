@@ -209,7 +209,7 @@ static const char index_html[] =
 ".ok{color:var(--ok)}.bad{color:var(--bad)}pre{white-space:pre-wrap;margin:0}.small{font-size:12px}@media(max-width:760px){.grid,.peer{grid-template-columns:1fr}.actions{justify-content:flex-start}}"
 "</style></head><body><header><div class=\"bar\"><div><h1>Field Bridge Settings</h1><div class=\"muted\">Local broker peer configuration</div></div><button id=\"refresh\" class=\"secondary\">Refresh</button></div></header>"
 "<main><section class=\"grid\"><div class=\"panel\"><h2>Status</h2><div id=\"status\" class=\"pill muted\">Loading</div></div><div class=\"panel\"><h2>Peers</h2><div id=\"peer-count\" class=\"pill muted\">-</div></div><div class=\"panel\"><h2>Last Save</h2><div id=\"save-state\" class=\"pill muted\">No changes</div></div></section>"
-"<section class=\"panel\"><h2>Peer Slots</h2><form id=\"peer-form\"></form></section>"
+"<section class=\"panel\"><div class=\"bar\"><h2>Peer Slots</h2><div class=\"actions\"><button type=\"button\" id=\"save-all\">Save All</button><button type=\"button\" id=\"disable-all\" class=\"secondary\">Disable All</button></div></div><form id=\"peer-form\"></form></section>"
 "<section class=\"panel\"><h2>Raw Status</h2><pre id=\"raw\" class=\"small muted\"></pre></section></main>"
 "<script>"
 "const form=document.getElementById('peer-form'),raw=document.getElementById('raw'),st=document.getElementById('status'),pc=document.getElementById('peer-count'),ss=document.getElementById('save-state');"
@@ -220,7 +220,9 @@ static const char index_html[] =
 "function data(i){const e=form.querySelector(`[data-i=\"${i}\"]`);return {name:e.querySelector('[name=name]').value,host:e.querySelector('[name=host]').value,mqtt_port:+e.querySelector('[name=mqtt_port]').value,p2p_port:+e.querySelector('[name=p2p_port]').value,enabled:e.querySelector('[name=enabled]').checked?1:0}}"
 "async function savePeer(i){ss.textContent='Saving';ss.className='pill muted';await json(`/peers/${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data(i))});ss.textContent=`Slot ${i} saved`;ss.className='pill ok';await load()}"
 "async function disablePeer(i){const p=data(i);p.enabled=0;await json(`/peers/${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});ss.textContent=`Slot ${i} disabled`;ss.className='pill ok';await load()}"
-"document.getElementById('refresh').onclick=load;load().catch(e=>{st.textContent='Offline';st.className='pill bad';raw.textContent=e.message});"
+"async function saveAll(){ss.textContent='Saving all';ss.className='pill muted';const rows=[...form.querySelectorAll('[data-i]')];for(const r of rows){const i=+r.dataset.i;await json(`/peers/${i}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data(i))})}ss.textContent=`${rows.length} slots saved`;ss.className='pill ok';await load()}"
+"async function disableAll(){for(const e of form.querySelectorAll('[name=enabled]'))e.checked=false;await saveAll()}"
+"document.getElementById('refresh').onclick=load;document.getElementById('save-all').onclick=saveAll;document.getElementById('disable-all').onclick=disableAll;load().catch(e=>{st.textContent='Offline';st.className='pill bad';raw.textContent=e.message});"
 "</script></body></html>";
 
 static void handle_get_status(int fd)

@@ -90,6 +90,8 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "Content-Type: text/html") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
     CHECK(strstr(resp, "peer-form") != NULL);
+    CHECK(strstr(resp, "save-all") != NULL);
+    CHECK(strstr(resp, "disable-all") != NULL);
 }
 
 static void test_get_index_html_alias(void)
