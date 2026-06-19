@@ -245,12 +245,11 @@ static void test_persist_all_slots_survive_reinit(void)
 
 int main(void)
 {
-    printf("=== unit_product_config ===\n");
-
 #ifndef __ZEPHYR__
     /* Isolate existing tests from any leftover persist file. */
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
 #endif
+    printf("=== unit_product_config ===\n");
 
     RUN(test_init_zeroes_peers);
     RUN(test_set_and_get_peer);

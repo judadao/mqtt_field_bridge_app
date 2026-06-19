@@ -22,7 +22,11 @@ static void persist_load(void)
 {
     FILE *f = fopen(peers_file_path(), "rb");
     if (!f) return;
-    (void)fread(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
+    size_t n = fread(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
+    if (n != (size_t)FIELD_BRIDGE_PEER_MAX) {
+        memset(&peers[n], 0,
+               (FIELD_BRIDGE_PEER_MAX - (int)n) * sizeof(field_bridge_peer_t));
+    }
     fclose(f);
 }
 
