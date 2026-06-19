@@ -302,6 +302,30 @@ static void test_reset_all_restores_defaults_and_clears_peers(void)
     CHECK(strcmp(s.system.admin_password, "admin") == 0);
 }
 
+static void test_apply_large_defaults(void)
+{
+    field_bridge_peer_t p = { .name = "peer", .host = "1.2.3.4",
+                               .mqtt_port = 1883, .p2p_port = 4884,
+                               .enabled = 1 };
+    CHECK(product_config_set_peer(0, &p) == 0);
+    CHECK(product_config_apply_defaults(FIELD_BRIDGE_PROFILE_LARGE) == 0);
+
+    field_bridge_settings_t s;
+    CHECK(product_config_get_settings(&s) == 0);
+    CHECK(strcmp(s.system.device_name, "esp32-field-router") == 0);
+    CHECK(strcmp(s.network.ap_ssid, "ESP32-Field-Router") == 0);
+    CHECK(strcmp(s.broker.site_id, "field-large") == 0);
+    CHECK(strcmp(s.broker.topic_prefix, "site/field-large") == 0);
+    CHECK(product_config_get_peer(0, &p) == 0);
+    CHECK(p.enabled == 0);
+    CHECK(p.host[0] == '\0');
+}
+
+static void test_apply_defaults_rejects_unknown_profile(void)
+{
+    CHECK(product_config_apply_defaults((field_bridge_defaults_profile_t)99) == -1);
+}
+
 /* Persistence tests use an isolated temp file and manage their own init. */
 #ifndef __ZEPHYR__
 #include <stdlib.h>
@@ -435,6 +459,8 @@ int main(void)
     RUN(test_reject_enabled_peer_with_missing_fields);
     RUN(test_reject_invalid_settings);
     RUN(test_reset_all_restores_defaults_and_clears_peers);
+    RUN(test_apply_large_defaults);
+    RUN(test_apply_defaults_rejects_unknown_profile);
 
 #ifndef __ZEPHYR__
     RUN_PERSIST(test_persist_survives_reinit);

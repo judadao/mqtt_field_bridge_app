@@ -113,6 +113,7 @@ static void test_get_status(void)
     CHECK(strstr(resp, "\"p2p_role\"") != NULL);
     CHECK(strstr(resp, "\"connected_peers\"") != NULL);
     CHECK(strstr(resp, "\"remote_subscriptions\"") != NULL);
+    CHECK(strstr(resp, "\"test_topic\":\"site/field-a/test\"") != NULL);
     char peers_field[32];
     snprintf(peers_field, sizeof(peers_field), "\"peers\":%d", FIELD_BRIDGE_PEER_MAX);
     CHECK(strstr(resp, peers_field) != NULL);
@@ -405,6 +406,22 @@ static void test_publish_test_invalid(void)
     CHECK(strstr(resp, "invalid publish test JSON") != NULL);
 }
 
+static void test_publish_test_rejects_wrong_prefix(void)
+{
+    const char *body =
+        "{\"topic\":\"site/other/test\",\"payload\":\"hello\",\"qos\":0,\"retain\":0}";
+    char req[512];
+    snprintf(req, sizeof(req),
+             "POST /publish-test HTTP/1.0\r\nX-Auth-Token: %s\r\n"
+             "Content-Length: %d\r\n\r\n%s",
+             auth_token, (int)strlen(body), body);
+    char resp[512];
+    int n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "400") != NULL);
+    CHECK(strstr(resp, "topic outside configured prefix") != NULL);
+}
+
 static void test_config_reset_requires_auth(void)
 {
     char resp[512];
@@ -613,6 +630,7 @@ int main(void)
     RUN(test_publish_test_requires_auth);
     RUN(test_publish_test_valid);
     RUN(test_publish_test_invalid);
+    RUN(test_publish_test_rejects_wrong_prefix);
     RUN(test_config_reset_requires_auth);
     RUN(test_get_peers_empty);
     RUN(test_post_peer_valid);

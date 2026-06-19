@@ -9,6 +9,7 @@
 #include "provisioning_http.h"
 #include "product_config.h"
 #include "product_runtime.h"
+#include "product_topics.h"
 #include "bridge_control.h"
 
 LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
@@ -311,7 +312,7 @@ static const char index_html[] =
 "function row(p,i){p=norm(p);return `<div class=\"peer\" data-i=\"${i}\"><label>Name<input name=\"name\" maxlength=\"31\" value=\"${esc(p.name)}\"></label><label>Host / IP<input name=\"host\" maxlength=\"63\" value=\"${esc(p.host)}\"></label><label>MQTT Port<input name=\"mqtt_port\" type=\"number\" min=\"1\" max=\"65535\" value=\"${p.mqtt_port}\"></label><label>P2P Port<input name=\"p2p_port\" type=\"number\" min=\"1\" max=\"65535\" value=\"${p.p2p_port}\"></label><label>Enabled<input name=\"enabled\" type=\"checkbox\" ${p.enabled?'checked':''}></label><div class=\"actions\"><button type=\"button\" onclick=\"savePeer(${i})\">Save</button><button class=\"secondary\" type=\"button\" onclick=\"disablePeer(${i})\">Disable</button></div></div>`}"
 "function put(c){cfg=c;for(const k in c){const e=$(k);if(!e)continue;if(e.type==='checkbox')e.checked=!!c[k];else e.value=c[k]||''}$('ip-state').textContent=c.device_ip||'-'}"
 "function collect(){return {device_name:$('device_name').value,admin_password:$('admin_password').value,wifi_ssid:$('wifi_ssid').value,wifi_password:$('wifi_password').value,ap_ssid:$('ap_ssid').value,ap_password:$('ap_password').value,device_ip:$('device_ip').value,gateway:$('gateway').value,netmask:$('netmask').value,dhcp_enabled:$('dhcp_enabled').checked?1:0,site_id:$('site_id').value,topic_prefix:$('topic_prefix').value,mqtt_port:+$('cfg_mqtt_port').value,p2p_port:+$('cfg_p2p_port').value,broker_enabled:$('broker_enabled').checked?1:0,bridge_enabled:$('bridge_enabled').checked?1:0,mesh_enabled:$('mesh_enabled').checked?1:0}}"
-"async function load(){st.textContent='Loading';st.className='pill muted';const s=await json('/status'),c=await json('/config'),p=await json('/peers');put(c);baseline=p.map(x=>JSON.stringify(norm(x)));raw.textContent=JSON.stringify({status:s,config:c,peers:p},null,2);form.innerHTML=p.map(row).join('');$('wifi-state').textContent=s.wifi_state||'-';$('broker-state').textContent=s.broker_state||'-';$('p2p-state').textContent=`${s.p2p_role||'-'} / peers ${s.connected_peers||0}`;if(!$('test_topic').value)$('test_topic').value=(c.topic_prefix||'site/field-a')+'/test';st.textContent='Online';st.className='pill ok'}"
+"async function load(){st.textContent='Loading';st.className='pill muted';const s=await json('/status'),c=await json('/config'),p=await json('/peers');put(c);baseline=p.map(x=>JSON.stringify(norm(x)));raw.textContent=JSON.stringify({status:s,config:c,peers:p},null,2);form.innerHTML=p.map(row).join('');$('wifi-state').textContent=s.wifi_state||'-';$('broker-state').textContent=s.broker_state||'-';$('p2p-state').textContent=`${s.p2p_role||'-'} / peers ${s.connected_peers||0}`;if(!$('test_topic').value)$('test_topic').value=s.test_topic||((c.topic_prefix||'site/field-a')+'/test');st.textContent='Online';st.className='pill ok'}"
 "function data(i){const e=form.querySelector(`[data-i=\"${i}\"]`);return norm({name:e.querySelector('[name=name]').value,host:e.querySelector('[name=host]').value,mqtt_port:e.querySelector('[name=mqtt_port]').value,p2p_port:e.querySelector('[name=p2p_port]').value,enabled:e.querySelector('[name=enabled]').checked?1:0})}"
 "async function saveConfig(part){ss.textContent='Saving';ss.className='pill muted';await json('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});ss.textContent=`${part} saved`;ss.className='pill ok';await load()}"
 "async function resetConfig(){ss.textContent='Resetting';ss.className='pill muted';await json('/config/reset',{method:'POST'});token='';$('login').classList.remove('hide');$('app').classList.add('hide');$('refresh').classList.add('hide');$('login-password').value='admin';$('login-state').textContent='Config reset; login again';$('login-state').className='muted'}"
@@ -364,6 +365,15 @@ static void handle_get_status(int fd)
     if (n <= 0 || n >= (int)(sizeof(buf) - (size_t)pos)) goto overflow;
     pos += n;
     if (append_json_str(buf, sizeof(buf), &pos, status.last_error) != 0) goto overflow;
+    field_bridge_settings_t settings;
+    char test_topic[FIELD_BRIDGE_TOPIC_FULL_MAX];
+    if (product_config_get_settings(&settings) == 0 &&
+        product_topic_test(&settings, test_topic, sizeof(test_topic)) == 0) {
+        n = snprintf(buf + pos, sizeof(buf) - (size_t)pos, ",\"test_topic\":");
+        if (n <= 0 || n >= (int)(sizeof(buf) - (size_t)pos)) goto overflow;
+        pos += n;
+        if (append_json_str(buf, sizeof(buf), &pos, test_topic) != 0) goto overflow;
+    }
     n = snprintf(buf + pos, sizeof(buf) - (size_t)pos, "}");
     if (n <= 0 || n >= (int)(sizeof(buf) - (size_t)pos)) goto overflow;
     send_json(fd, 200, buf);
@@ -534,9 +544,15 @@ static void handle_broker_control(int fd, const char *body)
 static void handle_publish_test(int fd, const char *body)
 {
     field_bridge_publish_test_t test;
+    field_bridge_settings_t settings;
 
     if (json_decode_publish_test(body, &test) != 0) {
         send_json(fd, 400, "{\"error\":\"invalid publish test JSON\"}");
+        return;
+    }
+    if (product_config_get_settings(&settings) != 0 ||
+        !product_topic_matches_prefix(&settings, test.topic)) {
+        send_json(fd, 400, "{\"error\":\"topic outside configured prefix\"}");
         return;
     }
     if (product_runtime_record_publish_test(&test) != 0) {

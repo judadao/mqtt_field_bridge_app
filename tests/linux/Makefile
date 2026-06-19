@@ -9,7 +9,8 @@ CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
          -I$(BROKER)/include
 OUTDIR = out
 
-.PHONY: all test unit-tests unit_product_config unit_product_runtime unit_bridge_control \
+.PHONY: all test unit-tests unit_product_config unit_product_runtime \
+        unit_product_topics unit_bridge_control \
         unit_provisioning_http integration-tests stress scale-tests \
         scale-ring-tests clean broker-p2p
 
@@ -54,11 +55,22 @@ $(OUTDIR)/unit_product_runtime: unit_product_runtime.c \
 	    $(APP_SRC)/product_runtime.c \
 	    -o $@
 
+$(OUTDIR)/unit_product_topics: unit_product_topics.c \
+                               $(APP_SRC)/product_topics.c \
+                               $(APP_SRC)/product_topics.h \
+                               $(APP_SRC)/product_config.h \
+                               | $(OUTDIR)
+	$(CC) $(CFLAGS) \
+	    unit_product_topics.c \
+	    $(APP_SRC)/product_topics.c \
+	    -o $@
+
 $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
                                    $(APP_SRC)/provisioning_http.c \
                                    $(APP_SRC)/provisioning_http.h \
                                    $(APP_SRC)/product_config.c \
                                    $(APP_SRC)/product_runtime.c \
+                                   $(APP_SRC)/product_topics.c \
                                    $(APP_SRC)/bridge_control.c \
                                    | $(OUTDIR)
 	$(CC) $(CFLAGS) \
@@ -66,11 +78,13 @@ $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
 	    $(APP_SRC)/provisioning_http.c \
 	    $(APP_SRC)/product_config.c \
 	    $(APP_SRC)/product_runtime.c \
+	    $(APP_SRC)/product_topics.c \
 	    $(APP_SRC)/bridge_control.c \
 	    -o $@ -lpthread
 
 unit-tests: $(OUTDIR)/unit_product_config \
             $(OUTDIR)/unit_product_runtime \
+            $(OUTDIR)/unit_product_topics \
             $(OUTDIR)/unit_bridge_control \
             $(OUTDIR)/unit_provisioning_http
 	@echo ""
@@ -79,6 +93,9 @@ unit-tests: $(OUTDIR)/unit_product_config \
 	@echo ""
 	@echo "--- unit_product_runtime ---"
 	$(OUTDIR)/unit_product_runtime
+	@echo ""
+	@echo "--- unit_product_topics ---"
+	$(OUTDIR)/unit_product_topics
 	@echo ""
 	@echo "--- unit_bridge_control ---"
 	$(OUTDIR)/unit_bridge_control
@@ -94,6 +111,9 @@ unit_bridge_control: $(OUTDIR)/unit_bridge_control
 
 unit_product_runtime: $(OUTDIR)/unit_product_runtime
 	$(OUTDIR)/unit_product_runtime
+
+unit_product_topics: $(OUTDIR)/unit_product_topics
+	$(OUTDIR)/unit_product_topics
 
 unit_provisioning_http: $(OUTDIR)/unit_provisioning_http
 	$(OUTDIR)/unit_provisioning_http

@@ -8,6 +8,7 @@
 # Knobs:
 #   SETTLE_SEC   P2P mesh formation wait (default: 8)
 #   WAIT_MSG_SEC max seconds to wait for an expected message (default: 8)
+#   SUB_PROP_SEC seconds to wait for remote subscriptions to propagate (default: 2.5)
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -17,6 +18,7 @@ CLI="$BROKER_DIR/build_out/mqtt_cli"
 
 SETTLE_SEC=${SETTLE_SEC:-8}
 WAIT_MSG_SEC=${WAIT_MSG_SEC:-8}
+SUB_PROP_SEC=${SUB_PROP_SEC:-2.5}
 DISC_PORT=14850
 
 PASS=0; FAIL=0
@@ -46,6 +48,23 @@ wait_for_match() {
         now=$(date +%s)
         [ $((now - start)) -ge "$timeout" ] && return 1
         sleep 0.1
+    done
+}
+
+publish_until_match() {
+    port=$1
+    topic=$2
+    payload=$3
+    file=$4
+    timeout=$5
+    start=$(date +%s)
+
+    while :; do
+        "$CLI" pub -h 127.0.0.1 -p "$port" -t "$topic" -m "$payload" >/dev/null 2>&1 || true
+        wait_for_match "$file" "$payload" 1 && return 0
+        now=$(date +%s)
+        [ $((now - start)) -ge "$timeout" ] && return 1
+        sleep 0.5
     done
 }
 
@@ -111,9 +130,8 @@ sleep "$SETTLE_SEC"
 "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t1_recv.out" 2>"$OUT/t1_sub.err" & SUB_PID=$!
 wait_for_match "$OUT/t1_sub.err" "subscribed" "$WAIT_MSG_SEC" || true
-sleep 1.5   # allow subscription to propagate B2→B1 via P2P
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t1-ok" >/dev/null 2>&1
-wait_for_match "$OUT/t1_recv.out" "t1-ok" "$WAIT_MSG_SEC" || true
+sleep "$SUB_PROP_SEC"   # allow subscription to propagate B2→B1 via P2P
+publish_until_match "$B1_MQTT" "site/field-a/data/io" "t1-ok" "$OUT/t1_recv.out" "$WAIT_MSG_SEC" || true
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t1-ok" "$OUT/t1_recv.out" \
     && ok "T1: Node2 receives Node1 publish" \
@@ -123,9 +141,8 @@ grep -q "t1-ok" "$OUT/t1_recv.out" \
 "$CLI" sub -h 127.0.0.1 -p "$B3_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t2_recv.out" 2>"$OUT/t2_sub.err" & SUB_PID=$!
 wait_for_match "$OUT/t2_sub.err" "subscribed" "$WAIT_MSG_SEC" || true
-sleep 1.5
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t2-ok" >/dev/null 2>&1
-wait_for_match "$OUT/t2_recv.out" "t2-ok" "$WAIT_MSG_SEC" || true
+sleep "$SUB_PROP_SEC"
+publish_until_match "$B1_MQTT" "site/field-a/data/io" "t2-ok" "$OUT/t2_recv.out" "$WAIT_MSG_SEC" || true
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t2-ok" "$OUT/t2_recv.out" \
     && ok "T2: Node3 receives Node1 publish through Node2" \
@@ -138,8 +155,7 @@ sleep 0.5
     >"$OUT/t3_recv.out" 2>"$OUT/t3_sub.err" & SUB_PID=$!
 wait_for_match "$OUT/t3_sub.err" "subscribed" "$WAIT_MSG_SEC" || true
 sleep 0.3
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t3-local" >/dev/null 2>&1
-wait_for_match "$OUT/t3_recv.out" "t3-local" "$WAIT_MSG_SEC" || true
+publish_until_match "$B1_MQTT" "site/field-a/data/io" "t3-local" "$OUT/t3_recv.out" "$WAIT_MSG_SEC" || true
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t3-local" "$OUT/t3_recv.out" \
     && ok "T3: Node1 local delivery works when Node2 offline" \
@@ -152,9 +168,8 @@ sleep "$SETTLE_SEC"
 "$CLI" sub -h 127.0.0.1 -p "$B2_MQTT" -t "site/field-a/data/#" \
     >"$OUT/t4_recv.out" 2>"$OUT/t4_sub.err" & SUB_PID=$!
 wait_for_match "$OUT/t4_sub.err" "subscribed" "$WAIT_MSG_SEC" || true
-sleep 1.5
-"$CLI" pub -h 127.0.0.1 -p "$B1_MQTT" -t "site/field-a/data/io" -m "t4-restart" >/dev/null 2>&1
-wait_for_match "$OUT/t4_recv.out" "t4-restart" "$WAIT_MSG_SEC" || true
+sleep "$SUB_PROP_SEC"
+publish_until_match "$B1_MQTT" "site/field-a/data/io" "t4-restart" "$OUT/t4_recv.out" "$WAIT_MSG_SEC" || true
 kill "$SUB_PID" 2>/dev/null || true; wait "$SUB_PID" 2>/dev/null || true; SUB_PID=""
 grep -q "t4-restart" "$OUT/t4_recv.out" \
     && ok "T4: Node2 receives after restart" \

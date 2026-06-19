@@ -53,6 +53,11 @@ typedef struct {
     field_bridge_broker_settings_t broker;
 } field_bridge_settings_t;
 
+typedef enum {
+    FIELD_BRIDGE_PROFILE_SMALL = 0,
+    FIELD_BRIDGE_PROFILE_LARGE = 1,
+} field_bridge_defaults_profile_t;
+
 void product_config_init(void);
 int product_config_peer_count(void);
 int product_config_get_peer(int index, field_bridge_peer_t *out);
@@ -61,5 +66,6 @@ int product_config_get_settings(field_bridge_settings_t *out);
 int product_config_set_settings(const field_bridge_settings_t *settings);
 int product_config_check_admin_password(const char *password);
 int product_config_reset_all(void);
+int product_config_apply_defaults(field_bridge_defaults_profile_t profile);
 
 #endif /* PRODUCT_CONFIG_H */

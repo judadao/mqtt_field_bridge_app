@@ -38,6 +38,19 @@ static void settings_defaults(void)
     settings.broker.mesh_enabled = 1;
 }
 
+static void settings_large_defaults(void)
+{
+    settings_defaults();
+    strncpy(settings.system.device_name, "esp32-field-router",
+            sizeof(settings.system.device_name) - 1);
+    strncpy(settings.network.ap_ssid, "ESP32-Field-Router",
+            sizeof(settings.network.ap_ssid) - 1);
+    strncpy(settings.broker.site_id, "field-large",
+            sizeof(settings.broker.site_id) - 1);
+    strncpy(settings.broker.topic_prefix, "site/field-large",
+            sizeof(settings.broker.topic_prefix) - 1);
+}
+
 static int valid_bool(uint8_t v)
 {
     return v <= 1;
@@ -296,6 +309,27 @@ int product_config_reset_all(void)
 {
     memset(peers, 0, sizeof(peers));
     settings_defaults();
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
+        if (persist_save(i) != 0) {
+            return -1;
+        }
+    }
+    return persist_save_settings();
+}
+
+int product_config_apply_defaults(field_bridge_defaults_profile_t profile)
+{
+    memset(peers, 0, sizeof(peers));
+    switch (profile) {
+    case FIELD_BRIDGE_PROFILE_SMALL:
+        settings_defaults();
+        break;
+    case FIELD_BRIDGE_PROFILE_LARGE:
+        settings_large_defaults();
+        break;
+    default:
+        return -1;
+    }
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
         if (persist_save(i) != 0) {
             return -1;

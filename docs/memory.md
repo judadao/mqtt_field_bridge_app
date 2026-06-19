@@ -45,9 +45,10 @@ Completed product-owned provisioning/runtime surface:
 - Firmware-served HTML now covers Login, System Setting, Network Setting,
   Broker Setting / Bridge Mesh Setting, runtime status cards, broker control,
   reset, and Topic Test.
-- Unit coverage now includes `unit_product_runtime`; last local unit run passed
-  `unit_product_config` 216/216, `unit_product_runtime` 34/34,
-  `unit_bridge_control` 7/7, and `unit_provisioning_http` 146/146.
+- Unit coverage now includes `unit_product_runtime` and `unit_product_topics`;
+  last local unit run passed `unit_product_config` 227/227,
+  `unit_product_runtime` 34/34, `unit_product_topics` 20/20,
+  `unit_bridge_control` 7/7, and `unit_provisioning_http` 150/150.
 
 Remaining meaningful blockers:
 

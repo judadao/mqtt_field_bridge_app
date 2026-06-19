@@ -7,6 +7,7 @@ target_sources(app PRIVATE
   src/main.c
   src/product_config.c
   src/product_runtime.c
+  src/product_topics.c
   src/bridge_control.c
   src/provisioning_http.c
 )

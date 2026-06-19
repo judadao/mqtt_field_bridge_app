@@ -43,7 +43,7 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Define persistent config schema for device role/name, WiFi, bridge peers,
       site ID, and topic prefix.
 - [x] Store bridge peer config in flash/NVS or Zephyr settings.
-- [ ] Add defaults for common small and larger peer-count deployments.
+- [x] Add defaults for common small and larger peer-count deployments.
 - [x] Add config validation.
 - [x] Add config reset path for field recovery.
 
@@ -76,12 +76,12 @@ This TODO is for the product application repository. The broker dependency is
 
 - [x] Standardize topic prefix: `site/<site_id>/<stream>`.
 - [x] Add product config for `site_id`.
-- [ ] Add status stream topic.
-- [ ] Add IO stream topic.
-- [ ] Add event stream topic.
-- [ ] Add test publisher flow for a source node.
-- [ ] Add test subscriber flow for peer nodes.
-- [ ] Verify peer nodes receive source-node field data through P2P routing.
+- [x] Add status stream topic.
+- [x] Add IO stream topic.
+- [x] Add event stream topic.
+- [x] Add test publisher flow for a source node.
+- [x] Add test subscriber flow for peer nodes.
+- [x] Verify peer nodes receive source-node field data through P2P routing.
 
 ## Field Validation
 
