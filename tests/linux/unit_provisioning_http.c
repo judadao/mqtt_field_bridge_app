@@ -153,6 +153,7 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "disable-all") != NULL);
     CHECK(strstr(resp, "/login") != NULL);
     CHECK(strstr(resp, "/config") != NULL);
+    CHECK(strstr(resp, "/peer-status") != NULL);
     CHECK(strstr(resp, "No slot changes") != NULL);
     CHECK(strstr(resp, "changed slots saved") != NULL);
 }
@@ -300,6 +301,15 @@ static void test_post_peer_requires_auth(void)
              (int)strlen(body), body);
     char resp[512];
     int n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+    CHECK(strstr(resp, "auth required") != NULL);
+}
+
+static void test_peer_status_requires_auth(void)
+{
+    char resp[512];
+    int n = http_req("GET /peer-status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "403 Forbidden") != NULL);
     CHECK(strstr(resp, "auth required") != NULL);
@@ -458,6 +468,21 @@ static void test_get_peers_empty(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "[") != NULL);
     CHECK(strstr(resp, "]") != NULL);
+}
+
+static void test_get_peer_status(void)
+{
+    char resp[4096];
+    char req[256];
+    snprintf(req, sizeof(req),
+             "GET /peer-status HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    int n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "\"index\":0") != NULL);
+    CHECK(strstr(resp, "\"state\":\"disabled\"") != NULL);
+    CHECK(strstr(resp, "\"last_error\":\"\"") != NULL);
 }
 
 static void test_post_peer_valid(void)
@@ -624,6 +649,7 @@ int main(void)
     RUN(test_post_config_invalid);
     RUN(test_get_peers_requires_auth);
     RUN(test_post_peer_requires_auth);
+    RUN(test_peer_status_requires_auth);
     RUN(test_broker_control_requires_auth);
     RUN(test_broker_control_valid);
     RUN(test_broker_control_invalid);
@@ -633,6 +659,7 @@ int main(void)
     RUN(test_publish_test_rejects_wrong_prefix);
     RUN(test_config_reset_requires_auth);
     RUN(test_get_peers_empty);
+    RUN(test_get_peer_status);
     RUN(test_post_peer_valid);
     RUN(test_post_peer_escapes_json_strings);
     RUN(test_post_peer_invalid_json);

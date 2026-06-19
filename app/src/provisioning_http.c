@@ -312,7 +312,7 @@ static const char index_html[] =
 "function row(p,i){p=norm(p);return `<div class=\"peer\" data-i=\"${i}\"><label>Name<input name=\"name\" maxlength=\"31\" value=\"${esc(p.name)}\"></label><label>Host / IP<input name=\"host\" maxlength=\"63\" value=\"${esc(p.host)}\"></label><label>MQTT Port<input name=\"mqtt_port\" type=\"number\" min=\"1\" max=\"65535\" value=\"${p.mqtt_port}\"></label><label>P2P Port<input name=\"p2p_port\" type=\"number\" min=\"1\" max=\"65535\" value=\"${p.p2p_port}\"></label><label>Enabled<input name=\"enabled\" type=\"checkbox\" ${p.enabled?'checked':''}></label><div class=\"actions\"><button type=\"button\" onclick=\"savePeer(${i})\">Save</button><button class=\"secondary\" type=\"button\" onclick=\"disablePeer(${i})\">Disable</button></div></div>`}"
 "function put(c){cfg=c;for(const k in c){const e=$(k);if(!e)continue;if(e.type==='checkbox')e.checked=!!c[k];else e.value=c[k]||''}$('ip-state').textContent=c.device_ip||'-'}"
 "function collect(){return {device_name:$('device_name').value,admin_password:$('admin_password').value,wifi_ssid:$('wifi_ssid').value,wifi_password:$('wifi_password').value,ap_ssid:$('ap_ssid').value,ap_password:$('ap_password').value,device_ip:$('device_ip').value,gateway:$('gateway').value,netmask:$('netmask').value,dhcp_enabled:$('dhcp_enabled').checked?1:0,site_id:$('site_id').value,topic_prefix:$('topic_prefix').value,mqtt_port:+$('cfg_mqtt_port').value,p2p_port:+$('cfg_p2p_port').value,broker_enabled:$('broker_enabled').checked?1:0,bridge_enabled:$('bridge_enabled').checked?1:0,mesh_enabled:$('mesh_enabled').checked?1:0}}"
-"async function load(){st.textContent='Loading';st.className='pill muted';const s=await json('/status'),c=await json('/config'),p=await json('/peers');put(c);baseline=p.map(x=>JSON.stringify(norm(x)));raw.textContent=JSON.stringify({status:s,config:c,peers:p},null,2);form.innerHTML=p.map(row).join('');$('wifi-state').textContent=s.wifi_state||'-';$('broker-state').textContent=s.broker_state||'-';$('p2p-state').textContent=`${s.p2p_role||'-'} / peers ${s.connected_peers||0}`;if(!$('test_topic').value)$('test_topic').value=s.test_topic||((c.topic_prefix||'site/field-a')+'/test');st.textContent='Online';st.className='pill ok'}"
+"async function load(){st.textContent='Loading';st.className='pill muted';const s=await json('/status'),c=await json('/config'),p=await json('/peers'),ps=await json('/peer-status');put(c);baseline=p.map(x=>JSON.stringify(norm(x)));raw.textContent=JSON.stringify({status:s,config:c,peers:p,peer_status:ps},null,2);form.innerHTML=p.map(row).join('');$('wifi-state').textContent=s.wifi_state||'-';$('broker-state').textContent=s.broker_state||'-';$('p2p-state').textContent=`${s.p2p_role||'-'} / peers ${s.connected_peers||0}`;if(!$('test_topic').value)$('test_topic').value=s.test_topic||((c.topic_prefix||'site/field-a')+'/test');st.textContent='Online';st.className='pill ok'}"
 "function data(i){const e=form.querySelector(`[data-i=\"${i}\"]`);return norm({name:e.querySelector('[name=name]').value,host:e.querySelector('[name=host]').value,mqtt_port:e.querySelector('[name=mqtt_port]').value,p2p_port:e.querySelector('[name=p2p_port]').value,enabled:e.querySelector('[name=enabled]').checked?1:0})}"
 "async function saveConfig(part){ss.textContent='Saving';ss.className='pill muted';await json('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});ss.textContent=`${part} saved`;ss.className='pill ok';await load()}"
 "async function resetConfig(){ss.textContent='Resetting';ss.className='pill muted';await json('/config/reset',{method:'POST'});token='';$('login').classList.remove('hide');$('app').classList.add('hide');$('refresh').classList.add('hide');$('login-password').value='admin';$('login-state').textContent='Config reset; login again';$('login-state').className='muted'}"
@@ -593,6 +593,57 @@ static void handle_get_peers(int fd)
     send_json(fd, 200, buf);
 }
 
+static void handle_get_peer_status(int fd)
+{
+    field_bridge_peer_status_t statuses[FIELD_BRIDGE_PEER_MAX];
+    char *buf = peers_json_buf;
+    const int cap = PEERS_JSON_BUF_SIZE;
+    int count = product_runtime_get_peer_statuses(statuses, FIELD_BRIDGE_PEER_MAX);
+    int pos = 0;
+
+    if (count < 0) {
+        send_json(fd, 500, "{\"error\":\"peer status unavailable\"}");
+        return;
+    }
+
+    buf[pos++] = '[';
+    for (int i = 0; i < count; i++) {
+        int written;
+        if (i > 0) buf[pos++] = ',';
+        written = snprintf(buf + pos, (size_t)(cap - pos),
+                           "{\"index\":%u,\"name\":",
+                           statuses[i].index);
+        if (written < 0 || written >= cap - pos) goto overflow;
+        pos += written;
+        if (append_json_str(buf, cap, &pos, statuses[i].name) != 0) goto overflow;
+        written = snprintf(buf + pos, (size_t)(cap - pos), ",\"host\":");
+        if (written < 0 || written >= cap - pos) goto overflow;
+        pos += written;
+        if (append_json_str(buf, cap, &pos, statuses[i].host) != 0) goto overflow;
+        written = snprintf(buf + pos, (size_t)(cap - pos),
+                           ",\"p2p_port\":%u,\"enabled\":%u,\"state\":",
+                           statuses[i].p2p_port, statuses[i].enabled);
+        if (written < 0 || written >= cap - pos) goto overflow;
+        pos += written;
+        if (append_json_str(buf, cap, &pos, statuses[i].state) != 0) goto overflow;
+        written = snprintf(buf + pos, (size_t)(cap - pos), ",\"last_error\":");
+        if (written < 0 || written >= cap - pos) goto overflow;
+        pos += written;
+        if (append_json_str(buf, cap, &pos, statuses[i].last_error) != 0) goto overflow;
+        if (pos >= cap - 2) goto overflow;
+        buf[pos++] = '}';
+        buf[pos] = '\0';
+    }
+    if (pos >= cap - 2) goto overflow;
+    buf[pos++] = ']';
+    buf[pos] = '\0';
+    send_json(fd, 200, buf);
+    return;
+
+overflow:
+    send_json(fd, 500, "{\"error\":\"peer status too large\"}");
+}
+
 static void handle_post_peer(int fd, int idx, const char *body)
 {
     if (idx < 0 || idx >= FIELD_BRIDGE_PEER_MAX) {
@@ -679,6 +730,9 @@ static void handle_client(int fd)
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/peers") == 0) {
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
         else handle_get_peers(fd);
+    } else if (strcmp(method, "GET") == 0 && strcmp(path, "/peer-status") == 0) {
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_get_peer_status(fd);
     } else if (strcmp(method, "POST") == 0 && strncmp(path, "/peers/", 7) == 0) {
         int idx = atoi(path + 7);
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");

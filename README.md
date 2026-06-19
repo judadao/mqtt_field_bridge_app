@@ -160,8 +160,11 @@ curl -X POST http://127.0.0.1:8080/config \
   -H 'Content-Type: application/json' \
   -d '{"device_name":"node-a","admin_password":"admin","wifi_ssid":"plant","wifi_password":"wifi-pass","ap_ssid":"ESP32-Min-Broker","ap_password":"12345678","device_ip":"192.168.4.1","gateway":"192.168.4.1","netmask":"255.255.255.0","dhcp_enabled":1,"site_id":"field-a","topic_prefix":"site/field-a","mqtt_port":1883,"p2p_port":4884,"broker_enabled":1,"bridge_enabled":1,"mesh_enabled":1}'
 
-# List configured peers
+# List configured peers and runtime peer states
 curl http://127.0.0.1:8080/peers \
+  -H "X-Auth-Token: $TOKEN"
+
+curl http://127.0.0.1:8080/peer-status \
   -H "X-Auth-Token: $TOKEN"
 
 # Configure peer slot 0
@@ -189,8 +192,8 @@ curl -X POST http://127.0.0.1:8080/config/reset \
 
 Peer slots default to 10 entries. Updating a peer persists the peer config and
 calls `bridge_control_apply_peers()`. `/config`, `/config/reset`,
-`/broker/control`, `/publish-test`, and `/peers` require the `X-Auth-Token`
-returned by `/login`; `/status` and the HTML page are public.
+`/broker/control`, `/publish-test`, `/peers`, and `/peer-status` require the
+`X-Auth-Token` returned by `/login`; `/status` and the HTML page are public.
 
 The same server also serves a local settings page:
 
@@ -356,8 +359,12 @@ Implemented in this product repo:
   the broker/P2P layer.
 - Enabled IPv4 bridge peers are applied to the broker static seed table, so
   peer changes can be re-applied without rebooting the product app.
+- Peer runtime state is exposed through `/peer-status` as `disabled`,
+  `connecting`, `connected`, `disconnected`, or `unknown` with a last-error
+  field.
 - Product-owned provisioning HTTP server with `/status`, `/login`, `/config`,
-  `/config/reset`, `/broker/control`, `/publish-test`, `/peers`, and
+  `/config/reset`, `/broker/control`, `/publish-test`, `/peers`,
+  `/peer-status`, and
   `POST /peers/<index>` endpoints.
 - Firmware-served HTML settings page with login, System Setting, Network
   Setting, Broker Setting / Bridge Mesh Setting, runtime status cards, broker
@@ -389,15 +396,15 @@ make -C tests/linux scale-ring-tests
 Result:
 
 - `unit_product_config`: 216/216 checks passed.
-- `unit_product_runtime`: 34/34 checks passed.
+- `unit_product_runtime`: 54/54 checks passed.
 - `unit_product_topics`: 20/20 checks passed.
 - `unit_bridge_control`: 12/12 tests passed.
-- `unit_provisioning_http`: 150/150 checks passed.
+- `unit_provisioning_http`: 159/159 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.
-- `stress_throughput.sh`: 181,782 messages received in 10 seconds
-  (`18,178 msg/s`), above the 500-message minimum; all three brokers survived.
+- `stress_throughput.sh`: 2,355,212 messages received in 10 seconds
+  (`235,521 msg/s`), above the 500-message minimum; all three brokers survived.
 - `test_chain_scale.sh`: 10-node chain passed; B10 received a B1 publish
   through the connected bridge graph and all 10 brokers survived.
 - `TOPOLOGY=ring test_chain_scale.sh`: 10-node ring passed with the same
@@ -412,7 +419,7 @@ Product releases use `bridge-vX.Y.Z` tags. Broker dependency releases use
 Current product release tag in this branch:
 
 ```text
-bridge-v0.1.3
+bridge-v0.1.4
 ```
 
 ## Dependency Rule

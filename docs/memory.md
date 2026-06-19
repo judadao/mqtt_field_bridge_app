@@ -47,10 +47,12 @@ Completed product-owned provisioning/runtime surface:
   reset, and Topic Test.
 - Unit coverage now includes `unit_product_runtime` and `unit_product_topics`;
   last local unit run passed `unit_product_config` 227/227,
-  `unit_product_runtime` 34/34, `unit_product_topics` 20/20,
-  `unit_bridge_control` 12/12, and `unit_provisioning_http` 150/150.
+  `unit_product_runtime` 54/54, `unit_product_topics` 20/20,
+  `unit_bridge_control` 12/12, and `unit_provisioning_http` 159/159.
 - Enabled IPv4 bridge peers are applied to the broker static seed table through
   `p2p_static_seed_clear()` / `p2p_static_seed_add()`.
+- `/peer-status` exposes disabled, connecting, connected, disconnected, and
+  unknown peer states with last-error text.
 
 Remaining meaningful blockers:
 

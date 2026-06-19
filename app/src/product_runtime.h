@@ -27,12 +27,23 @@ typedef struct {
     uint8_t retain;
 } field_bridge_publish_test_t;
 
+typedef struct {
+    uint8_t index;
+    char name[FIELD_BRIDGE_NAME_MAX];
+    char host[FIELD_BRIDGE_HOST_MAX];
+    uint16_t p2p_port;
+    uint8_t enabled;
+    char state[FIELD_BRIDGE_STATE_MAX];
+    char last_error[FIELD_BRIDGE_ERROR_MAX];
+} field_bridge_peer_status_t;
+
 void product_runtime_init(void);
 void product_runtime_network_start(const field_bridge_settings_t *settings);
 void product_runtime_broker_started(void);
 void product_runtime_broker_failed(const char *error);
 int product_runtime_set_broker_enabled(uint8_t enabled);
 int product_runtime_get_status(field_bridge_runtime_status_t *out);
+int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max);
 int product_runtime_record_publish_test(const field_bridge_publish_test_t *test);
 int product_runtime_get_last_publish_test(field_bridge_publish_test_t *out);
 

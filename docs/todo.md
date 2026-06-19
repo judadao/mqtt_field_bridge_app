@@ -56,7 +56,7 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Apply peer changes without reboot when possible.
 - [x] Add static seed support in `mqtt_min_broker` if current P2P discovery is
       not enough for the field flow.
-- [ ] Show peer connection state: unknown, connecting, connected, disconnected,
+- [x] Show peer connection state: unknown, connecting, connected, disconnected,
       and last error.
 
 ## Local HTML / Provisioning

@@ -7,6 +7,14 @@
 
 #include "p2p.h"
 
+#ifndef __ZEPHYR__
+#include <arpa/inet.h>
+#define RUNTIME_INET_PTON(af, src, dst) inet_pton((af), (src), (dst))
+#else
+#include <zephyr/net/socket.h>
+#define RUNTIME_INET_PTON(af, src, dst) zsock_inet_pton((af), (src), (dst))
+#endif
+
 LOG_MODULE_REGISTER(product_runtime, LOG_LEVEL_INF);
 
 static field_bridge_runtime_status_t runtime_status;
@@ -105,6 +113,86 @@ int product_runtime_get_status(field_bridge_runtime_status_t *out)
 
     *out = runtime_status;
     return 0;
+}
+
+static int snapshot_contains_peer(const p2p_peer_snapshot_t *peers, int count,
+                                  const field_bridge_peer_t *peer)
+{
+    uint32_t addr;
+
+    if (RUNTIME_INET_PTON(AF_INET, peer->host, &addr) != 1) {
+        return -1;
+    }
+    for (int i = 0; i < count; i++) {
+        if (peers[i].addr == addr && peers[i].p2p_port == peer->p2p_port) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max)
+{
+    p2p_peer_snapshot_t snapshots[P2P_PEER_MAX];
+    int snapshot_count;
+    int written = 0;
+
+    if (!out || max <= 0) {
+        return -1;
+    }
+
+    snapshot_count = p2p_peer_snapshot(snapshots, P2P_PEER_MAX);
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX && written < max; i++) {
+        field_bridge_peer_t peer;
+        field_bridge_peer_status_t *status = &out[written];
+        int match;
+
+        if (product_config_get_peer(i, &peer) != 0) {
+            continue;
+        }
+
+        memset(status, 0, sizeof(*status));
+        status->index = (uint8_t)i;
+        copy_str(status->name, sizeof(status->name), peer.name);
+        copy_str(status->host, sizeof(status->host), peer.host);
+        status->p2p_port = peer.p2p_port;
+        status->enabled = peer.enabled;
+
+        if (!peer.enabled) {
+            copy_str(status->state, sizeof(status->state), "disabled");
+            written++;
+            continue;
+        }
+        if (peer.host[0] == '\0' || peer.p2p_port == 0) {
+            copy_str(status->state, sizeof(status->state), "unknown");
+            copy_str(status->last_error, sizeof(status->last_error),
+                     "missing host or p2p port");
+            written++;
+            continue;
+        }
+
+        match = snapshot_contains_peer(snapshots, snapshot_count, &peer);
+        if (match == 1) {
+            copy_str(status->state, sizeof(status->state), "connected");
+        } else if (match == 0) {
+            if (strcmp(runtime_status.broker_state, "requested") == 0) {
+                copy_str(status->state, sizeof(status->state), "connecting");
+                copy_str(status->last_error, sizeof(status->last_error),
+                         "waiting for p2p snapshot");
+            } else {
+                copy_str(status->state, sizeof(status->state), "disconnected");
+                copy_str(status->last_error, sizeof(status->last_error),
+                         "not present in p2p snapshot");
+            }
+        } else {
+            copy_str(status->state, sizeof(status->state), "unknown");
+            copy_str(status->last_error, sizeof(status->last_error),
+                     "host is not an IPv4 snapshot key");
+        }
+        written++;
+    }
+
+    return written;
 }
 
 int product_runtime_record_publish_test(const field_bridge_publish_test_t *test)

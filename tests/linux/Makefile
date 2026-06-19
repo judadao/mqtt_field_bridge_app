@@ -48,11 +48,13 @@ $(OUTDIR)/unit_bridge_control: unit_bridge_control.c \
 $(OUTDIR)/unit_product_runtime: unit_product_runtime.c \
                                 $(APP_SRC)/product_runtime.c \
                                 $(APP_SRC)/product_runtime.h \
+                                $(APP_SRC)/product_config.c \
                                 $(APP_SRC)/product_config.h \
                                 | $(OUTDIR)
 	$(CC) $(CFLAGS) \
 	    unit_product_runtime.c \
 	    $(APP_SRC)/product_runtime.c \
+	    $(APP_SRC)/product_config.c \
 	    -o $@
 
 $(OUTDIR)/unit_product_topics: unit_product_topics.c \
