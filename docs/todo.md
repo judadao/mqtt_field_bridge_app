@@ -29,14 +29,16 @@ This TODO is for the product application repository. The broker dependency is
 ## Product App Bootstrap
 
 - [ ] Confirm `west build` can include `deps/mqtt_min_broker` through
-      `ZEPHYR_EXTRA_MODULES`.
-- [ ] Add board-specific overlays for the target ESP32 board.
+      `ZEPHYR_EXTRA_MODULES`. Blocked locally: `west` and `ZEPHYR_BASE` are not
+      installed in this workspace environment.
+- [ ] Add board-specific overlays for the target ESP32 board. Blocked until the
+      exact ESP32 board target and flash partition requirements are selected.
 - [x] Decide whether USB-localhost provisioning, AP-mode provisioning, or LAN IP
       provisioning is the first supported setup path.
 - [ ] Implement product network startup before broker startup.
 - [ ] Start broker only after network is ready.
-- [ ] Start P2P only after broker init succeeds.
-- [ ] Add clear boot logs for network, broker, and P2P state.
+- [x] Start P2P only after broker init succeeds.
+- [x] Add clear boot logs for network, broker, and P2P state.
 
 ## Product Config
 
@@ -91,7 +93,8 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Add scripted 10-node ring validation.
 - [x] Validate peer restart recovery.
 - [x] Validate source node continues locally when peers are offline.
-- [ ] Validate peer reconnection after WiFi reconnect.
+- [ ] Validate peer reconnection after WiFi reconnect. Blocked until target ESP32
+      WiFi driver/application path is available for hardware testing.
 - [x] Record logs and expected status page output for each test.
 
 ## Broker Dependency

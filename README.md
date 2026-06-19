@@ -377,11 +377,15 @@ Implemented in this product repo:
 
 Still open:
 
-- Product network startup and board overlays for target ESP32 hardware.
+- Zephyr `west build` confirmation is blocked in this workspace because `west`
+  and `ZEPHYR_BASE` are not installed.
+- Product network startup and board overlays for target ESP32 hardware are
+  blocked until the exact ESP32 board target and flash partition requirements
+  are selected.
 - Applying saved WiFi/network settings to the target ESP32 networking driver.
 - Live broker stop/restart after boot; current broker dependency exposes a
   blocking run loop but no stop lifecycle API.
-- Hardware validation logs and manual field checklist for larger peer counts.
+- WiFi reconnect hardware validation.
 
 ## Latest Test Result
 
