@@ -90,13 +90,10 @@ This TODO is for the product application repository. The broker dependency is
 - [ ] Validate peer reconnection after WiFi reconnect.
 - [ ] Record logs and expected status page output for each test.
 
-## Broker Module Backlog
+## Broker Dependency
 
-Track these in `mqtt_min_broker` if product work needs them:
-
-- [ ] Stable public API documentation.
-- [ ] Static P2P seed API/config.
-- [ ] P2P peer status snapshot API.
-- [ ] P2P route/remote subscription stats API.
-- [ ] Zephyr module build smoke test.
-- [ ] Release notes per broker tag.
+Broker-specific issues are tracked in the `mqtt_min_broker` repository, not here.
+When this product app needs a broker feature or fix, open a TODO or issue against
+`mqtt_min_broker`, implement and test it there, tag a new broker release, then bump
+`deps.json` in this repo to pick up the change.
+Do not patch `deps/mqtt_min_broker` permanently from this repo.
