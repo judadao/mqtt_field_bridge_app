@@ -30,10 +30,25 @@ $(OUTDIR)/unit_product_config: unit_product_config.c \
 	    $(APP_SRC)/product_config.c \
 	    -o $@
 
-unit-tests: $(OUTDIR)/unit_product_config
+$(OUTDIR)/unit_bridge_control: unit_bridge_control.c \
+                                $(APP_SRC)/bridge_control.c \
+                                $(APP_SRC)/bridge_control.h \
+                                $(APP_SRC)/product_config.c \
+                                $(APP_SRC)/product_config.h \
+                                | $(OUTDIR)
+	$(CC) $(CFLAGS) \
+	    unit_bridge_control.c \
+	    $(APP_SRC)/bridge_control.c \
+	    $(APP_SRC)/product_config.c \
+	    -o $@
+
+unit-tests: $(OUTDIR)/unit_product_config $(OUTDIR)/unit_bridge_control
 	@echo ""
 	@echo "--- unit_product_config ---"
 	$(OUTDIR)/unit_product_config
+	@echo ""
+	@echo "--- unit_bridge_control ---"
+	$(OUTDIR)/unit_bridge_control
 
 # ── integration tests ──────────────────────────────────────────────────────
 integration-tests: broker-p2p
