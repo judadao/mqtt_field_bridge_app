@@ -108,6 +108,10 @@ static void test_apply_disabled_not_counted(void)
 int main(void)
 {
     printf("=== unit_bridge_control ===\n");
+#ifndef __ZEPHYR__
+    /* Isolate tests from any leftover persist file. */
+    setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
+#endif
     RUN(test_apply_all_disabled);
     RUN(test_apply_one_enabled);
     RUN(test_apply_empty_host_skipped);

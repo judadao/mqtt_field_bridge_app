@@ -8,9 +8,44 @@ LOG_MODULE_REGISTER(product_config, LOG_LEVEL_INF);
 
 static field_bridge_peer_t peers[FIELD_BRIDGE_PEER_MAX];
 
+#ifndef __ZEPHYR__
+#include <stdio.h>
+#include <stdlib.h>
+
+static const char *peers_file_path(void)
+{
+    const char *p = getenv("BRIDGE_PEERS_FILE");
+    return p ? p : "/tmp/mqtt_bridge_peers.bin";
+}
+
+static void persist_load(void)
+{
+    FILE *f = fopen(peers_file_path(), "rb");
+    if (!f) return;
+    (void)fread(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
+    fclose(f);
+}
+
+static void persist_save(int idx)
+{
+    (void)idx;
+    FILE *f = fopen(peers_file_path(), "wb");
+    if (!f) return;
+    (void)fwrite(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
+    fclose(f);
+}
+
+#else  /* __ZEPHYR__ — NVS wired in Task 4 */
+
+static void persist_load(void) {}
+static void persist_save(int idx) { (void)idx; }
+
+#endif /* __ZEPHYR__ */
+
 void product_config_init(void)
 {
     memset(peers, 0, sizeof(peers));
+    persist_load();
     LOG_INF("product config initialized");
 }
 
@@ -36,5 +71,6 @@ int product_config_set_peer(int index, const field_bridge_peer_t *peer)
     }
 
     peers[index] = *peer;
+    persist_save(index);
     return 0;
 }

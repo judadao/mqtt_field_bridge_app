@@ -20,6 +20,7 @@
 static int tests_run    = 0;
 static int tests_passed = 0;
 static int tests_failed = 0;
+static int fail_before;
 
 #define CHECK(expr) do {                                                \
     tests_run++;                                                        \
@@ -179,11 +180,77 @@ static void test_disable_peer(void)
     CHECK(strcmp(out.host, "10.0.0.3") == 0);
 }
 
+/* Persistence tests use an isolated temp file and manage their own init. */
+#ifndef __ZEPHYR__
+#include <stdlib.h>
+#define PERSIST_FILE "/tmp/mqtt_bridge_test_peers.bin"
+
+#define RUN_PERSIST(fn) do {                                                \
+    fail_before = tests_failed;                                             \
+    printf("  %-50s ", #fn);                                                \
+    unsetenv("BRIDGE_PEERS_FILE");                                          \
+    remove(PERSIST_FILE);                                                   \
+    setenv("BRIDGE_PEERS_FILE", PERSIST_FILE, 1);                          \
+    product_config_init();                                                  \
+    fn();                                                                   \
+    remove(PERSIST_FILE);                                                   \
+    unsetenv("BRIDGE_PEERS_FILE");                                          \
+    printf("%s\n", (tests_failed == fail_before) ? "ok" : "FAIL");         \
+} while (0)
+
+static void test_persist_survives_reinit(void)
+{
+    /* Set a peer, re-init (simulating reboot), verify it survived. */
+    field_bridge_peer_t in = {
+        .name = "persist_test", .host = "172.16.0.1",
+        .mqtt_port = 1883, .p2p_port = 4884, .enabled = 1,
+    };
+    CHECK(product_config_set_peer(0, &in) == 0);
+
+    product_config_init();   /* simulate reboot */
+
+    field_bridge_peer_t out;
+    CHECK(product_config_get_peer(0, &out) == 0);
+    CHECK(strcmp(out.name, "persist_test") == 0);
+    CHECK(strcmp(out.host, "172.16.0.1") == 0);
+    CHECK(out.mqtt_port == 1883);
+    CHECK(out.p2p_port  == 4884);
+    CHECK(out.enabled   == 1);
+}
+
+static void test_persist_all_slots_survive_reinit(void)
+{
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
+        field_bridge_peer_t in;
+        snprintf(in.name, sizeof(in.name), "node%d", i);
+        snprintf(in.host, sizeof(in.host), "10.0.0.%d", i + 1);
+        in.mqtt_port = (uint16_t)(1883 + i);
+        in.p2p_port  = 4884;
+        in.enabled   = 1;
+        CHECK(product_config_set_peer(i, &in) == 0);
+    }
+
+    product_config_init();   /* simulate reboot */
+
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
+        field_bridge_peer_t out;
+        CHECK(product_config_get_peer(i, &out) == 0);
+        CHECK(out.mqtt_port == (uint16_t)(1883 + i));
+        CHECK(out.enabled == 1);
+    }
+}
+#endif /* !__ZEPHYR__ */
+
 /* ── main ───────────────────────────────────────────────────────────────── */
 
 int main(void)
 {
     printf("=== unit_product_config ===\n");
+
+#ifndef __ZEPHYR__
+    /* Isolate existing tests from any leftover persist file. */
+    setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
+#endif
 
     RUN(test_init_zeroes_peers);
     RUN(test_set_and_get_peer);
@@ -196,6 +263,11 @@ int main(void)
     RUN(test_peer_count);
     RUN(test_name_boundary);
     RUN(test_disable_peer);
+
+#ifndef __ZEPHYR__
+    RUN_PERSIST(test_persist_survives_reinit);
+    RUN_PERSIST(test_persist_all_slots_survive_reinit);
+#endif
 
     printf("\n%d/%d tests passed", tests_passed, tests_run);
     if (tests_failed)
