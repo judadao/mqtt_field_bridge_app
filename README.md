@@ -418,5 +418,7 @@ repo and replaced by a tag bump.
 ## Product TODO
 
 The execution TODO list is in [`docs/todo.md`](docs/todo.md).
+Manual field validation steps are in
+[`docs/field_validation_checklist.md`](docs/field_validation_checklist.md).
 
 Version and tag naming rules are in [`docs/versioning.md`](docs/versioning.md).

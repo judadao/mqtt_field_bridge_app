@@ -85,14 +85,14 @@ This TODO is for the product application repository. The broker dependency is
 
 ## Field Validation
 
-- [ ] Create manual test checklist for 3-node and 10-node deployments.
+- [x] Create manual test checklist for 3-node and 10-node deployments.
 - [x] Create scripted test where possible.
 - [x] Add scripted 10-node chain validation.
 - [x] Add scripted 10-node ring validation.
 - [x] Validate peer restart recovery.
 - [x] Validate source node continues locally when peers are offline.
 - [ ] Validate peer reconnection after WiFi reconnect.
-- [ ] Record logs and expected status page output for each test.
+- [x] Record logs and expected status page output for each test.
 
 ## Broker Dependency
 
