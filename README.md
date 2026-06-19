@@ -183,6 +183,63 @@ UI workflow:
 The raw status panel shows the latest JSON returned by the device, which is
 useful during field setup and debugging.
 
+Browser-to-device operation flow:
+
+```mermaid
+flowchart TD
+    A[Open local settings page] --> B[GET /]
+    B --> C[Browser renders HTML, CSS, and JS]
+    C --> D[GET /status]
+    C --> E[GET /peers]
+    D --> F[Show device status]
+    E --> G[Render peer slots]
+    G --> H{User action}
+    H -->|Save one slot| I[POST /peers/<index>]
+    H -->|Save All| J[Sequential POST /peers/0..N]
+    H -->|Disable All| K[Clear enabled toggles]
+    K --> J
+    I --> L[Persist peer config]
+    J --> L
+    L --> M[bridge_control_apply_peers]
+    M --> N[Refresh /status and /peers]
+```
+
+UI action mapping:
+
+| UI action | HTTP/API flow | Program flow | Notes |
+|-----------|---------------|--------------|-------|
+| Open settings page | `GET /` or `GET /index.html` | `handle_client` -> `send_html` | Static page is served from firmware; no external assets. |
+| Refresh | `GET /status`, then `GET /peers` | `handle_get_status`, `handle_get_peers` | Updates status cards, peer count, and raw JSON panel. |
+| Save one slot | `POST /peers/<index>` | Decode JSON -> `product_config_set_peer` -> `bridge_control_apply_peers` | Persists one peer and reapplies active peers. |
+| Save All | Sequential `POST /peers/0..N` | Same as single-slot save for each row | Sequential writes avoid opening many concurrent connections to the embedded HTTP server. |
+| Disable one slot | `POST /peers/<index>` with `enabled:0` | Persist disabled peer -> reapply peers | Keeps host and port values for later reuse. |
+| Disable All | Clear enabled toggles, then Save All | Sequential disabled writes -> reapply peers | Fast field recovery path when isolating a node. |
+
+Provisioning HTTP program flow:
+
+```mermaid
+flowchart TD
+    A[TCP accept] --> B[Set client recv timeout]
+    B --> C[Read request headers]
+    C --> D{Route}
+    D -->|GET / or /index.html| E[send_html index page]
+    D -->|GET /status| F[Build compact JSON status]
+    D -->|GET /peers| G[Build peers JSON in static buffer]
+    D -->|POST /peers/<index>| H[Decode peer JSON]
+    H --> I{Valid index, ports, enabled}
+    I -->|No| J[JSON error response]
+    I -->|Yes| K[Persist peer config]
+    K --> L{Persist OK}
+    L -->|No| J
+    L -->|Yes| M[Apply peers]
+    F --> N[send_json]
+    G --> N
+    M --> N
+    E --> O[Close client]
+    J --> O
+    N --> O
+```
+
 ## Topic Model
 
 The intended topic family is:
