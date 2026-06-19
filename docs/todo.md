@@ -88,7 +88,7 @@ This TODO is for the product application repository. The broker dependency is
 - [ ] Create manual test checklist for 3-node and 10-node deployments.
 - [x] Create scripted test where possible.
 - [x] Add scripted 10-node chain validation.
-- [ ] Add scripted 10-node ring validation.
+- [x] Add scripted 10-node ring validation.
 - [ ] Validate peer restart recovery.
 - [ ] Validate source node continues locally when peers are offline.
 - [ ] Validate peer reconnection after WiFi reconnect.

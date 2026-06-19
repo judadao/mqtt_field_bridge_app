@@ -217,6 +217,7 @@ Last verified locally on 2026-06-19 with:
 ```bash
 make -C tests/linux test
 make -C tests/linux scale-tests
+make -C tests/linux scale-ring-tests
 ```
 
 Result:
@@ -231,6 +232,8 @@ Result:
   (`233,080 msg/s`), above the 500-message minimum; all three brokers survived.
 - `test_chain_scale.sh`: 10-node chain passed; B10 received a B1 publish
   through the connected bridge graph and all 10 brokers survived.
+- `TOPOLOGY=ring test_chain_scale.sh`: 10-node ring passed with the same
+  first-node to last-node delivery and all 10 brokers survived.
 
 ## Release And Tagging
 

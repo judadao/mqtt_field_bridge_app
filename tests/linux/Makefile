@@ -9,7 +9,7 @@ CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
          -I$(BROKER)/include
 OUTDIR = out
 
-.PHONY: all test unit-tests integration-tests stress scale-tests clean broker-p2p
+.PHONY: all test unit-tests integration-tests stress scale-tests scale-ring-tests clean broker-p2p
 
 all: unit-tests
 
@@ -82,6 +82,11 @@ scale-tests: broker-p2p
 	@echo ""
 	@echo "--- test_chain_scale (10 node chain) ---"
 	@bash test_chain_scale.sh
+
+scale-ring-tests: broker-p2p
+	@echo ""
+	@echo "--- test_chain_scale (10 node ring) ---"
+	@TOPOLOGY=ring bash test_chain_scale.sh
 
 # ── stress tests ───────────────────────────────────────────────────────────
 stress: broker-p2p

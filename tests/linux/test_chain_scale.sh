@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # test_chain_scale.sh — scalable chain-topology broker validation.
 #
-# Default topology: B1 <-> B2 <-> ... <-> B10. A subscriber on the last node
-# must receive a publish from the first node, proving the connected bridge graph
-# behaves as one broker network without requiring a full mesh.
+# Default topology: B1 <-> B2 <-> ... <-> B10. Set TOPOLOGY=ring to also bridge
+# the last node back to the first. A subscriber on the last node must receive a
+# publish from the first node, proving the connected bridge graph behaves as one
+# broker network without requiring a full mesh.
 #
 # Knobs:
 #   NODE_COUNT   number of brokers in the chain (default: 10)
+#   TOPOLOGY     chain or ring (default: chain)
 #   SETTLE_SEC   P2P formation wait (default: 12)
 #   WAIT_MSG_SEC max seconds to wait for the expected message (default: 10)
 set -eu
@@ -17,6 +19,7 @@ OUT="$ROOT_DIR/tests/linux/out/chain_scale"
 CLI="$BROKER_DIR/build_out/mqtt_cli"
 
 NODE_COUNT=${NODE_COUNT:-10}
+TOPOLOGY=${TOPOLOGY:-chain}
 SETTLE_SEC=${SETTLE_SEC:-12}
 WAIT_MSG_SEC=${WAIT_MSG_SEC:-10}
 DISC_PORT=18850
@@ -93,19 +96,26 @@ peer_list_for() {
     if [ "$idx" -gt 0 ]; then
         prev=$((idx - 1))
         peers="127.0.0.1:$((P2P_BASE + (prev * 2)))"
+    elif [ "$TOPOLOGY" = "ring" ]; then
+        prev=$((NODE_COUNT - 1))
+        peers="127.0.0.1:$((P2P_BASE + (prev * 2)))"
     fi
     if [ "$idx" -lt $((NODE_COUNT - 1)) ]; then
         next=$((idx + 1))
         if [ -n "$peers" ]; then peers="$peers,"; fi
         peers="${peers}127.0.0.1:$((P2P_BASE + (next * 2)))"
+    elif [ "$TOPOLOGY" = "ring" ]; then
+        if [ -n "$peers" ]; then peers="$peers,"; fi
+        peers="${peers}127.0.0.1:$P2P_BASE"
     fi
     printf '%s\n' "$peers"
 }
 
 [ "$NODE_COUNT" -ge 2 ] || { echo "NODE_COUNT must be >= 2" >&2; exit 1; }
+case "$TOPOLOGY" in chain|ring) ;; *) echo "TOPOLOGY must be chain or ring" >&2; exit 1 ;; esac
 [ -x "$CLI" ] || make -C "$BROKER_DIR" -f Makefile.linux all >/dev/null 2>&1
 
-echo "=== test_chain_scale.sh (${NODE_COUNT} node chain) ==="
+echo "=== test_chain_scale.sh (${NODE_COUNT} node ${TOPOLOGY}) ==="
 
 ports=""
 for i in $(seq 0 $((NODE_COUNT - 1))); do
@@ -121,7 +131,7 @@ for i in $(seq 0 $((NODE_COUNT - 1))); do
     PIDS="$PIDS $!"
 done
 
-printf '  Waiting %ds for chain to converge...\n' "$SETTLE_SEC"
+printf '  Waiting %ds for %s to converge...\n' "$SETTLE_SEC" "$TOPOLOGY"
 sleep "$SETTLE_SEC"
 
 last=$((NODE_COUNT - 1))
@@ -135,7 +145,7 @@ sleep 1.5
 wait_for_match "$OUT/recv.out" "chain-ok" "$WAIT_MSG_SEC" || true
 
 grep -q "chain-ok" "$OUT/recv.out" \
-    && ok "B$((last + 1)) receives B1 publish through chain" \
+    && ok "B$((last + 1)) receives B1 publish through $TOPOLOGY" \
     || fail "B$((last + 1)) did not receive B1 publish"
 
 alive=0

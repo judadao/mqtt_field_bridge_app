@@ -18,6 +18,9 @@ make -C tests/linux stress
 # Scale tests (10-node chain by default)
 make -C tests/linux scale-tests
 
+# Redundant 10-node ring scale test
+make -C tests/linux scale-ring-tests
+
 # Everything
 make -C tests/linux test
 ```
@@ -31,7 +34,7 @@ make -C tests/linux test
 | `unit_provisioning_http` | unit | socket-based local HTML page, `/status`, `/peers`, `POST /peers/<index>`, and error routes |
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
 | `test_3node_scenario.sh` | integration | Node1→Node2 routing, Node3 routing, Node1 local-only when Node2 offline, Node2 restart recovery |
-| `test_chain_scale.sh` | scale | 10-node chain; first-node publish reaches last-node subscriber |
+| `test_chain_scale.sh` | scale | 10-node chain or ring; first-node publish reaches last-node subscriber |
 | `stress_reconnect.sh` | stress | 5 kill+restart cycles by default; B1 must not hang |
 | `stress_throughput.sh` | stress | 3-broker P2P under multi-publisher load; minimum throughput check |
 
@@ -41,6 +44,7 @@ make -C tests/linux test
 |----------|---------|-----------|
 | `SETTLE_SEC` | 8 for 3node, 5 for stress | 3node, reconnect, throughput |
 | `NODE_COUNT` | 10 | chain scale |
+| `TOPOLOGY` | chain | chain scale |
 | `WAIT_MSG_SEC` | 8 for 3node, 10 for chain scale | 3node, chain scale |
 | `VERIFY_TIMEOUT_SEC` | 5 | reconnect |
 | `RESTART_COUNT` | 5 | reconnect |
