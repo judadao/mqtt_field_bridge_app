@@ -53,8 +53,8 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Add API to list peers.
 - [x] Add API to add/update peers.
 - [x] Add API to disable/delete peers.
-- [ ] Apply peer changes without reboot when possible.
-- [ ] Add static seed support in `mqtt_min_broker` if current P2P discovery is
+- [x] Apply peer changes without reboot when possible.
+- [x] Add static seed support in `mqtt_min_broker` if current P2P discovery is
       not enough for the field flow.
 - [ ] Show peer connection state: unknown, connecting, connected, disconnected,
       and last error.

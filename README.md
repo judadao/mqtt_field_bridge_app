@@ -354,6 +354,8 @@ Implemented in this product repo:
   the configured topic prefix.
 - Bridge peer apply logic that validates enabled peers before handing them to
   the broker/P2P layer.
+- Enabled IPv4 bridge peers are applied to the broker static seed table, so
+  peer changes can be re-applied without rebooting the product app.
 - Product-owned provisioning HTTP server with `/status`, `/login`, `/config`,
   `/config/reset`, `/broker/control`, `/publish-test`, `/peers`, and
   `POST /peers/<index>` endpoints.
@@ -389,13 +391,13 @@ Result:
 - `unit_product_config`: 216/216 checks passed.
 - `unit_product_runtime`: 34/34 checks passed.
 - `unit_product_topics`: 20/20 checks passed.
-- `unit_bridge_control`: 7/7 tests passed.
+- `unit_bridge_control`: 12/12 tests passed.
 - `unit_provisioning_http`: 150/150 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.
-- `stress_throughput.sh`: 2,348,583 messages received in 10 seconds
-  (`234,858 msg/s`), above the 500-message minimum; all three brokers survived.
+- `stress_throughput.sh`: 181,782 messages received in 10 seconds
+  (`18,178 msg/s`), above the 500-message minimum; all three brokers survived.
 - `test_chain_scale.sh`: 10-node chain passed; B10 received a B1 publish
   through the connected bridge graph and all 10 brokers survived.
 - `TOPOLOGY=ring test_chain_scale.sh`: 10-node ring passed with the same

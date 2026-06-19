@@ -48,7 +48,9 @@ Completed product-owned provisioning/runtime surface:
 - Unit coverage now includes `unit_product_runtime` and `unit_product_topics`;
   last local unit run passed `unit_product_config` 227/227,
   `unit_product_runtime` 34/34, `unit_product_topics` 20/20,
-  `unit_bridge_control` 7/7, and `unit_provisioning_http` 150/150.
+  `unit_bridge_control` 12/12, and `unit_provisioning_http` 150/150.
+- Enabled IPv4 bridge peers are applied to the broker static seed table through
+  `p2p_static_seed_clear()` / `p2p_static_seed_add()`.
 
 Remaining meaningful blockers:
 

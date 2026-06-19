@@ -11,6 +11,7 @@
 #   TOPOLOGY     chain or ring (default: chain)
 #   SETTLE_SEC   P2P formation wait (default: 12)
 #   WAIT_MSG_SEC max seconds to wait for the expected message (default: 10)
+#   SUB_PROP_SEC seconds to wait for remote subscriptions to propagate (default: 2.5)
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -22,6 +23,7 @@ NODE_COUNT=${NODE_COUNT:-10}
 TOPOLOGY=${TOPOLOGY:-chain}
 SETTLE_SEC=${SETTLE_SEC:-12}
 WAIT_MSG_SEC=${WAIT_MSG_SEC:-10}
+SUB_PROP_SEC=${SUB_PROP_SEC:-2.5}
 DISC_PORT=18850
 MQTT_BASE=21883
 P2P_BASE=24884
@@ -54,6 +56,23 @@ wait_for_match() {
         now=$(date +%s)
         [ $((now - start)) -ge "$timeout" ] && return 1
         sleep 0.1
+    done
+}
+
+publish_until_match() {
+    port=$1
+    topic=$2
+    payload=$3
+    file=$4
+    timeout=$5
+    start=$(date +%s)
+
+    while :; do
+        "$CLI" pub -h 127.0.0.1 -p "$port" -t "$topic" -m "$payload" >/dev/null 2>&1 || true
+        wait_for_match "$file" "$payload" 1 && return 0
+        now=$(date +%s)
+        [ $((now - start)) -ge "$timeout" ] && return 1
+        sleep 0.5
     done
 }
 
@@ -138,11 +157,10 @@ last=$((NODE_COUNT - 1))
 "$CLI" sub -h 127.0.0.1 -p "$((MQTT_BASE + last))" -t "site/scale/data/#" \
     >"$OUT/recv.out" 2>"$OUT/sub.err" & SUB_PID=$!
 wait_for_match "$OUT/sub.err" "subscribed" "$WAIT_MSG_SEC" || true
-sleep 1.5
+sleep "$SUB_PROP_SEC"
 
-"$CLI" pub -h 127.0.0.1 -p "$MQTT_BASE" \
-    -t "site/scale/data/io" -m "chain-ok" >/dev/null 2>&1
-wait_for_match "$OUT/recv.out" "chain-ok" "$WAIT_MSG_SEC" || true
+publish_until_match "$MQTT_BASE" "site/scale/data/io" "chain-ok" \
+    "$OUT/recv.out" "$WAIT_MSG_SEC" || true
 
 grep -q "chain-ok" "$OUT/recv.out" \
     && ok "B$((last + 1)) receives B1 publish through $TOPOLOGY" \

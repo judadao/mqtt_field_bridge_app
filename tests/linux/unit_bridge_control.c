@@ -8,14 +8,36 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <netinet/in.h>
 
 #include "../../app/src/bridge_control.h"
 #include "../../app/src/product_config.h"
+#include "../../deps/mqtt_min_broker/include/p2p.h"
 
 static int tests_run    = 0;
 static int tests_passed = 0;
 static int tests_failed = 0;
 static int fail_before;
+static int seed_clear_count;
+static int seed_add_count;
+static uint16_t last_seed_port;
+
+void p2p_static_seed_clear(void)
+{
+    seed_clear_count++;
+    seed_add_count = 0;
+    last_seed_port = 0;
+}
+
+int p2p_static_seed_add(uint32_t addr, uint16_t p2p_port)
+{
+    if (addr == 0 || p2p_port == 0) {
+        return -1;
+    }
+    seed_add_count++;
+    last_seed_port = p2p_port;
+    return 0;
+}
 
 #define CHECK(expr) do {                                                    \
     tests_run++;                                                            \
@@ -48,6 +70,20 @@ static void test_apply_one_enabled(void)
     };
     product_config_set_peer(0, &p);
     CHECK(bridge_control_apply_peers() == 1);
+    CHECK(seed_clear_count > 0);
+    CHECK(seed_add_count == 1);
+    CHECK(last_seed_port == 4884);
+}
+
+static void test_apply_hostname_not_static_seed(void)
+{
+    field_bridge_peer_t p = {
+        .name = "dns", .host = "node2.local",
+        .mqtt_port = 1883, .p2p_port = 4884, .enabled = 1,
+    };
+    product_config_set_peer(0, &p);
+    CHECK(bridge_control_apply_peers() == 0);
+    CHECK(seed_add_count == 0);
 }
 
 static void test_apply_empty_host_skipped(void)
@@ -114,6 +150,7 @@ int main(void)
 #endif
     RUN(test_apply_all_disabled);
     RUN(test_apply_one_enabled);
+    RUN(test_apply_hostname_not_static_seed);
     RUN(test_apply_empty_host_skipped);
     RUN(test_apply_zero_mqtt_port_skipped);
     RUN(test_apply_zero_p2p_port_skipped);
