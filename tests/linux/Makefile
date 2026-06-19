@@ -42,16 +42,16 @@ integration-tests: broker-p2p
 	@sh test_sync_deps.sh
 	@echo ""
 	@echo "--- test_3node_scenario ---"
-	@sh test_3node_scenario.sh
+	@bash test_3node_scenario.sh
 
 # ── stress tests ───────────────────────────────────────────────────────────
 stress: broker-p2p
 	@echo ""
 	@echo "--- stress_reconnect (10 cycles) ---"
-	@sh stress_reconnect.sh
+	@bash stress_reconnect.sh
 	@echo ""
 	@echo "--- stress_throughput (5 pubs, 3 subs, 10s) ---"
-	@sh stress_throughput.sh
+	@bash stress_throughput.sh
 
 # ── run everything ─────────────────────────────────────────────────────────
 test: unit-tests integration-tests stress
