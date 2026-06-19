@@ -222,7 +222,7 @@ Result:
 
 - `unit_product_config`: 161/161 checks passed.
 - `unit_bridge_control`: 7/7 tests passed.
-- `unit_provisioning_http`: 32/32 checks passed.
+- `unit_provisioning_http`: 33/33 checks passed.
 - `test_sync_deps.sh`: 11 passed, 0 failed.
 - `test_3node_scenario.sh`: 4 passed, 0 failed.
 - `stress_reconnect.sh`: 5 restart cycles passed; B1 survived all cycles.

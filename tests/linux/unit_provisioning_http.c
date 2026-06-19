@@ -76,6 +76,9 @@ static void test_get_status(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
     CHECK(strstr(resp, "\"peers\"") != NULL);
+    char peers_field[32];
+    snprintf(peers_field, sizeof(peers_field), "\"peers\":%d", FIELD_BRIDGE_PEER_MAX);
+    CHECK(strstr(resp, peers_field) != NULL);
 }
 
 static void test_get_index_html(void)

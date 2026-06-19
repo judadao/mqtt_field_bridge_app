@@ -126,6 +126,7 @@ static int extract_content_length(const char *headers)
 #ifndef __ZEPHYR__
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #define PLAT_SEND(fd, buf, len) send((fd), (buf), (size_t)(len), MSG_NOSIGNAL)
 #define PLAT_RECV(fd, buf, len) recv((fd), (buf), (size_t)(len), 0)
@@ -136,6 +137,9 @@ static int extract_content_length(const char *headers)
 #define PLAT_RECV(fd, buf, len) zsock_recv((fd), (buf), (size_t)(len), 0)
 #define PLAT_CLOSE(fd)          zsock_close(fd)
 #endif
+
+#define PEERS_JSON_BUF_SIZE 4096
+static char peers_json_buf[PEERS_JSON_BUF_SIZE];
 
 /* ── Response / route handlers ───────────────────────────────────────────── */
 
@@ -251,27 +255,28 @@ static int append_json_str(char *buf, int cap, int *pos, const char *s)
 
 static void handle_get_peers(int fd)
 {
-    char buf[4096];
+    char *buf = peers_json_buf;
+    const int cap = PEERS_JSON_BUF_SIZE;
     int pos = 0;
     buf[pos++] = '[';
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
         field_bridge_peer_t p;
         if (product_config_get_peer(i, &p) != 0) continue;
         if (i > 0) buf[pos++] = ',';
-        int written = snprintf(buf + pos, (size_t)(sizeof(buf) - pos),
+        int written = snprintf(buf + pos, (size_t)(cap - pos),
                                "{\"name\":");
-        if (written < 0 || written >= (int)(sizeof(buf) - pos)) break;
+        if (written < 0 || written >= cap - pos) break;
         pos += written;
-        if (append_json_str(buf, sizeof(buf), &pos, p.name) != 0) break;
-        written = snprintf(buf + pos, (size_t)(sizeof(buf) - pos),
+        if (append_json_str(buf, cap, &pos, p.name) != 0) break;
+        written = snprintf(buf + pos, (size_t)(cap - pos),
                            ",\"host\":");
-        if (written < 0 || written >= (int)(sizeof(buf) - pos)) break;
+        if (written < 0 || written >= cap - pos) break;
         pos += written;
-        if (append_json_str(buf, sizeof(buf), &pos, p.host) != 0) break;
-        written = snprintf(buf + pos, (size_t)(sizeof(buf) - pos),
+        if (append_json_str(buf, cap, &pos, p.host) != 0) break;
+        written = snprintf(buf + pos, (size_t)(cap - pos),
                            ",\"mqtt_port\":%u,\"p2p_port\":%u,\"enabled\":%u}",
                            p.mqtt_port, p.p2p_port, p.enabled);
-        if (written < 0 || written >= (int)(sizeof(buf) - pos)) break;
+        if (written < 0 || written >= cap - pos) break;
         pos += written;
     }
     buf[pos++] = ']';
@@ -357,6 +362,17 @@ done:
     PLAT_CLOSE(fd);
 }
 
+static void configure_client_socket(int fd)
+{
+#ifndef __ZEPHYR__
+    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
+    (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#else
+    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
+    (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+}
+
 /* ── Server thread ───────────────────────────────────────────────────────── */
 
 static int g_server_fd = -1;
@@ -371,6 +387,7 @@ static void server_loop(void)
         client_fd = (int)zsock_accept(g_server_fd, NULL, NULL);
 #endif
         if (client_fd < 0) continue;
+        configure_client_socket(client_fd);
         handle_client(client_fd);
     }
 }
