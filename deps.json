@@ -9,8 +9,9 @@
     "dephy": {
       "repo": "git@github.com:judadao/dephy.git",
       "local": "../dephy",
-      "version": "dephy-v0.1.2",
+      "version": "dephy-v0.1.4",
       "path": "deps/dephy",
+      "profile": "esp32",
       "module_path": "deps/dephy/boards/esp32",
       "tag_pattern": "dephy-v*"
     }
@@ -20,6 +21,7 @@
     "manager": "dephy"
   },
   "build": {
-    "board": "esp32"
+    "board": "esp32_devkitc/esp32/procpu",
+    "dephy_workspace": "deps/dephy/zephyrproject"
   }
 }

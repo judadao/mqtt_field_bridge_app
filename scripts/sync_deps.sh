@@ -68,9 +68,17 @@ build_board() {
     fi
 
     if [ -z "$board" ]; then
-        board=esp32
+        board=esp32_devkitc/esp32/procpu
     fi
     printf '%s\n' "$board"
+}
+
+dephy_profile() {
+    profile=$(dep_field "dephy" "profile")
+    if [ -z "$profile" ]; then
+        profile=esp32
+    fi
+    printf '%s\n' "$profile"
 }
 
 dep_tag_pattern() {
@@ -211,8 +219,8 @@ init_zephyr() {
         exit 1
     fi
 
-    board=$(build_board)
-    dephy_script="$ROOT_DIR/$dephy_path/boards/$board/scripts/sync_zephyr_modules.sh"
+    profile=$(dephy_profile)
+    dephy_script="$ROOT_DIR/$dephy_path/boards/$profile/scripts/sync_zephyr_modules.sh"
 
     if [ ! -x "$dephy_script" ]; then
         printf 'error: Dephy board sync script not found: %s\n' "$dephy_script" >&2

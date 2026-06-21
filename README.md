@@ -7,6 +7,8 @@ This repository consumes `mqtt_min_broker` as a pinned dependency under
 `deps.json`. External builds download pinned releases into `deps/`; local
 development can replace `deps/` from sibling module checkouts before building.
 Zephyr workspace and board-specific Zephyr module sync are managed by Dephy.
+Dependencies are materialized under `deps/`; product builds consume dependency
+source, headers, and Zephyr CMake metadata only from that directory.
 
 Current pinned broker release: `minmqtt-v0.1.12`.
 
@@ -90,9 +92,19 @@ External/release flow:
 ./scripts/sync_deps.sh build
 ```
 
-`init` delegates board setup to Dephy. For the ESP32 target, Dephy creates or
+`init` delegates board setup to Dephy. For the ESP32 profile, Dephy creates or
 uses `deps/dephy/zephyrproject` and updates only `hal_espressif`, not the full
 Zephyr module set.
+
+`deps.json` separates Dephy profile paths from Zephyr board targets:
+
+- `deps.dephy.profile`: Dephy profile directory, currently `esp32`
+- `deps.dephy.module_path`: Zephyr module path, currently
+  `deps/dephy/boards/esp32`
+- `build.board`: Zephyr target passed to `west build`, currently
+  `esp32_devkitc/esp32/procpu`
+- `build.dephy_workspace`: local Zephyr workspace, currently
+  `deps/dephy/zephyrproject`
 
 Local development flow:
 

@@ -7,14 +7,16 @@ if command -v jq >/dev/null 2>&1; then
     BOARD=$(jq -r '.build.board // empty' "$ROOT_DIR/deps.json")
     EXTRA_MODULES=$(jq -r '.deps | to_entries | map(.value.module_path // .value.path) | join(";")' "$ROOT_DIR/deps.json")
     DEPHY_PATH=$(jq -r '.deps.dephy.path // empty' "$ROOT_DIR/deps.json")
+    DEPHY_WORKSPACE=$(jq -r '.build.dephy_workspace // empty' "$ROOT_DIR/deps.json")
 else
     BOARD=$(sed -n 's/.*"board": *"\([^"]*\)".*/\1/p' "$ROOT_DIR/deps.json" | head -n 1)
     EXTRA_MODULES=$(sed -n 's/.*"path": *"\([^"]*\)".*/\1/p' "$ROOT_DIR/deps.json" | paste -sd ';' -)
     DEPHY_PATH=$(sed -n '/"dephy"/,/"}/s/.*"path": *"\([^"]*\)".*/\1/p' "$ROOT_DIR/deps.json" | head -n 1)
+    DEPHY_WORKSPACE=deps/dephy/zephyrproject
 fi
 
 if [ -z "$BOARD" ]; then
-    BOARD=esp32
+    BOARD=esp32_devkitc/esp32/procpu
 fi
 
 if [ -z "$EXTRA_MODULES" ]; then
@@ -26,15 +28,24 @@ EXTRA_MODULES_ABS=""
 OLD_IFS=$IFS
 IFS=';'
 for module_path in $EXTRA_MODULES; do
+    module_abs="$ROOT_DIR/$module_path"
+    if [ ! -f "$module_abs/zephyr/module.yml" ]; then
+        printf 'skip non-Zephyr dependency module path: %s\n' "$module_path" >&2
+        continue
+    fi
+
     if [ -z "$EXTRA_MODULES_ABS" ]; then
-        EXTRA_MODULES_ABS="$ROOT_DIR/$module_path"
+        EXTRA_MODULES_ABS="$module_abs"
     else
-        EXTRA_MODULES_ABS="$EXTRA_MODULES_ABS;$ROOT_DIR/$module_path"
+        EXTRA_MODULES_ABS="$EXTRA_MODULES_ABS;$module_abs"
     fi
 done
 IFS=$OLD_IFS
 
-if command -v west >/dev/null 2>&1; then
+if [ -n "$DEPHY_WORKSPACE" ] && [ -x "$ROOT_DIR/$DEPHY_WORKSPACE/.venv/bin/west" ]; then
+    WEST="$ROOT_DIR/$DEPHY_WORKSPACE/.venv/bin/west"
+    WEST_WORKDIR="$ROOT_DIR/$DEPHY_WORKSPACE"
+elif command -v west >/dev/null 2>&1; then
     WEST=$(command -v west)
     WEST_WORKDIR=$ROOT_DIR
 elif [ -n "$DEPHY_PATH" ] && [ -x "$ROOT_DIR/$DEPHY_PATH/zephyrproject/.venv/bin/west" ]; then
