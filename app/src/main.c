@@ -54,8 +54,12 @@ int main(void)
     }
     product_runtime_broker_started();
 
+#if defined(CONFIG_MQTT_P2P_DYNAMIC)
     LOG_INF("p2p startup requested after broker_init success");
     p2p_start();
+#else
+    LOG_INF("p2p disabled by build config");
+#endif
     broker_run();
     return 0;
 }

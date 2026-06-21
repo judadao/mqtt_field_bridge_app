@@ -56,5 +56,18 @@ else
     exit 1
 fi
 
+if [ -z "${ZEPHYR_SDK_INSTALL_DIR:-}" ] && [ -f "$WEST_WORKDIR/zephyr/SDK_VERSION" ]; then
+    SDK_VERSION=$(cat "$WEST_WORKDIR/zephyr/SDK_VERSION")
+    SDK_DIR="$HOME/zephyr-sdk-$SDK_VERSION"
+    if [ -f "$SDK_DIR/cmake/Zephyr-sdkConfig.cmake" ]; then
+        export ZEPHYR_SDK_INSTALL_DIR="$SDK_DIR"
+    fi
+fi
+
+if [ -d "$WEST_WORKDIR/.venv/bin" ]; then
+    PATH="$WEST_WORKDIR/.venv/bin:$PATH"
+    export PATH
+fi
+
 (cd "$WEST_WORKDIR" && "$WEST" build -b "$BOARD" "$ROOT_DIR/app" \
     -- -DZEPHYR_EXTRA_MODULES="$EXTRA_MODULES_ABS")

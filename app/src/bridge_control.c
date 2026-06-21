@@ -25,6 +25,10 @@ __attribute__((weak)) int p2p_static_seed_add(uint32_t addr, uint16_t p2p_port)
 #define BRIDGE_INET_PTON(af, src, dst) zsock_inet_pton((af), (src), (dst))
 #endif
 
+#if !defined(__ZEPHYR__) || defined(CONFIG_MQTT_P2P_DYNAMIC)
+#define BRIDGE_CONTROL_HAS_P2P 1
+#endif
+
 LOG_MODULE_REGISTER(bridge_control, LOG_LEVEL_INF);
 
 void bridge_control_init(void)
@@ -35,6 +39,11 @@ void bridge_control_init(void)
 
 int bridge_control_apply_peers(void)
 {
+#if !defined(BRIDGE_CONTROL_HAS_P2P)
+    LOG_INF("apply_peers: p2p disabled by build config");
+    return 0;
+#endif
+
     int enabled = 0;
     field_bridge_settings_t settings;
 

@@ -15,12 +15,16 @@
 #define RUNTIME_INET_PTON(af, src, dst) zsock_inet_pton((af), (src), (dst))
 #endif
 
+#if !defined(__ZEPHYR__) || defined(CONFIG_MQTT_P2P_DYNAMIC)
+#define PRODUCT_RUNTIME_HAS_P2P 1
+#endif
+
 LOG_MODULE_REGISTER(product_runtime, LOG_LEVEL_INF);
 
 static field_bridge_runtime_status_t runtime_status;
 static field_bridge_publish_test_t last_publish;
 
-#ifndef __ZEPHYR__
+#if !defined(__ZEPHYR__) || !defined(CONFIG_MQTT_P2P_DYNAMIC)
 __attribute__((weak)) int p2p_peer_snapshot(p2p_peer_snapshot_t *out, int max)
 {
     (void)out;
@@ -103,6 +107,7 @@ int product_runtime_get_status(field_bridge_runtime_status_t *out)
         return -1;
     }
 
+#if defined(PRODUCT_RUNTIME_HAS_P2P)
     p2p_peer_snapshot_t peers[P2P_PEER_MAX];
     runtime_status.connected_peers =
         (uint8_t)p2p_peer_snapshot(peers, P2P_PEER_MAX);
@@ -110,6 +115,10 @@ int product_runtime_get_status(field_bridge_runtime_status_t *out)
     if (p2p_router_stats(&stats) == 0) {
         runtime_status.remote_subscriptions = stats.remote_subs;
     }
+#else
+    runtime_status.connected_peers = 0;
+    runtime_status.remote_subscriptions = 0;
+#endif
 
     *out = runtime_status;
     return 0;
@@ -141,7 +150,11 @@ int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max)
         return -1;
     }
 
+#if defined(PRODUCT_RUNTIME_HAS_P2P)
     snapshot_count = p2p_peer_snapshot(snapshots, P2P_PEER_MAX);
+#else
+    snapshot_count = 0;
+#endif
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX && written < max; i++) {
         field_bridge_peer_t peer;
         field_bridge_peer_status_t *status = &out[written];

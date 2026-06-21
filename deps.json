@@ -3,13 +3,13 @@
     "mqtt_min_broker": {
       "repo": "../mqtt_min_broker",
       "local": "../mqtt_min_broker",
-      "version": "minmqtt-v0.1.12",
+      "version": "mqtt-v0.1.2",
       "path": "deps/mqtt_min_broker"
     },
     "dephy": {
       "repo": "git@github.com:judadao/dephy.git",
       "local": "../dephy",
-      "version": "dephy-v0.1.4",
+      "version": "dephy-v0.1.6",
       "path": "deps/dephy",
       "profile": "esp32",
       "module_path": "deps/dephy/boards/esp32",

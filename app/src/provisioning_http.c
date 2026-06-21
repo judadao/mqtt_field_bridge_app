@@ -1062,7 +1062,7 @@ static void configure_client_socket(int fd)
     (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 #else
     struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
-    (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    (void)zsock_setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 #endif
 }
 
@@ -1146,22 +1146,22 @@ void provisioning_http_start(void)
     struct sockaddr_in addr;
     int opt = 1;
 
-    g_server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    g_server_fd = zsock_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (g_server_fd < 0) {
         LOG_ERR("provisioning HTTP socket failed: %d", errno);
         return;
     }
-    setsockopt(g_server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    zsock_setsockopt(g_server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family      = AF_INET;
     addr.sin_port        = htons(PROVISIONING_HTTP_PORT);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(g_server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ||
-        listen(g_server_fd, 4) < 0) {
+    if (zsock_bind(g_server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0 ||
+        zsock_listen(g_server_fd, 4) < 0) {
         LOG_ERR("provisioning HTTP bind/listen failed: %d", errno);
-        close(g_server_fd);
+        zsock_close(g_server_fd);
         g_server_fd = -1;
         return;
     }

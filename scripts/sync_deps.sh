@@ -109,6 +109,7 @@ latest_dep_tag() {
 sync_one_dep() {
     name=$1
     repo=$(dep_field "$name" "repo")
+    local_repo=$(dep_field "$name" "local")
     version=$(dep_field "$name" "version")
     path=$(dep_field "$name" "path")
 
@@ -118,14 +119,14 @@ sync_one_dep() {
     fi
 
     repo_abs=$(resolve_path_or_url "$repo")
-    target="$ROOT_DIR/$path"
-
-    if ! git ls-remote --tags "$repo_abs" "refs/tags/$version" 2>/dev/null | grep -q .; then
-        printf 'error: tag %s not found in %s\n' "$version" "$repo_abs" >&2
-        printf '  Create it: git -C %s tag -a %s -m %s && git -C %s push origin %s\n' \
-            "$repo_abs" "$version" "$version" "$repo_abs" "$version" >&2
-        exit 1
+    clone_src="$repo_abs"
+    if [ -n "$local_repo" ]; then
+        local_abs=$(resolve_path_or_url "$local_repo")
+        if [ -d "$local_abs/.git" ]; then
+            clone_src="$local_abs"
+        fi
     fi
+    target="$ROOT_DIR/$path"
 
     mkdir -p "$ROOT_DIR/deps"
 
@@ -134,7 +135,7 @@ sync_one_dep() {
     fi
 
     if [ ! -d "$target/.git" ]; then
-        git clone "$repo_abs" "$target"
+        git clone "$clone_src" "$target"
     fi
 
     if [ -n "$(git -C "$target" status --porcelain)" ]; then
@@ -144,6 +145,11 @@ sync_one_dep() {
     fi
 
     git -C "$target" fetch --tags --force
+    if ! git -C "$target" rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+        printf 'error: tag %s not found in %s\n' "$version" "$target" >&2
+        printf '  Create and fetch the tag before syncing.\n' >&2
+        exit 1
+    fi
     git -C "$target" checkout -q "$version"
 
     printf '%s synced to %s\n' "$name" "$version"

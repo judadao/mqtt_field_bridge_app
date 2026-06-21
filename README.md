@@ -96,6 +96,12 @@ External/release flow:
 uses `deps/dephy/zephyrproject` and updates only `hal_espressif`, not the full
 Zephyr module set.
 
+The first `init` run downloads the Zephyr workspace and configured modules.
+Later runs skip module downloads when the module checkout is already present.
+Set `DEPHY_FORCE_WEST_UPDATE=1` to refresh modules explicitly. `build_product.sh`
+auto-detects `$HOME/zephyr-sdk-<SDK_VERSION>` when `ZEPHYR_SDK_INSTALL_DIR` is
+not already set.
+
 `deps.json` separates Dephy profile paths from Zephyr board targets:
 
 - `deps.dephy.profile`: Dephy profile directory, currently `esp32`
