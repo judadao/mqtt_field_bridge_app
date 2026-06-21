@@ -1,6 +1,6 @@
 build/
 build_out/
-deps/mqtt_min_broker/
+deps/
 tests/linux/out/
 tests/linux/local_web_network.env
 *.log

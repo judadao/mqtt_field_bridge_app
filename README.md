@@ -4,7 +4,9 @@ Product application for configurable MQTT field bridge scenarios.
 
 This repository consumes `mqtt_min_broker` as a pinned dependency under
 `deps/mqtt_min_broker`. Product builds should use the broker version declared in
-`deps.json`, not a floating local checkout.
+`deps.json`. External builds download pinned releases into `deps/`; local
+development can replace `deps/` from sibling module checkouts before building.
+Zephyr workspace and board-specific Zephyr module sync are managed by Dephy.
 
 Current pinned broker release: `minmqtt-v0.1.12`.
 
@@ -65,6 +67,7 @@ workflow decisions.
 mqtt_field_bridge_app/
 ├── deps.json
 ├── deps/
+│   ├── dephy/
 │   └── mqtt_min_broker/
 ├── app/
 │   ├── CMakeLists.txt
@@ -79,29 +82,48 @@ mqtt_field_bridge_app/
 
 ## Quick Start
 
-1. Sync dependencies:
+External/release flow:
 
-   ```bash
-   ./scripts/sync_deps.sh
-   ```
+```bash
+./scripts/sync_deps.sh download
+./scripts/sync_deps.sh init
+./scripts/sync_deps.sh build
+```
 
-   Check whether a newer broker release is available:
+`init` delegates board setup to Dephy. For the ESP32 target, Dephy creates or
+uses `deps/dephy/zephyrproject` and updates only `hal_espressif`, not the full
+Zephyr module set.
 
-   ```bash
-   ./scripts/sync_deps.sh --check-latest
-   ```
+Local development flow:
 
-2. Build the product app:
+```bash
+./scripts/sync_deps.sh replace
+./scripts/sync_deps.sh build
+```
 
-   ```bash
-   ./scripts/build_product.sh
-   ```
+`replace` reads each module from `deps.json`, looks for its `local` path or a
+sibling directory named after the module, then copies it into `deps/<module>`.
+If the destination already exists, it is overwritten. This is intended for local
+iteration against nearby module checkouts such as `../mqtt_min_broker` and
+`../dephy`.
 
-3. Run Linux tests:
+The old sync command still works and is equivalent to `download`:
 
-   ```bash
-   make -C tests/linux test
-   ```
+```bash
+./scripts/sync_deps.sh
+```
+
+Check whether a newer broker release is available:
+
+```bash
+./scripts/sync_deps.sh --check-latest
+```
+
+Run Linux tests:
+
+```bash
+make -C tests/linux test
+```
 
 The product app owns WiFi provisioning, local HTML UI, bridge peer
 configuration, and the topic bridge workflow. The broker implementation remains

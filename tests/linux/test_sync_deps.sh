@@ -99,6 +99,21 @@ check_output "T7: missing tag prints helpful error" "not found" \
 check_fail "T7: missing tag exits non-zero" sh "$SCRIPT"
 printf '%s\n' "$ORIG" > "$DEPS_JSON"   # restore
 
+# ── T8: local replace can switch back to pinned download ──────────────────
+check "T8: replace copies local sibling module" sh "$SCRIPT" replace
+if [ -f "$BROKER_PATH/zephyr/module.yml" ] && [ ! -d "$BROKER_PATH/.git" ]; then
+    ok "T8: replace creates a non-git module copy"
+else
+    fail "T8: replace did not create expected non-git module copy"
+fi
+check "T8: download restores pinned git checkout" sh "$SCRIPT" download
+actual_tag=$(git -C "$BROKER_PATH" describe --tags --exact-match 2>/dev/null || echo "NONE")
+if [ "$actual_tag" = "$PINNED_VERSION" ]; then
+    ok "T8: restored checkout matches pinned version"
+else
+    fail "T8: restored checkout mismatch (checked out=$actual_tag, pinned=$PINNED_VERSION)"
+fi
+
 # ── summary ──────────────────────────────────────────────────────────────
 echo ""
 echo "$PASS passed, $FAIL failed"

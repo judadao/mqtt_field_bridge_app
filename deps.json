@@ -2,12 +2,22 @@
   "deps": {
     "mqtt_min_broker": {
       "repo": "../mqtt_min_broker",
+      "local": "../mqtt_min_broker",
       "version": "minmqtt-v0.1.12",
       "path": "deps/mqtt_min_broker"
+    },
+    "dephy": {
+      "repo": "git@github.com:judadao/dephy.git",
+      "local": "../dephy",
+      "version": "dephy-v0.1.2",
+      "path": "deps/dephy",
+      "module_path": "deps/dephy/boards/esp32",
+      "tag_pattern": "dephy-v*"
     }
   },
   "zephyr": {
-    "min_version": "v3.5.0"
+    "min_version": "v3.5.0",
+    "manager": "dephy"
   },
   "build": {
     "board": "esp32"
