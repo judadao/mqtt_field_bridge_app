@@ -5,14 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build
 
 ```bash
-# 1. Sync pinned broker dependency
+# 1. Sync pinned dependencies into deps/
 ./scripts/sync_deps.sh
 
-# 2. Build for ESP32 (board read from deps.json, defaults to esp32)
+# 2. Build for ESP32 (board read from deps.json)
 ./scripts/build_product.sh
 ```
 
-`build_product.sh` runs `west build -b <board> app -- -DZEPHYR_EXTRA_MODULES=<repo>/deps/mqtt_min_broker`. Zephyr ≥ v3.5.0 is required.
+`build_product.sh` uses `deps/dephy/zephyrproject` when available and passes every dependency module path from `deps.json` through `ZEPHYR_EXTRA_MODULES`. The current Zephyr target is `esp32_devkitc/esp32/procpu`. Zephyr ≥ v3.5.0 is required.
 
 ## Toolchain Setup (one-time)
 
@@ -43,7 +43,7 @@ See `tests/linux/README.md` for per-test instructions and stress test knobs.
 
 ## Architecture
 
-This is a **Zephyr RTOS application** targeting ESP32. It is the product layer on top of `mqtt_min_broker`, which is consumed as a pinned Zephyr extra module from `deps/mqtt_min_broker`.
+This is a **Zephyr RTOS application** targeting ESP32. It is the product layer on top of pinned modules materialized under `deps/`, including `deps/mqtt_min_broker` and the Dephy board profile at `deps/dephy/boards/esp32`.
 
 **Startup order** (`main.c`):
 1. `product_config_init()` — initializes settings/peer config and loads Linux file or Zephyr NVS persistence
