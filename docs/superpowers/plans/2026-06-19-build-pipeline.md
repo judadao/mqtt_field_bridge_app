@@ -1,6 +1,6 @@
 # Build Pipeline Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Get `west build` working end-to-end: tag the broker dep, harden `sync_deps.sh`, populate `deps/`, and document the Zephyr toolchain.
 
@@ -28,14 +28,14 @@
 **Files:**
 - No files changed — pure git tag operations
 
-- [ ] **Step 1: Create an annotated tag on current HEAD**
+- [x] **Step 1: Create an annotated tag on current HEAD**
 
 ```bash
 git -C /home/judd/moxa/personal/mqtt_min_broker \
     tag -a minmqtt-v0.1.0 -m "minmqtt-v0.1.0"
 ```
 
-- [ ] **Step 2: Verify the tag was created locally**
+- [x] **Step 2: Verify the tag was created locally**
 
 ```bash
 git -C /home/judd/moxa/personal/mqtt_min_broker tag | grep minmqtt
@@ -46,7 +46,7 @@ Expected output:
 minmqtt-v0.1.0
 ```
 
-- [ ] **Step 3: Verify the tag points to the right commit**
+- [x] **Step 3: Verify the tag points to the right commit**
 
 ```bash
 git -C /home/judd/moxa/personal/mqtt_min_broker rev-list -n1 minmqtt-v0.1.0
@@ -54,7 +54,7 @@ git -C /home/judd/moxa/personal/mqtt_min_broker rev-list -n1 minmqtt-v0.1.0
 
 Expected: the SHA starting with `477171a` (current HEAD).
 
-- [ ] **Step 4: Push the tag to origin**
+- [x] **Step 4: Push the tag to origin**
 
 ```bash
 git -C /home/judd/moxa/personal/mqtt_min_broker push origin minmqtt-v0.1.0
@@ -65,7 +65,7 @@ Expected:
  * [new tag]         minmqtt-v0.1.0 -> minmqtt-v0.1.0
 ```
 
-- [ ] **Step 5: Confirm tag is visible on the remote**
+- [x] **Step 5: Confirm tag is visible on the remote**
 
 ```bash
 git -C /home/judd/moxa/personal/mqtt_min_broker ls-remote --tags origin | grep minmqtt
@@ -80,7 +80,7 @@ Expected: one line containing `refs/tags/minmqtt-v0.1.0`.
 **Files:**
 - Modify: `scripts/sync_deps.sh`
 
-- [ ] **Step 1: Verify the current script fails (baseline)**
+- [x] **Step 1: Verify the current script fails (baseline)**
 
 ```bash
 cd /home/judd/moxa/personal/mqtt_field_bridge_app
@@ -89,7 +89,7 @@ cd /home/judd/moxa/personal/mqtt_field_bridge_app
 
 Expected: either prints wrong output or errors (the current script has no `--version` flag).
 
-- [ ] **Step 2: Replace `scripts/sync_deps.sh` with the hardened version**
+- [x] **Step 2: Replace `scripts/sync_deps.sh` with the hardened version**
 
 Overwrite the file with this exact content:
 
@@ -173,13 +173,13 @@ git -C "$ROOT_DIR/$BROKER_PATH" checkout "$BROKER_VERSION"
 printf 'mqtt_min_broker synced to %s\n' "$BROKER_VERSION"
 ```
 
-- [ ] **Step 3: Make it executable**
+- [x] **Step 3: Make it executable**
 
 ```bash
 chmod +x /home/judd/moxa/personal/mqtt_field_bridge_app/scripts/sync_deps.sh
 ```
 
-- [ ] **Step 4: Verify `--version` flag (no network, no deps/ needed)**
+- [x] **Step 4: Verify `--version` flag (no network, no deps/ needed)**
 
 ```bash
 cd /home/judd/moxa/personal/mqtt_field_bridge_app
@@ -191,11 +191,11 @@ Expected output:
 minmqtt-v0.1.0
 ```
 
-- [ ] **Step 5: Verify dirty-check guard (simulate local modifications)**
+- [x] **Step 5: Verify dirty-check guard (simulate local modifications)**
 
 This test requires `deps/mqtt_min_broker` to already be populated. Skip this step now and run it after Task 3 has completed.
 
-- [ ] **Step 6: Commit the hardened script**
+- [x] **Step 6: Commit the hardened script**
 
 ```bash
 cd /home/judd/moxa/personal/mqtt_field_bridge_app
@@ -220,7 +220,7 @@ EOF
 **Files:**
 - `deps/mqtt_min_broker/` is populated (gitignored — no commit needed)
 
-- [ ] **Step 1: Run the sync script**
+- [x] **Step 1: Run the sync script**
 
 ```bash
 cd /home/judd/moxa/personal/mqtt_field_bridge_app
@@ -232,7 +232,7 @@ Expected output:
 mqtt_min_broker synced to minmqtt-v0.1.0
 ```
 
-- [ ] **Step 2: Verify the checked-out tag matches deps.json**
+- [x] **Step 2: Verify the checked-out tag matches deps.json**
 
 ```bash
 git -C /home/judd/moxa/personal/mqtt_field_bridge_app/deps/mqtt_min_broker \
@@ -244,7 +244,7 @@ Expected:
 minmqtt-v0.1.0
 ```
 
-- [ ] **Step 3: Verify the Zephyr module files are present**
+- [x] **Step 3: Verify the Zephyr module files are present**
 
 ```bash
 ls /home/judd/moxa/personal/mqtt_field_bridge_app/deps/mqtt_min_broker/zephyr/
@@ -252,7 +252,7 @@ ls /home/judd/moxa/personal/mqtt_field_bridge_app/deps/mqtt_min_broker/zephyr/
 
 Expected: `CMakeLists.txt  Kconfig  module.yml` (or similar — confirms the module dir exists).
 
-- [ ] **Step 4: Run dirty-check guard test (deferred from Task 2 Step 5)**
+- [x] **Step 4: Run dirty-check guard test (deferred from Task 2 Step 5)**
 
 Touch a file to simulate a local modification, then confirm sync_deps.sh aborts:
 
@@ -271,7 +271,7 @@ Then clean up:
 rm /home/judd/moxa/personal/mqtt_field_bridge_app/deps/mqtt_min_broker/DIRTY_TEST
 ```
 
-- [ ] **Step 5: Confirm clean sync still passes after cleanup**
+- [x] **Step 5: Confirm clean sync still passes after cleanup**
 
 ```bash
 cd /home/judd/moxa/personal/mqtt_field_bridge_app
@@ -294,7 +294,7 @@ mqtt_min_broker synced to minmqtt-v0.1.0
 which sets up a venv-isolated Zephyr workspace. Add a **Toolchain Setup**
 section to CLAUDE.md so future sessions know the one-time install procedure.
 
-- [ ] **Step 1: Add a Toolchain Setup section to CLAUDE.md**
+- [x] **Step 1: Add a Toolchain Setup section to CLAUDE.md**
 
 Append the following section after the existing **Build** section:
 
@@ -316,7 +316,7 @@ After sourcing `env.sh`, `west` and the ESP32 cross-compiler are in PATH and
 `./scripts/build_product.sh` will work.
 ```
 
-- [ ] **Step 2: Commit the CLAUDE.md update**
+- [x] **Step 2: Commit the CLAUDE.md update**
 
 ```bash
 cd /home/judd/moxa/personal/mqtt_field_bridge_app
