@@ -1,0 +1,7 @@
+{
+  "repo_type": "product",
+  "name": "mqtt_field_bridge_app",
+  "dependency_policy": "deps.json may reference reusable module repos only; do not depend on product repos",
+  "deps_dir": "deps"
+}
+

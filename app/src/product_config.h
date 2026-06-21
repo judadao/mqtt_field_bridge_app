@@ -89,6 +89,7 @@ int product_config_set_settings(const field_bridge_settings_t *settings);
 int product_config_get_bridge_wifi(field_bridge_wifi_state_t *out);
 int product_config_set_bridge_wifi(const field_bridge_wifi_state_t *state);
 int product_config_add_recent_bridge_wifi(const field_bridge_wifi_entry_t *entry);
+int product_config_remove_recent_bridge_wifi(int index);
 int product_config_check_admin_password(const char *password);
 int product_config_reset_all(void);
 int product_config_apply_defaults(field_bridge_defaults_profile_t profile);

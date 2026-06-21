@@ -479,6 +479,34 @@ static void test_bridge_wifi_persist_survives_reinit(void)
     CHECK(out.current.p2p_port == 14884);
     CHECK(strcmp(out.recent[0].ssid, "MQTT-BRIDGE-node1") == 0);
 }
+
+static void test_bridge_wifi_remove_recent(void)
+{
+    field_bridge_wifi_entry_t first;
+    field_bridge_wifi_entry_t second;
+    field_bridge_wifi_state_t out;
+
+    memset(&first, 0, sizeof(first));
+    strcpy(first.ssid, "MQTT-BRIDGE-node1");
+    strcpy(first.peer_name, "node1");
+    strcpy(first.host, "127.0.0.1");
+    first.mqtt_port = 11883;
+    first.p2p_port = 14884;
+
+    second = first;
+    strcpy(second.ssid, "MQTT-BRIDGE-node2");
+    strcpy(second.peer_name, "node2");
+    strcpy(second.host, "127.0.0.2");
+
+    CHECK(product_config_add_recent_bridge_wifi(&first) == 0);
+    CHECK(product_config_add_recent_bridge_wifi(&second) == 0);
+    CHECK(product_config_remove_recent_bridge_wifi(0) == 0);
+    CHECK(product_config_get_bridge_wifi(&out) == 0);
+    CHECK(strcmp(out.recent[0].ssid, "MQTT-BRIDGE-node1") == 0);
+    CHECK(out.recent[1].ssid[0] == '\0');
+    CHECK(product_config_remove_recent_bridge_wifi(1) == -1);
+    CHECK(product_config_remove_recent_bridge_wifi(-1) == -1);
+}
 #endif /* !__ZEPHYR__ */
 
 /* ── main ───────────────────────────────────────────────────────────────── */
@@ -519,6 +547,7 @@ int main(void)
     RUN_PERSIST(test_persist_all_slots_survive_reinit);
     RUN_PERSIST(test_settings_persist_survives_reinit);
     RUN_PERSIST(test_bridge_wifi_persist_survives_reinit);
+    RUN(test_bridge_wifi_remove_recent);
 #endif
 
     printf("\n%d/%d tests passed", tests_passed, tests_run);

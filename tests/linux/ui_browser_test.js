@@ -298,6 +298,16 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-current-state").textContent === "disconnected"');
     await waitEval(cdp, sessionId, '!document.getElementById("bridge-recent-list").textContent.includes("Current")');
     await waitEval(cdp, sessionId, 'document.querySelector("#bridge-recent-list button").textContent.includes("Connect")');
+    await waitEval(cdp, sessionId, 'Array.from(document.querySelectorAll("#bridge-recent-list button")).some(b => b.textContent.includes("Delete"))');
+    requests.length = 0;
+    await evalPage(cdp, sessionId, `
+      Array.from(document.querySelectorAll('#bridge-recent-list button'))
+        .find(b => b.textContent.includes('Delete')).click();
+    `);
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Deleted MQTT-BRIDGE-node1")');
+    check(requests.some(r => r.method === 'DELETE' && r.url === `${BASE}/bridge-wifi/recent/0`),
+          'bridge WiFi recent delete should DELETE /bridge-wifi/recent/0');
+    await waitEval(cdp, sessionId, '!document.getElementById("bridge-recent-list").textContent.includes("MQTT-BRIDGE-node1")');
 
     await evalPage(cdp, sessionId, `
       const realFetch = window.fetch;

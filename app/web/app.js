@@ -198,10 +198,11 @@ function renderBridgeWifi() {
   $('bridge-recent-list').innerHTML = bridgeRecent.length
     ? bridgeRecent.slice(0, 3).map((x, i) => {
       const active = connected && current.ssid === x.ssid;
-      const button = active
+      const primary = active
         ? `<button class="danger" type="button" ${enabled ? '' : 'disabled'} onclick="disconnectBridgeWifi()">Disconnect</button>`
         : `<button type="button" ${enabled ? '' : 'disabled'} onclick="reconnectBridgeWifi(${i})">Connect</button>`;
-      return `<div class="wifi-row ${active ? 'active' : ''}"><div><div class="wifi-title">${esc(x.ssid)}${active ? '<span class="wifi-badge">Current</span>' : ''}</div><div class="wifi-meta"><span>${esc(x.host)}</span><span>MQTT ${x.mqtt_port}</span><span>P2P ${x.p2p_port}</span></div></div>${button}</div>`;
+      const remove = `<button class="danger" type="button" onclick="deleteRecentBridgeWifi(${i})">Delete</button>`;
+      return `<div class="wifi-row ${active ? 'active' : ''}"><div><div class="wifi-title">${esc(x.ssid)}${active ? '<span class="wifi-badge">Current</span>' : ''}</div><div class="wifi-meta"><span>${esc(x.host)}</span><span>MQTT ${x.mqtt_port}</span><span>P2P ${x.p2p_port}</span></div></div><div class="row-actions">${primary}${remove}</div></div>`;
     }).join('')
     : '<div class="empty">No recent bridge WiFi</div>';
 }
@@ -300,6 +301,19 @@ async function joinBridgeWifi(i) {
 
 async function reconnectBridgeWifi(i) {
   await joinBridgeWifiFrom(bridgeRecent[i]);
+}
+
+async function deleteRecentBridgeWifi(i) {
+  const entry = bridgeRecent[i];
+  if (!entry) return;
+  try {
+    notice(`Deleting ${entry.ssid}`, 'muted', 0);
+    await json(`/bridge-wifi/recent/${i}`, { method: 'DELETE' });
+    await loadBridgeWifi();
+    notice(`Deleted ${entry.ssid}`, 'ok');
+  } catch (x) {
+    failMsg(x, `Delete ${entry.ssid} failed`);
+  }
 }
 
 async function load() {

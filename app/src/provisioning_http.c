@@ -874,6 +874,15 @@ static void handle_bridge_wifi_recent(int fd)
     send_json(fd, 200, buf);
 }
 
+static void handle_bridge_wifi_recent_delete(int fd, int idx)
+{
+    if (product_config_remove_recent_bridge_wifi(idx) != 0) {
+        send_json(fd, 404, "{\"error\":\"recent bridge wifi index not found\"}");
+        return;
+    }
+    send_json(fd, 200, "{\"status\":\"deleted\"}");
+}
+
 static void handle_bridge_wifi_join(int fd, const char *body)
 {
     bridge_wifi_join_req_t req;
@@ -1031,6 +1040,11 @@ static void handle_client(int fd)
                strcmp(path, "/bridge-wifi/recent") == 0) {
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
         else handle_bridge_wifi_recent(fd);
+    } else if (strcmp(method, "DELETE") == 0 &&
+               strncmp(path, "/bridge-wifi/recent/", 20) == 0) {
+        int idx = atoi(path + 20);
+        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
+        else handle_bridge_wifi_recent_delete(fd, idx);
     } else if (strcmp(method, "POST") == 0 &&
                strcmp(path, "/bridge-wifi/join") == 0) {
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");

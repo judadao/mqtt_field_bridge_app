@@ -426,6 +426,21 @@ int product_config_add_recent_bridge_wifi(const field_bridge_wifi_entry_t *entry
     return persist_save_bridge_wifi();
 }
 
+int product_config_remove_recent_bridge_wifi(int index)
+{
+    if (index < 0 || index >= FIELD_BRIDGE_RECENT_WIFI_MAX ||
+        bridge_wifi.recent[index].ssid[0] == '\0') {
+        return -1;
+    }
+
+    for (int i = index; i < FIELD_BRIDGE_RECENT_WIFI_MAX - 1; i++) {
+        bridge_wifi.recent[i] = bridge_wifi.recent[i + 1];
+    }
+    memset(&bridge_wifi.recent[FIELD_BRIDGE_RECENT_WIFI_MAX - 1], 0,
+           sizeof(bridge_wifi.recent[FIELD_BRIDGE_RECENT_WIFI_MAX - 1]));
+    return persist_save_bridge_wifi();
+}
+
 int product_config_check_admin_password(const char *password)
 {
     if (!password) {

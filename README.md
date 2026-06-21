@@ -10,7 +10,7 @@ Zephyr workspace and board-specific Zephyr module sync are managed by Dephy.
 Dependencies are materialized under `deps/`; product builds consume dependency
 source, headers, and Zephyr CMake metadata only from that directory.
 
-Current pinned broker release: `minmqtt-v0.1.12`.
+Current pinned broker release: `mqtt-v0.1.3`.
 
 ## What This App Does
 

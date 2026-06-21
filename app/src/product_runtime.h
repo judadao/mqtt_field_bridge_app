@@ -39,6 +39,7 @@ typedef struct {
 
 void product_runtime_init(void);
 void product_runtime_network_start(const field_bridge_settings_t *settings);
+int product_runtime_network_ready(void);
 void product_runtime_broker_started(void);
 void product_runtime_broker_failed(const char *error);
 int product_runtime_set_broker_enabled(uint8_t enabled);

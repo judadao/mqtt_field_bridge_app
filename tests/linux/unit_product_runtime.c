@@ -49,6 +49,7 @@ int p2p_peer_snapshot(p2p_peer_snapshot_t *out, int max)
 static void test_defaults(void)
 {
     field_bridge_runtime_status_t st;
+    CHECK(product_runtime_network_ready() == 0);
     CHECK(product_runtime_get_status(&st) == 0);
     CHECK(strcmp(st.wifi_state, "init") == 0);
     CHECK(strcmp(st.ip_addr, "0.0.0.0") == 0);
@@ -65,6 +66,7 @@ static void test_network_start_ap_default(void)
     strcpy(cfg.network.device_ip, "192.168.4.1");
 
     product_runtime_network_start(&cfg);
+    CHECK(product_runtime_network_ready() == 1);
 
     field_bridge_runtime_status_t st;
     CHECK(product_runtime_get_status(&st) == 0);
@@ -81,6 +83,7 @@ static void test_network_start_wifi_configured(void)
     strcpy(cfg.network.device_ip, "10.0.0.20");
 
     product_runtime_network_start(&cfg);
+    CHECK(product_runtime_network_ready() == 1);
 
     field_bridge_runtime_status_t st;
     CHECK(product_runtime_get_status(&st) == 0);

@@ -78,6 +78,12 @@ void product_runtime_network_start(const field_bridge_settings_t *settings)
     runtime_status.last_error[0] = '\0';
 }
 
+int product_runtime_network_ready(void)
+{
+    return strcmp(runtime_status.wifi_state, "configured") == 0 ||
+           strcmp(runtime_status.wifi_state, "ap") == 0;
+}
+
 void product_runtime_broker_started(void)
 {
     copy_str(runtime_status.broker_state, sizeof(runtime_status.broker_state), "running");

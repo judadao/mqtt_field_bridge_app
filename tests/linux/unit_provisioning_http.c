@@ -630,6 +630,11 @@ static void test_bridge_wifi_requires_auth(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "403 Forbidden") != NULL);
 
+    n = http_req("DELETE /bridge-wifi/recent/0 HTTP/1.0\r\n\r\n",
+                 resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "403 Forbidden") != NULL);
+
     n = http_req("POST /bridge-wifi/enabled HTTP/1.0\r\n"
                  "Content-Length: 13\r\n\r\n{\"enabled\":1}",
                  resp, sizeof(resp));
@@ -726,6 +731,28 @@ static void test_bridge_wifi_scan_current_recent_and_join(void)
     n = http_req(req, resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
+
+    snprintf(req, sizeof(req),
+             "DELETE /bridge-wifi/recent/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "deleted") != NULL);
+
+    snprintf(req, sizeof(req),
+             "GET /bridge-wifi/recent HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "MQTT-BRIDGE-node1") == NULL);
+
+    snprintf(req, sizeof(req),
+             "DELETE /bridge-wifi/recent/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
+             auth_token);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "404 Not Found") != NULL);
 
     snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
              auth_token);

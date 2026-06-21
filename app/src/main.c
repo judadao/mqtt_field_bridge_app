@@ -27,6 +27,10 @@ int main(void)
                 settings.network.dhcp_enabled,
                 settings.network.wifi_ssid[0] ? settings.network.wifi_ssid : "(ap-only)");
         product_runtime_network_start(&settings);
+        if (!product_runtime_network_ready()) {
+            product_runtime_broker_failed("network not ready");
+            return -1;
+        }
     } else {
         product_runtime_broker_failed("settings unavailable");
         return -1;

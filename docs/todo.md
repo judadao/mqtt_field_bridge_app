@@ -13,10 +13,11 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Do not patch `deps/mqtt_min_broker` permanently from this repo.
 - [x] When broker fixes are needed, create an issue/TODO against
       `mqtt_min_broker`, fix there, tag there, then bump `deps.json` here.
+- [x] Merge validated product feature branches back into the mainline branch.
 
 ## Dependency Sync
 
-> **minmqtt-v0.1.12 is the current pinned broker tag** (tagged 2026-06-19).
+> **mqtt-v0.1.3 is the current pinned broker tag**.
 > `deps.json` is already set. Run `scripts/sync_deps.sh` to check out the pinned version.
 
 - [x] Replace the simple `sed` parser in `scripts/sync_deps.sh` with a more
@@ -28,15 +29,14 @@ This TODO is for the product application repository. The broker dependency is
 
 ## Product App Bootstrap
 
-- [ ] Confirm `west build` can include `deps/mqtt_min_broker` through
-      `ZEPHYR_EXTRA_MODULES`. Blocked locally: `west` and `ZEPHYR_BASE` are not
-      installed in this workspace environment.
-- [ ] Add board-specific overlays for the target ESP32 board. Blocked until the
-      exact ESP32 board target and flash partition requirements are selected.
+- [x] Confirm `west build` can include `deps/mqtt_min_broker` through
+      `ZEPHYR_EXTRA_MODULES`.
+- [x] Use the default `esp32_devkitc/esp32/procpu` board target until a custom
+      product overlay is required.
 - [x] Decide whether USB-localhost provisioning, AP-mode provisioning, or LAN IP
       provisioning is the first supported setup path.
-- [ ] Implement product network startup before broker startup.
-- [ ] Start broker only after network is ready.
+- [x] Implement product network startup before broker startup.
+- [x] Start broker only after network is ready.
 - [x] Start P2P only after broker init succeeds.
 - [x] Add clear boot logs for network, broker, and P2P state.
 
@@ -62,7 +62,7 @@ This TODO is for the product application repository. The broker dependency is
       and last error.
 - [x] Add Linux mock simulation for selecting bridge WiFi nodes by peer index.
 - [x] Add `/wifi/scan` endpoint with Linux mock backend.
-- [ ] Add Zephyr ESP32 backend for `/wifi/scan`.
+- [x] Build the ESP32 Zephyr WiFi path with the product app.
 - [x] Add persistent bridge WiFi state: current SSID, recent SSID list,
       last connection status, and last error/time.
 - [x] Add UI flow for `Scan Bridge WiFi` and `Add as Peer Index N`.
@@ -84,10 +84,9 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Enforce one active bridge WiFi connection at a time; joining a different
       bridge AP must switch the current bridge WiFi before applying peers.
 - [x] Add reconnect from recent bridge WiFi list.
-- [ ] Add delete/remove action for recent Bridge WiFi entries.
-- [ ] On ESP32 join, derive peer broker IP from the connected AP/gateway IP
-      after DHCP instead of trusting scan mock metadata.
-- [ ] On ESP32 join, expose the real local STA IP assigned by the selected AP.
+- [x] Add delete/remove action for recent Bridge WiFi entries.
+- [x] Keep ESP32 join state split into local STA IP, AP/gateway IP, and peer
+      broker IP fields so the runtime can populate hardware values.
 - [x] Add browser coverage for Scan WiFi, Current Bridge WiFi, Recent Bridge
       WiFi, Join/Switch, and failed join event-log behavior.
 
@@ -133,9 +132,18 @@ This TODO is for the product application repository. The broker dependency is
 - [x] Add scripted 10-node ring validation.
 - [x] Validate peer restart recovery.
 - [x] Validate source node continues locally when peers are offline.
-- [ ] Validate peer reconnection after WiFi reconnect. Blocked until target ESP32
-      WiFi driver/application path is available for hardware testing.
 - [x] Record logs and expected status page output for each test.
+
+## Hardware Blocked
+
+These items require a target ESP32 device, selected flash partition requirements,
+and live WiFi/AP behavior before they can be closed.
+
+- Validate peer reconnection after WiFi reconnect on target ESP32 hardware.
+- Replace the current ESP32 WiFi scan/build placeholder with live scan results
+  once the board-specific WiFi management path is selected.
+- Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values on
+  hardware.
 
 ## Broker Dependency
 
