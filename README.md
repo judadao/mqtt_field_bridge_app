@@ -8,7 +8,13 @@ bridge peer workflow, integration tests, and dependency pins. Broker, board,
 industrial IO, and test harness behavior are implemented in module repos first
 and consumed here.
 
-## What It Provides
+## Overview
+
+Use this repo as the deployable field bridge product. It explains the product
+workflow directly in the README: sync dependencies, run Linux validation, build
+the Zephyr app, then finish ESP32 hardware validation.
+
+## Key Value
 
 - A product composition point for MQTT broker, field IO, board profile, and test
   harness modules.
@@ -18,7 +24,7 @@ and consumed here.
   integration behavior.
 - A clear split between product workflow and reusable module logic.
 
-## Normal Flow
+## How To Use
 
 1. Sync pinned dependencies from `deps.json`.
 2. For local development, replace synced dependencies with sibling checkouts.
