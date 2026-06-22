@@ -1,7 +1,7 @@
 {
   "repo_type": "product",
   "name": "mqtt_field_bridge_app",
-  "description": "Configurable MQTT field bridge product app with ESP32 provisioning UI, Bridge WiFi, and P2P broker workflow.",
+  "description": "ESP32 MQTT field bridge product app with provisioning UI, Bridge WiFi management, dynamic P2P broker routing, and reusable module integration.",
   "dependency_policy": "deps.json may reference reusable module repos only; do not depend on product repos",
   "deps_dir": "deps",
   "license": "MIT",
@@ -13,6 +13,8 @@
     "esp32",
     "zephyr",
     "p2p",
-    "provisioning"
+    "provisioning",
+    "field-gateway",
+    "embedded-product"
   ]
 }
