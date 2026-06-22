@@ -2,18 +2,55 @@
 
 Product application for configurable MQTT field bridge deployments.
 
-This repo is the product layer. It owns field configuration, provisioning HTTP
-and UI, bridge peer workflow, product tests, and dependency pins. Reusable
-broker, board, IO, and test harness behavior belongs in module repos first.
+`mqtt_field_bridge_app` is the product layer that turns reusable modules into a
+deployable field bridge. It owns product configuration, provisioning HTTP/UI,
+bridge peer workflow, integration tests, and dependency pins. Broker, board,
+industrial IO, and test harness behavior are implemented in module repos first
+and consumed here.
 
-## Dependencies
+## What It Provides
 
-Pinned in `deps.json` and materialized under `deps/`:
+- A product composition point for MQTT broker, field IO, board profile, and test
+  harness modules.
+- Provisioning flow for network and bridge settings.
+- Field bridge runtime that can route local IO state into MQTT topics.
+- Linux tests for product config, dependency sync, provisioning rendering, and
+  integration behavior.
+- A clear split between product workflow and reusable module logic.
 
-- `dephy`: board profile and Zephyr workspace setup.
-- `mqtt_min_broker`: MQTT broker and optional P2P routing.
-- `dephy_industrial_io`: industrial IO topic/payload bridge helpers.
-- `dephy_testkit`: Linux test harness and JSON result wrapper.
+## Normal Flow
+
+1. Sync pinned dependencies from `deps.json`.
+2. For local development, replace synced dependencies with sibling checkouts.
+3. Run Linux tests to validate product behavior without hardware.
+4. Build the Zephyr product app.
+5. Validate remaining WiFi and IP behavior on ESP32 hardware.
+
+Commands:
+
+```sh
+./scripts/sync_deps.sh download
+./scripts/sync_deps.sh replace
+./scripts/sync_deps.sh init
+./scripts/build_product.sh
+
+make -C tests/linux unit-tests
+make -C tests/linux unit-tests provisioning-render-size testkit-wrapper
+make -C tests/linux test
+```
+
+## How It Works
+
+The product repo stays thin by composing pinned modules:
+
+- `dephy` provides the ESP32 board profile and Zephyr workspace setup.
+- `mqtt_min_broker` provides broker behavior and optional P2P routing.
+- `dephy_industrial_io` provides IO channel state and MQTT payload helpers.
+- `dephy_testkit` provides Linux fixtures and structured test results.
+
+Product code should include public module headers and call module entry points.
+If logic would be useful to another product, implement it in the module first,
+tag the module, then bump this product's `deps.json`.
 
 ## Layout
 
@@ -24,25 +61,6 @@ scripts/             dependency sync and product build commands
 tests/linux/         Linux unit, integration, browser, stress tests
 docs/                design notes, validation notes, legacy README
 docs/todo.yaml       product TODO source of truth
-```
-
-## Quick Commands
-
-```sh
-./scripts/sync_deps.sh download
-./scripts/sync_deps.sh replace
-./scripts/sync_deps.sh init
-./scripts/build_product.sh
-
-make -C tests/linux unit-tests
-make -C tests/linux unit-tests provisioning-render-size testkit-wrapper
-sh tests/linux/test_sync_deps.sh
-```
-
-Full Linux suite:
-
-```sh
-make -C tests/linux test
 ```
 
 ## Current TODO
