@@ -14,6 +14,19 @@
       "profile": "esp32",
       "module_path": "deps/dephy/boards/esp32",
       "tag_pattern": "dephy-v*"
+    },
+    "dephy_industrial_io": {
+      "repo": "git@github.com:judadao/dephy_industrial_io.git",
+      "local": "../dephy_industrial_io",
+      "version": "d26d985",
+      "path": "deps/dephy_industrial_io",
+      "module_path": "deps/dephy_industrial_io"
+    },
+    "dephy_testkit": {
+      "repo": "git@github.com:judadao/dephy_testkit.git",
+      "local": "../dephy_testkit",
+      "version": "e0b70d9",
+      "path": "deps/dephy_testkit"
     }
   },
   "zephyr": {

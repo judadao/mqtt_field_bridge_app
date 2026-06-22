@@ -1,5 +1,6 @@
 ROOT    := ../..
 BROKER  := $(ROOT)/deps/mqtt_min_broker
+DEPHY_IO := $(ROOT)/deps/dephy_industrial_io
 APP_SRC := $(ROOT)/app/src
 WEB_DIR := $(ROOT)/app/web
 WEB_SRC := $(WEB_DIR)/index.html $(WEB_DIR)/styles.css $(WEB_DIR)/app.js
@@ -10,11 +11,13 @@ CC     = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
          -I$(APP_SRC) \
          -Iinclude \
-         -I$(BROKER)/include
+         -I$(BROKER)/include \
+         -I$(DEPHY_IO)/include
 OUTDIR = out
 
 .PHONY: all test unit-tests unit_product_config unit_product_runtime \
         unit_product_topics unit_bridge_control \
+        unit_product_io_bridge \
         unit_provisioning_http web-network-test ui-browser-test bridge-wifi-sim-test run-web-server run_web_config_server integration-tests stress scale-tests \
         scale-ring-tests clean broker-p2p
 
@@ -74,6 +77,19 @@ $(OUTDIR)/unit_product_topics: unit_product_topics.c \
 	    $(APP_SRC)/product_topics.c \
 	    -o $@
 
+$(OUTDIR)/unit_product_io_bridge: unit_product_io_bridge.c \
+                                  $(APP_SRC)/product_io_bridge.c \
+                                  $(APP_SRC)/product_io_bridge.h \
+                                  $(DEPHY_IO)/src/payload.c \
+                                  $(DEPHY_IO)/include/dephy_industrial_io/payload.h \
+                                  $(DEPHY_IO)/include/dephy_industrial_io/industrial_io.h \
+                                  | $(OUTDIR)
+	$(CC) $(CFLAGS) \
+	    unit_product_io_bridge.c \
+	    $(APP_SRC)/product_io_bridge.c \
+	    $(DEPHY_IO)/src/payload.c \
+	    -o $@
+
 $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
                                    $(APP_SRC)/provisioning_http.c \
                                    $(APP_SRC)/provisioning_http.h \
@@ -113,6 +129,7 @@ $(OUTDIR)/run_web_config_server: run_web_config_server.c \
 unit-tests: $(OUTDIR)/unit_product_config \
             $(OUTDIR)/unit_product_runtime \
             $(OUTDIR)/unit_product_topics \
+            $(OUTDIR)/unit_product_io_bridge \
             $(OUTDIR)/unit_bridge_control \
             $(OUTDIR)/unit_provisioning_http
 	@echo ""
@@ -124,6 +141,9 @@ unit-tests: $(OUTDIR)/unit_product_config \
 	@echo ""
 	@echo "--- unit_product_topics ---"
 	$(OUTDIR)/unit_product_topics
+	@echo ""
+	@echo "--- unit_product_io_bridge ---"
+	$(OUTDIR)/unit_product_io_bridge
 	@echo ""
 	@echo "--- unit_bridge_control ---"
 	$(OUTDIR)/unit_bridge_control
@@ -143,11 +163,20 @@ unit_product_runtime: $(OUTDIR)/unit_product_runtime
 unit_product_topics: $(OUTDIR)/unit_product_topics
 	$(OUTDIR)/unit_product_topics
 
+unit_product_io_bridge: $(OUTDIR)/unit_product_io_bridge
+	$(OUTDIR)/unit_product_io_bridge
+
 unit_provisioning_http: $(OUTDIR)/unit_provisioning_http
 	$(OUTDIR)/unit_provisioning_http
 
 web-network-test: $(OUTDIR)/unit_provisioning_http
 	@bash test_web_network_config.sh
+
+provisioning-render-size: $(WEB_HDR)
+	@sh test_provisioning_render_size.sh
+
+testkit-wrapper:
+	@sh test_with_testkit.sh
 
 ui-browser-test: $(OUTDIR)/run_web_config_server
 	@node ui_browser_test.js
@@ -190,7 +219,7 @@ stress: broker-p2p
 	@bash stress_throughput.sh
 
 # ── run everything ─────────────────────────────────────────────────────────
-test: unit-tests integration-tests stress
+test: unit-tests provisioning-render-size testkit-wrapper integration-tests stress
 
 clean:
 	rm -rf $(OUTDIR)

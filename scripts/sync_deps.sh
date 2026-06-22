@@ -144,13 +144,22 @@ sync_one_dep() {
         exit 1
     fi
 
+    current=$(git -C "$target" describe --tags --exact-match 2>/dev/null || git -C "$target" rev-parse --short HEAD)
+    if [ "$current" = "$version" ]; then
+        printf '%s already synced to %s\n' "$name" "$version"
+        return
+    fi
+
     git -C "$target" fetch --tags --force
-    if ! git -C "$target" rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+    if git -C "$target" rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+        git -C "$target" checkout -q "$version"
+    elif git -C "$target" rev-parse -q --verify "$version^{commit}" >/dev/null; then
+        git -C "$target" checkout -q "$version"
+    else
         printf 'error: tag %s not found in %s\n' "$version" "$target" >&2
         printf '  Create and fetch the tag before syncing.\n' >&2
         exit 1
     fi
-    git -C "$target" checkout -q "$version"
 
     printf '%s synced to %s\n' "$name" "$version"
 }

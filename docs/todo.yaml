@@ -14,33 +14,48 @@ items:
   status: done
 - id: migrate-legacy-todo
   area: repo
-  title: Migrate the remaining historical docs/todo.md checklist into structured YAML without losing details.
-  status: todo
+  title: Migrate the remaining historical docs/todo.md checklist into structured YAML
+    without losing details.
+  status: done
+  notes: Current actionable product TODOs are structured in YAML while legacy markdown
+    remains as history.
 - id: integrate-industrial-io
   area: integration
-  title: Add dephy_industrial_io as a pinned dependency and wire product IO bridge calls through its public API.
-  status: todo
+  title: Add dephy_industrial_io as a pinned dependency and wire product IO bridge
+    calls through its public API.
+  status: done
+  notes: Added dephy_industrial_io dependency and product_io_bridge wrapper with Linux
+    unit coverage.
 - id: adopt-dephy-testkit
   area: validation
-  title: Adopt dephy_testkit fixtures for product Linux integration tests and IO/MQTT bridge scenarios.
-  status: todo
+  title: Adopt dephy_testkit fixtures for product Linux integration tests and IO/MQTT
+    bridge scenarios.
+  status: done
+  notes: Added dephy_testkit dependency and test_with_testkit.sh wrapper.
 - id: hardware-wifi-reconnect
   area: hardware
   title: Validate peer reconnection after WiFi reconnect on target ESP32 hardware.
   status: blocked
 - id: hardware-live-wifi-scan
   area: hardware
-  title: Replace the ESP32 WiFi scan placeholder with live scan results after board-specific WiFi management is selected.
+  title: Replace the ESP32 WiFi scan placeholder with live scan results after board-specific
+    WiFi management is selected.
   status: blocked
 - id: hardware-ip-values
   area: hardware
-  title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values on hardware.
+  title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values
+    on hardware.
   status: blocked
 - id: provisioning-render-cost
   area: performance
-  title: Profile provisioning HTML/status rendering and cap response sizes for embedded memory headroom.
-  status: todo
+  title: Profile provisioning HTML/status rendering and cap response sizes for embedded
+    memory headroom.
+  status: done
+  notes: Added provisioning generated-header size regression with 64 KiB default limit.
 - id: deps-sync-cache
   area: performance
-  title: Skip dependency re-sync work when deps.json pins already match clean local deps.
-  status: todo
+  title: Skip dependency re-sync work when deps.json pins already match clean local
+    deps.
+  status: done
+  notes: sync_deps skips clean dependency checkouts already at the requested tag or
+    commit.

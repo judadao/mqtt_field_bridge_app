@@ -7,6 +7,8 @@ set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 SCRIPT="$ROOT_DIR/scripts/sync_deps.sh"
 BROKER_PATH="$ROOT_DIR/deps/mqtt_min_broker"
+IO_PATH="$ROOT_DIR/deps/dephy_industrial_io"
+TESTKIT_PATH="$ROOT_DIR/deps/dephy_testkit"
 
 PASS=0; FAIL=0
 
@@ -65,9 +67,12 @@ check_latest_report "T1c: --check-latest reports current or newer release state"
 
 # ── T2: clean sync exits 0 ───────────────────────────────────────────────
 check "T2: sync exits 0" sh "$SCRIPT"
+check "T2b: industrial IO dependency synced" test -f "$IO_PATH/repo.json"
+check "T2c: testkit dependency synced" test -f "$TESTKIT_PATH/repo.json"
 
 # ── T3: idempotent re-run exits 0 ────────────────────────────────────────
 check "T3: second sync exits 0 (idempotent)" sh "$SCRIPT"
+check_output "T3b: second sync reports broker cache hit" "mqtt_min_broker already synced" sh "$SCRIPT"
 
 # ── T4: checked-out tag matches deps.json ───────────────────────────────
 actual_tag=$(git -C "$BROKER_PATH" describe --tags --exact-match 2>/dev/null || echo "NONE")
