@@ -1,0 +1,46 @@
+version: 1
+policy:
+  source_of_truth: docs/todo.yaml
+  legacy_markdown: docs/todo.md
+  rules:
+  - Use dephy_todo as the global TODO entry point.
+  - Before starting work, add or update the relevant TODO item.
+  - When behavior changes, update TODO status in the same change.
+  - Keep legacy markdown details until they are fully migrated into this YAML.
+items:
+- id: todo-yaml-source
+  area: repo
+  title: Add docs/todo.yaml so the product app is tracked globally.
+  status: done
+- id: migrate-legacy-todo
+  area: repo
+  title: Migrate the remaining historical docs/todo.md checklist into structured YAML without losing details.
+  status: todo
+- id: integrate-industrial-io
+  area: integration
+  title: Add dephy_industrial_io as a pinned dependency and wire product IO bridge calls through its public API.
+  status: todo
+- id: adopt-dephy-testkit
+  area: validation
+  title: Adopt dephy_testkit fixtures for product Linux integration tests and IO/MQTT bridge scenarios.
+  status: todo
+- id: hardware-wifi-reconnect
+  area: hardware
+  title: Validate peer reconnection after WiFi reconnect on target ESP32 hardware.
+  status: blocked
+- id: hardware-live-wifi-scan
+  area: hardware
+  title: Replace the ESP32 WiFi scan placeholder with live scan results after board-specific WiFi management is selected.
+  status: blocked
+- id: hardware-ip-values
+  area: hardware
+  title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values on hardware.
+  status: blocked
+- id: provisioning-render-cost
+  area: performance
+  title: Profile provisioning HTML/status rendering and cap response sizes for embedded memory headroom.
+  status: todo
+- id: deps-sync-cache
+  area: performance
+  title: Skip dependency re-sync work when deps.json pins already match clean local deps.
+  status: todo
