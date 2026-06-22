@@ -148,7 +148,6 @@ static int snapshot_contains_peer(const p2p_peer_snapshot_t *peers, int count,
 
 int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max)
 {
-    p2p_peer_snapshot_t snapshots[P2P_PEER_MAX];
     int snapshot_count;
     int written = 0;
 
@@ -157,6 +156,7 @@ int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max)
     }
 
 #if defined(PRODUCT_RUNTIME_HAS_P2P)
+    p2p_peer_snapshot_t snapshots[P2P_PEER_MAX];
     snapshot_count = p2p_peer_snapshot(snapshots, P2P_PEER_MAX);
 #else
     snapshot_count = 0;

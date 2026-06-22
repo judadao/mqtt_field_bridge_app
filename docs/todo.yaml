@@ -59,3 +59,9 @@ items:
   status: done
   notes: sync_deps skips clean dependency checkouts already at the requested tag or
     commit.
+- id: product-static-cleanup-pass
+  area: validation
+  title: Clean up low-risk cppcheck findings in product runtime and provisioning handlers.
+  status: done
+  notes: Reduced local variable scope in provisioning route handlers and only allocates
+    the peer snapshot array when the P2P runtime path is compiled.

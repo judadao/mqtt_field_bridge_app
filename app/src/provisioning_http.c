@@ -1042,9 +1042,11 @@ static void handle_client(int fd)
         else handle_bridge_wifi_recent(fd);
     } else if (strcmp(method, "DELETE") == 0 &&
                strncmp(path, "/bridge-wifi/recent/", 20) == 0) {
-        int idx = atoi(path + 20);
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_bridge_wifi_recent_delete(fd, idx);
+        else {
+            int idx = atoi(path + 20);
+            handle_bridge_wifi_recent_delete(fd, idx);
+        }
     } else if (strcmp(method, "POST") == 0 &&
                strcmp(path, "/bridge-wifi/join") == 0) {
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
@@ -1058,9 +1060,11 @@ static void handle_client(int fd)
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
         else handle_bridge_wifi_disconnect(fd);
     } else if (strcmp(method, "POST") == 0 && strncmp(path, "/peers/", 7) == 0) {
-        int idx = atoi(path + 7);
         if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_post_peer(fd, idx, body_start);
+        else {
+            int idx = atoi(path + 7);
+            handle_post_peer(fd, idx, body_start);
+        }
     } else {
         send_json(fd, 404, "{\"error\":\"not found\"}");
     }
