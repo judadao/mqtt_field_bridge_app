@@ -73,3 +73,8 @@ reusable, fix it in the module repo first, tag it, then update `deps.json`.
 - `docs/bridge_wifi_join_plan.md`: Bridge WiFi join plan.
 - `docs/versioning.md`: dependency/version guidance.
 - `docs/todo.md`: current TODO summary.
+
+## License
+
+MIT. See `LICENSE` and `NOTICE.md`. Reuse and references are allowed, but the
+copyright notice and attribution to Judd (judadao) must be preserved.
