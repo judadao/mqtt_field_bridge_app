@@ -65,3 +65,11 @@ items:
   status: done
   notes: Reduced local variable scope in provisioning route handlers and only allocates
     the peer snapshot array when the P2P runtime path is compiled.
+- id: linux-web-one-command-start
+  area: docs
+  title: Make the product README quick start clone-to-shell-to-web instead of a multi-step
+    build flow.
+  status: done
+  notes: Added run_linux_web.sh as the root Linux web entry point, updated README
+    so the first path is git clone, cd, run one shell script, then open the printed
+    local URL. The script auto-selects local sibling deps or pinned downloads.

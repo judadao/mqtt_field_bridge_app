@@ -1,7 +1,7 @@
 {
   "deps": {
     "mqtt_min_broker": {
-      "repo": "../mqtt_min_broker",
+      "repo": "git@github.com:judadao/zephy_min_mqtt_broker.git",
       "local": "../mqtt_min_broker",
       "version": "mqtt-v0.1.3",
       "path": "deps/mqtt_min_broker"

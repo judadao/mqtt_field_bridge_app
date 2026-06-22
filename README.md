@@ -2,6 +2,21 @@
 
 Product application for configurable MQTT field bridge deployments.
 
+## Quick Start: Linux Web UI
+
+```sh
+git clone git@github.com:judadao/mqtt_field_bridge_app.git
+cd mqtt_field_bridge_app
+./run_linux_web.sh
+```
+
+Open `http://127.0.0.1:8080/`.
+
+Login password: `admin`
+
+This starts the product provisioning UI on Linux. It is the fastest way to see
+and test the web flow before using ESP32 hardware.
+
 ## Overview
 
 `mqtt_field_bridge_app` composes Dephy modules into a deployable ESP32 field
@@ -15,31 +30,12 @@ peer selection, runtime status, and product-level Linux tests.
 - Embedded provisioning UI for network, MQTT, P2P, Bridge WiFi, and peer config.
 - Static-seed P2P product path using `CONFIG_MQTT_P2P_DYNAMIC=y` and
   `CONFIG_MQTT_P2P_STATIC_SEEDS_ONLY=y`.
-- Linux tests for config, provisioning rendering, peer application, runtime
+- Linux web runner and tests for config, provisioning rendering, peer application, runtime
   status, sync deps, and reconnect stress.
 - Keeps reusable broker/IO/board behavior in module repos instead of product
   source.
 
-## Quick Start: Run It Locally
-
-To see the product UI without ESP32 hardware, start the Linux provisioning
-server:
-
-```sh
-./scripts/sync_deps.sh replace
-make -C tests/linux run-web-server
-```
-
-Open `http://127.0.0.1:8080/` in a browser.
-
-Login password: `admin`
-
-Stop the server with `Ctrl-C`.
-
-This local server runs the same provisioning HTTP/UI code used by the product,
-but with Linux file-backed settings instead of ESP32 flash/WiFi hardware.
-
-## Common Commands
+## Linux Commands
 
 ```sh
 # Fast local validation
@@ -47,18 +43,25 @@ make -C tests/linux unit-tests
 
 # Full Linux product tests, including P2P scenarios and stress tests
 make -C tests/linux test
+```
 
-# ESP32/Zephyr build from local sibling module checkouts
+`run_linux_web.sh` uses sibling module checkouts when they exist. Otherwise it
+downloads the pinned dependency versions into `deps/`.
+
+## ESP32 / Dephy Build
+
+Use this path when you are ready to build firmware for the Dephy ESP32 target:
+
+```sh
+# Build from local sibling module checkouts
 ./scripts/sync_deps.sh local-build
 
-# ESP32/Zephyr build from pinned git dependencies
+# Or build from pinned git dependencies
 ./scripts/sync_deps.sh external-build
 ```
 
-Use `./scripts/sync_deps.sh replace` during local multi-repo development so
-sibling module checkouts are copied into `deps/`. Use `download` or
-`external-build` when you want the exact pinned dependency versions from
-`deps.json`.
+`local-build` is for multi-repo development under one workspace.
+`external-build` is for a clean product build from `deps.json`.
 
 ## Architecture Flow
 

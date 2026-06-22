@@ -26,3 +26,7 @@ Source of truth: `docs/todo.yaml`. Update YAML before starting or completing wor
 
 - [x] Profile provisioning HTML/status rendering and cap response sizes for embedded memory headroom.
 - [x] Skip dependency re-sync work when deps.json pins already match clean local deps.
+
+## docs
+
+- [x] Make the product README quick start clone-to-shell-to-web instead of a multi-step build flow.
