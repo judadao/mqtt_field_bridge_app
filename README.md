@@ -20,18 +20,45 @@ peer selection, runtime status, and product-level Linux tests.
 - Keeps reusable broker/IO/board behavior in module repos instead of product
   source.
 
-## How To Use
+## Quick Start: Run It Locally
+
+To see the product UI without ESP32 hardware, start the Linux provisioning
+server:
 
 ```sh
-./scripts/sync_deps.sh download
 ./scripts/sync_deps.sh replace
-./scripts/sync_deps.sh init
-./scripts/build_product.sh
-make -C tests/linux test
+make -C tests/linux run-web-server
 ```
 
-Use `replace` during local multi-repo development so sibling module checkouts
-are copied into `deps/`.
+Open `http://127.0.0.1:8080/` in a browser.
+
+Login password: `admin`
+
+Stop the server with `Ctrl-C`.
+
+This local server runs the same provisioning HTTP/UI code used by the product,
+but with Linux file-backed settings instead of ESP32 flash/WiFi hardware.
+
+## Common Commands
+
+```sh
+# Fast local validation
+make -C tests/linux unit-tests
+
+# Full Linux product tests, including P2P scenarios and stress tests
+make -C tests/linux test
+
+# ESP32/Zephyr build from local sibling module checkouts
+./scripts/sync_deps.sh local-build
+
+# ESP32/Zephyr build from pinned git dependencies
+./scripts/sync_deps.sh external-build
+```
+
+Use `./scripts/sync_deps.sh replace` during local multi-repo development so
+sibling module checkouts are copied into `deps/`. Use `download` or
+`external-build` when you want the exact pinned dependency versions from
+`deps.json`.
 
 ## Architecture Flow
 
