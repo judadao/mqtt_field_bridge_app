@@ -12,6 +12,10 @@ let bridgeCurrent = null;
 let bridgeRecent = [];
 let saveTimer = 0;
 
+try {
+  token = sessionStorage.getItem('field_bridge_token') || '';
+} catch (e) {}
+
 function esc(s) {
   return String(s || '').replace(/[&<>"]/g, c => ({
     '&': '&amp;',
@@ -72,6 +76,28 @@ function failMsg(x, prefix) {
   if ($('bridge-details')) $('bridge-details').open = true;
   logLine(`${prefix}: ${m}`);
   notice(`${prefix}: ${m}`, 'bad', 0);
+}
+
+function setAuthToken(next) {
+  token = next || '';
+  try {
+    if (token) sessionStorage.setItem('field_bridge_token', token);
+    else sessionStorage.removeItem('field_bridge_token');
+  } catch (e) {}
+}
+
+function showLogin(msg = 'Default password: admin', cls = 'muted') {
+  $('login').classList.remove('hide');
+  $('app').classList.add('hide');
+  $('refresh').classList.add('hide');
+  $('login-state').textContent = msg;
+  $('login-state').className = cls;
+}
+
+function showApp() {
+  $('login').classList.add('hide');
+  $('app').classList.remove('hide');
+  $('refresh').classList.remove('hide');
 }
 
 function autoBridgePeerIndex() {
@@ -316,21 +342,31 @@ async function deleteRecentBridgeWifi(i) {
   }
 }
 
-async function load() {
+function renderStatus(s) {
+  $('broker-state').textContent = s.broker_state || '-';
+  $('p2p-state').textContent = `${s.p2p_role || '-'} / peers ${s.connected_peers || 0}`;
+  st.textContent = 'Online';
+  st.className = 'pill ok';
+}
+
+async function loadStatus() {
   st.textContent = 'Loading';
   st.className = 'pill muted';
+  const s = await json('/status');
+  renderStatus(s);
+  return s;
+}
+
+async function load() {
   const [s, c, p] = await Promise.all([
-    json('/status'),
+    loadStatus(),
     json('/config'),
     json('/peers'),
   ]);
   put(c);
   peers = p.map(norm);
   $('wifi-state').textContent = c.ap_ssid ? `${c.ap_ssid} / ${c.device_ip || '-'}` : 'AP active';
-  $('broker-state').textContent = s.broker_state || '-';
-  $('p2p-state').textContent = `${s.p2p_role || '-'} / peers ${s.connected_peers || 0}`;
-  st.textContent = 'Online';
-  st.className = 'pill ok';
+  renderStatus(s);
   await loadBridgeWifi();
 }
 
@@ -353,13 +389,9 @@ async function resetConfig() {
   try {
     notice('Resetting', 'muted', 0);
     await json('/config/reset', { method: 'POST' });
-    token = '';
-    $('login').classList.remove('hide');
-    $('app').classList.add('hide');
-    $('refresh').classList.add('hide');
+    setAuthToken('');
     $('login-password').value = 'admin';
-    $('login-state').textContent = 'Config reset; login again';
-    $('login-state').className = 'muted';
+    showLogin('Config reset; login again');
     notice('Config reset', 'ok');
   } catch (x) {
     failMsg(x, 'Reset failed');
@@ -399,11 +431,11 @@ $('login-form').onsubmit = async e => {
       body: JSON.stringify({ password: $('login-password').value }),
     });
     token = r.token;
-    $('login').classList.add('hide');
-    $('app').classList.remove('hide');
-    $('refresh').classList.remove('hide');
+    setAuthToken(token);
+    showApp();
     await load();
   } catch (x) {
+    setAuthToken('');
     $('login-state').textContent = 'Login failed';
     $('login-state').className = 'bad';
   }
@@ -420,3 +452,14 @@ $('broker-start').onclick = () => brokerControl(1);
 $('broker-stop').onclick = () => brokerControl(0);
 $('scan-bridge-wifi').onclick = scanBridgeWifi;
 $('bridge_wifi_enabled').onchange = setBridgeWifiEnabled;
+
+if (token) {
+  showApp();
+  load().catch(x => {
+    setAuthToken('');
+    showLogin('Session expired; login again');
+    failMsg(x, 'Load failed');
+  });
+} else {
+  loadStatus().catch(x => failMsg(x, 'Status failed'));
+}

@@ -2,6 +2,7 @@
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+BUILD_DIR=${BUILD_DIR:-"$ROOT_DIR/build_product"}
 
 if command -v jq >/dev/null 2>&1; then
     BOARD=$(jq -r '.build.board // empty' "$ROOT_DIR/deps.json")
@@ -51,6 +52,9 @@ elif command -v west >/dev/null 2>&1; then
 elif [ -n "$DEPHY_PATH" ] && [ -x "$ROOT_DIR/$DEPHY_PATH/zephyrproject/.venv/bin/west" ]; then
     WEST="$ROOT_DIR/$DEPHY_PATH/zephyrproject/.venv/bin/west"
     WEST_WORKDIR="$ROOT_DIR/$DEPHY_PATH/zephyrproject"
+elif [ -n "$DEPHY_PATH" ] && [ -x "$ROOT_DIR/../dephy/zephyrproject/.venv/bin/west" ]; then
+    WEST="$ROOT_DIR/../dephy/zephyrproject/.venv/bin/west"
+    WEST_WORKDIR="$ROOT_DIR/../dephy/zephyrproject"
 else
     printf 'error: west not found; run scripts/sync_deps.sh init first\n' >&2
     exit 1
@@ -69,5 +73,5 @@ if [ -d "$WEST_WORKDIR/.venv/bin" ]; then
     export PATH
 fi
 
-(cd "$WEST_WORKDIR" && "$WEST" build -b "$BOARD" "$ROOT_DIR/app" \
+(cd "$WEST_WORKDIR" && "$WEST" build --pristine auto -d "$BUILD_DIR" -b "$BOARD" "$ROOT_DIR/app" \
     -- -DZEPHYR_EXTRA_MODULES="$EXTRA_MODULES_ABS")

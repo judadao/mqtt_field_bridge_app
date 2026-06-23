@@ -8,6 +8,7 @@
 #include "bridge_control.h"
 #include "product_config.h"
 #include "product_runtime.h"
+#include "product_wifi.h"
 #include "provisioning_http.h"
 
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
@@ -21,11 +22,21 @@ int main(void)
 
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
+        char ip_addr[FIELD_BRIDGE_HOST_MAX];
+
         LOG_INF("network startup requested: device=%s ip=%s dhcp=%u ssid=%s",
                 settings.system.device_name,
                 settings.network.device_ip,
                 settings.network.dhcp_enabled,
                 settings.network.wifi_ssid[0] ? settings.network.wifi_ssid : "(ap-only)");
+        if (product_wifi_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
+            product_runtime_broker_failed("wifi start failed");
+            return -1;
+        }
+        if (ip_addr[0]) {
+            snprintf(settings.network.device_ip, sizeof(settings.network.device_ip),
+                     "%s", ip_addr);
+        }
         product_runtime_network_start(&settings);
         if (!product_runtime_network_ready()) {
             product_runtime_broker_failed("network not ready");

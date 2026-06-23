@@ -10,13 +10,24 @@
 #include "product_config.h"
 #include "product_runtime.h"
 #include "product_topics.h"
+#include "product_wifi.h"
 #include "bridge_control.h"
+#ifndef __ZEPHYR__
 #include "generated/provisioning_index.h"
+#endif
 
 LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
 
 #ifndef PROVISIONING_HTTP_PORT
 #define PROVISIONING_HTTP_PORT 8080
+#endif
+
+#ifndef __ZEPHYR__
+__attribute__((weak)) int product_wifi_apply_settings(const field_bridge_settings_t *settings)
+{
+    (void)settings;
+    return 0;
+}
 #endif
 
 /* ── JSON helpers ────────────────────────────────────────────────────────── */
@@ -237,6 +248,7 @@ static int extract_content_length(const char *headers)
 #define PLAT_RECV(fd, buf, len) recv((fd), (buf), (size_t)(len), 0)
 #define PLAT_CLOSE(fd)          close(fd)
 #else
+#include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
 #define PLAT_SEND(fd, buf, len) zsock_send((fd), (buf), (size_t)(len), 0)
 #define PLAT_RECV(fd, buf, len) zsock_recv((fd), (buf), (size_t)(len), 0)
@@ -247,8 +259,31 @@ static int extract_content_length(const char *headers)
 static char peers_json_buf[PEERS_JSON_BUF_SIZE];
 #define CONFIG_JSON_BUF_SIZE 2048
 static char config_json_buf[CONFIG_JSON_BUF_SIZE];
+#define HTTP_SEND_CHUNK_SIZE 512
+#define HTTP_COMBINED_RESPONSE_SIZE 1536
+static char combined_response_buf[HTTP_COMBINED_RESPONSE_SIZE];
 static char session_token[32];
 static unsigned session_seq;
+
+#ifdef __ZEPHYR__
+static const char index_lite_html[] =
+"<!doctype html><title>Field Bridge Settings</title>"
+"<h1>Field Bridge Settings</h1>"
+"<b id=s>...</b><p><input id=p value=admin>"
+"<button onclick=L()>Login</button><button onclick=P(R('/status'))>Status</button>"
+"<button onclick=C()>Config</button><button onclick=V()>Save</button>"
+"<button onclick=W()>Scan</button><textarea id=c></textarea><pre id=o></pre>"
+"<script>let T='';async function R(u,m,b){let h=T?{'X-Auth-Token':T}:{};"
+"if(b)h['Content-Type']='application/json';"
+"let r=await fetch(u,{method:m||'GET',headers:h,body:b}),t=await r.text();"
+"if(!r.ok)throw t;return t}function P(x){x.then(t=>{o.textContent=t;s.textContent='OK'})"
+".catch(e=>{o.textContent=e;s.textContent='ERR'})}"
+"function L(){P(R('/login','POST',JSON.stringify({password:p.value}))"
+".then(x=>(T=JSON.parse(x).token,'logged')))}"
+"function C(){P(R('/config').then(x=>c.value=x))}"
+"function V(){P(R('/config','POST',c.value))}"
+"function W(){P(R('/wifi/scan'))}P(R('/status'))</script>";
+#endif
 
 /* ── Response / route handlers ───────────────────────────────────────────── */
 
@@ -257,11 +292,21 @@ static int send_all_bytes(int fd, const char *buf, int len)
     int sent = 0;
 
     while (sent < len) {
-        ssize_t n = PLAT_SEND(fd, buf + sent, len - sent);
+        int chunk = len - sent;
+        ssize_t n;
+
+        if (chunk > HTTP_SEND_CHUNK_SIZE) {
+            chunk = HTTP_SEND_CHUNK_SIZE;
+        }
+        n = PLAT_SEND(fd, buf + sent, chunk);
         if (n <= 0) {
+            LOG_WRN("HTTP send failed after %d/%d bytes: %d", sent, len, errno);
             return -1;
         }
         sent += (int)n;
+#ifdef __ZEPHYR__
+        k_sleep(K_MSEC(2));
+#endif
     }
     return 0;
 }
@@ -286,6 +331,15 @@ static void send_response_type(int fd, int status, const char *content_type,
     if (hlen <= 0 || hlen >= (int)sizeof(hdr)) {
         return;
     }
+
+    if (body_len > 0 &&
+        hlen + body_len <= (int)sizeof(combined_response_buf)) {
+        memcpy(combined_response_buf, hdr, (size_t)hlen);
+        memcpy(combined_response_buf + hlen, body, (size_t)body_len);
+        (void)send_all_bytes(fd, combined_response_buf, hlen + body_len);
+        return;
+    }
+
     if (send_all_bytes(fd, hdr, hlen) == 0 && body_len > 0) {
         (void)send_all_bytes(fd, body, body_len);
     }
@@ -299,6 +353,15 @@ static void send_json(int fd, int status, const char *body)
 static void send_html(int fd, int status, const char *body)
 {
     send_response_type(fd, status, "text/html; charset=utf-8", body);
+}
+
+static void send_index_page(int fd)
+{
+#ifdef __ZEPHYR__
+    send_html(fd, 200, index_lite_html);
+#else
+    send_html(fd, 200, index_html);
+#endif
 }
 
 static int append_json_str(char *buf, int cap, int *pos, const char *s);
@@ -511,6 +574,7 @@ static void handle_post_config(int fd, const char *body)
         send_json(fd, 500, "{\"error\":\"persist failed\"}");
         return;
     }
+    (void)product_wifi_apply_settings(&settings);
     product_runtime_network_start(&settings);
     bridge_control_apply_peers();
     send_json(fd, 200, "{\"status\":\"ok\"}");
@@ -727,7 +791,17 @@ static void handle_wifi_scan(int fd)
               "\"p2p_port\":14902,\"rssi\":-84,\"channel\":10,"
               "\"security\":\"wpa2\"}]");
 #else
-    send_json(fd, 200, "[]");
+    char *buf = peers_json_buf;
+    int rc = product_wifi_scan_json(buf, PEERS_JSON_BUF_SIZE);
+    if (rc != 0) {
+        char err[80];
+
+        snprintf(err, sizeof(err),
+                 "{\"error\":\"wifi scan failed\",\"code\":%d}", rc);
+        send_json(fd, 500, err);
+        return;
+    }
+    send_json(fd, 200, buf);
 #endif
 }
 
@@ -1003,7 +1077,7 @@ static void handle_client(int fd)
 
     if (strcmp(method, "GET") == 0 &&
         (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)) {
-        send_html(fd, 200, index_html);
+        send_index_page(fd);
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/status") == 0) {
         handle_get_status(fd);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/login") == 0) {
@@ -1076,11 +1150,13 @@ done:
 static void configure_client_socket(int fd)
 {
 #ifndef __ZEPHYR__
-    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
+    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
     (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    (void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #else
-    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
+    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
     (void)zsock_setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    (void)zsock_setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #endif
 }
 
@@ -1146,8 +1222,6 @@ void provisioning_http_start(void)
 }
 
 #else  /* __ZEPHYR__ */
-
-#include <zephyr/kernel.h>
 
 #define PROV_HTTP_STACK_SIZE 4096
 K_THREAD_STACK_DEFINE(prov_http_stack, PROV_HTTP_STACK_SIZE);
