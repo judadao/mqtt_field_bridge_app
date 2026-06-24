@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <string.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
@@ -24,6 +27,11 @@ int main(void)
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
         char ip_addr[FIELD_BRIDGE_HOST_MAX];
+        char configured_ip[FIELD_BRIDGE_HOST_MAX];
+        uint8_t requested_dhcp = settings.network.dhcp_enabled;
+
+        snprintf(configured_ip, sizeof(configured_ip), "%s",
+                 settings.network.device_ip);
 
         LOG_INF("network startup requested: device=%s ip=%s dhcp=%u transport=ethernet",
                 settings.system.device_name,
@@ -36,6 +44,10 @@ int main(void)
         if (ip_addr[0]) {
             snprintf(settings.network.device_ip, sizeof(settings.network.device_ip),
                      "%s", ip_addr);
+        }
+        if (requested_dhcp && configured_ip[0] &&
+            strcmp(ip_addr, configured_ip) == 0) {
+            settings.network.dhcp_enabled = 0;
         }
         product_runtime_network_start(&settings);
         if (!product_runtime_network_ready()) {

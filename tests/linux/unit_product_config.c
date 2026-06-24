@@ -190,7 +190,7 @@ static void test_settings_defaults(void)
     CHECK(strcmp(s.network.gateway, "192.168.127.5") == 0);
     CHECK(strcmp(s.network.netmask, "255.255.0.0") == 0);
     CHECK(strcmp(s.network.dns, "192.168.127.5") == 0);
-    CHECK(s.network.dhcp_enabled == 1);
+    CHECK(s.network.dhcp_enabled == 0);
     CHECK(strcmp(s.broker.site_id, "field-a") == 0);
     CHECK(strcmp(s.broker.topic_prefix, "site/field-a") == 0);
     CHECK(s.broker.mqtt_port == 1883);

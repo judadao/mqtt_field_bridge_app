@@ -69,7 +69,7 @@ static void test_get_status(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
-    CHECK(strstr(resp, "\"network_state\":\"dhcp\"") != NULL);
+    CHECK(strstr(resp, "\"network_state\":\"static\"") != NULL);
     CHECK(strstr(resp, "\"ip_addr\":\"192.168.127.4\"") != NULL);
     CHECK(strstr(resp, "\"test_topic\":\"site/field-a/test\"") != NULL);
     CHECK(strstr(resp, "wifi_state") == NULL);

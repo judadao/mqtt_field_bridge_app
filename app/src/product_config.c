@@ -22,7 +22,7 @@ static void settings_defaults(void)
             sizeof(settings.network.netmask) - 1);
     strncpy(settings.network.dns, "192.168.127.5",
             sizeof(settings.network.dns) - 1);
-    settings.network.dhcp_enabled = 1;
+    settings.network.dhcp_enabled = 0;
     strncpy(settings.broker.site_id, "field-a",
             sizeof(settings.broker.site_id) - 1);
     strncpy(settings.broker.topic_prefix, "site/field-a",
