@@ -137,11 +137,11 @@ with serial.Serial(port, baudrate=baud, timeout=0.25) as ser, open(log_path, "wb
         out.write(chunk)
         out.flush()
 PY
-    if ! rg --fixed-strings 'SoftAP enabled' "$REBOOT_UART_LOG" >/dev/null ||
+    if ! rg --fixed-strings 'Ethernet ready ip=' "$REBOOT_UART_LOG" >/dev/null ||
        ! rg --fixed-strings 'provisioning HTTP listening on port 8080' "$REBOOT_UART_LOG" >/dev/null ||
        ! rg --fixed-strings 'mqtt_broker: Listening on port 1883' "$REBOOT_UART_LOG" >/dev/null; then
-        printf 'error: reboot verification did not see SoftAP, HTTP, and broker startup\n' >&2
+        printf 'error: reboot verification did not see Ethernet, HTTP, and broker startup\n' >&2
         exit 1
     fi
-    printf '\nReboot verification passed: SoftAP, HTTP, and broker started.\n'
+    printf '\nReboot verification passed: Ethernet, HTTP, and broker started.\n'
 fi

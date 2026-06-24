@@ -15,12 +15,13 @@ Source of truth: `docs/todo.yaml`. Update YAML before starting or completing wor
 
 - [x] Adopt dephy_testkit fixtures for product Linux integration tests and IO/MQTT bridge scenarios.
 - [x] Clean up low-risk cppcheck findings in product runtime and provisioning handlers.
+- [x] Add and pass an ESP32-to-Linux broker1-5 chain bridge hardware test.
 
 ## hardware
 
-- [ ] Validate peer reconnection after WiFi reconnect on target ESP32 hardware. (`blocked`)
-- [ ] Replace the ESP32 WiFi scan placeholder with live scan results after board-specific WiFi management is selected. (`blocked`)
-- [ ] Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values on hardware. (`blocked`)
+- [x] Validate peer reconnection after WiFi reconnect on target ESP32 hardware. (`obsolete: Ethernet-only product direction`)
+- [x] Replace the ESP32 WiFi scan placeholder with live scan results after board-specific WiFi management is selected. (`obsolete: Ethernet-only product direction`)
+- [x] Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values on hardware. (`obsolete: Ethernet-only product direction`)
 
 ## architecture
 

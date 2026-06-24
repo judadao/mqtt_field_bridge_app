@@ -19,7 +19,7 @@ OUTDIR = out
         unit_product_topics unit_bridge_control \
         unit_product_console \
         unit_product_io_bridge \
-        unit_provisioning_http web-network-test ui-browser-test run-web-server run_web_config_server integration-tests stress scale-tests \
+        unit_provisioning_http web-network-test ui-browser-test run-web-server run_web_config_server integration-tests hardware-esp32-chain-bridge-test stress scale-tests \
         scale-ring-tests clean broker-p2p
 
 all: unit-tests
@@ -217,6 +217,9 @@ integration-tests: broker-p2p
 	@echo ""
 	@echo "--- test_3node_scenario ---"
 	@bash test_3node_scenario.sh
+
+hardware-esp32-chain-bridge-test: broker-p2p
+	@bash test_esp32_linux_chain_bridge.sh
 
 # ── scale tests ─────────────────────────────────────────────────────────────
 scale-tests: broker-p2p

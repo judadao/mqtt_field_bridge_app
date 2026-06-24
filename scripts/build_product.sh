@@ -46,15 +46,15 @@ IFS=$OLD_IFS
 if [ -n "$DEPHY_WORKSPACE" ] && [ -x "$ROOT_DIR/$DEPHY_WORKSPACE/.venv/bin/west" ]; then
     WEST="$ROOT_DIR/$DEPHY_WORKSPACE/.venv/bin/west"
     WEST_WORKDIR="$ROOT_DIR/$DEPHY_WORKSPACE"
-elif command -v west >/dev/null 2>&1; then
-    WEST=$(command -v west)
-    WEST_WORKDIR=$ROOT_DIR
 elif [ -n "$DEPHY_PATH" ] && [ -x "$ROOT_DIR/$DEPHY_PATH/zephyrproject/.venv/bin/west" ]; then
     WEST="$ROOT_DIR/$DEPHY_PATH/zephyrproject/.venv/bin/west"
     WEST_WORKDIR="$ROOT_DIR/$DEPHY_PATH/zephyrproject"
 elif [ -n "$DEPHY_PATH" ] && [ -x "$ROOT_DIR/../dephy/zephyrproject/.venv/bin/west" ]; then
     WEST="$ROOT_DIR/../dephy/zephyrproject/.venv/bin/west"
     WEST_WORKDIR="$ROOT_DIR/../dephy/zephyrproject"
+elif command -v west >/dev/null 2>&1; then
+    WEST=$(command -v west)
+    WEST_WORKDIR=$ROOT_DIR
 else
     printf 'error: west not found; run scripts/sync_deps.sh init first\n' >&2
     exit 1
