@@ -40,11 +40,21 @@ connects to the ESP32 SoftAP, validates `/status`, `/`, login, `/config`, and
 ./scripts/hw_esp32_homepage_test.sh
 ```
 
+For the two-adapter bench setup, keep the Linux AP on one adapter and connect
+to the ESP32 AP with the other:
+
+```sh
+AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \
+    ./scripts/hw_esp32_homepage_test.sh
+```
+
 Defaults:
 
 - ESP32 AP: `ESP32-Min-Broker` / `12345678`
 - ESP32 HTTP: `http://192.168.4.1:8080`
-- Previous Wi-Fi connection, such as `Hotspot-1`, is restored on exit.
+- ESP32 NetworkManager profile: `ESP32-Min-Broker-test`
+- Previous Wi-Fi connection is restored on exit. If a separate `AP_WIFI_IFACE`
+  is supplied, the script leaves that adapter on `Linux-Bridge-Test-ap`.
 
 Useful overrides:
 
@@ -99,7 +109,15 @@ connect to the ESP32 SoftAP to inspect the web UI.
 By default this starts both:
 
 - Linux AP: `Linux-Bridge-Test` / `bridge1234`
-- Linux broker: `10.42.0.1:1883` MQTT and `10.42.0.1:4884` P2P
+- Linux broker: auto-selected `10.77.0.1`-`10.99.0.1` subnet, port `1883`
+  MQTT and `4884` P2P
+
+For the two-adapter bench setup:
+
+```sh
+AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \
+    ./scripts/hw_linux_ap_broker_bridge_test.sh
+```
 
 To only bring up the Linux AP + broker environment and not wait for ESP32 yet:
 
@@ -120,7 +138,9 @@ Expected ESP32 settings:
 
 - `wifi_ssid=Linux-Bridge-Test`
 - `wifi_password=bridge1234`
-- Linux broker/gateway host is normally `10.42.0.1`
+- Linux broker/gateway host is printed by the script. It defaults to an
+  available `10.77.0.1`-`10.99.0.1` subnet so stale NetworkManager `dnsmasq`
+  processes cannot block AP startup.
 - ESP32 may keep `ESP32-Min-Broker` enabled for the second laptop.
 
 Useful overrides:

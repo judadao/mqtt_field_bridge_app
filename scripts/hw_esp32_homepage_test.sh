@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# Temporarily leave the Linux AP, connect to the ESP32 SoftAP, and verify the
-# provisioning homepage. The previous Wi-Fi connection is restored by default.
+# Connect one Wi-Fi adapter to the ESP32 SoftAP and verify the provisioning web.
+# If AP_WIFI_IFACE is set, that separate adapter is left untouched for Linux AP.
 set -euo pipefail
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 LOG_DIR=${LOG_DIR:-"$ROOT_DIR/tests/linux/out/hardware"}
 WIFI_IFACE=${WIFI_IFACE:-}
+ESP32_WIFI_IFACE=${ESP32_WIFI_IFACE:-}
+AP_WIFI_IFACE=${AP_WIFI_IFACE:-}
 ESP32_AP_SSID=${ESP32_AP_SSID:-ESP32-Min-Broker}
 ESP32_AP_PASS=${ESP32_AP_PASS:-12345678}
+ESP32_CONN_NAME=${ESP32_CONN_NAME:-ESP32-Min-Broker-test}
+LINUX_AP_CONN=${LINUX_AP_CONN:-Linux-Bridge-Test-ap}
 ESP32_HTTP=${ESP32_HTTP:-http://192.168.4.1:8080}
 ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
 RESTORE_WIFI=${RESTORE_WIFI:-1}
@@ -37,9 +41,26 @@ need jq
 need nmcli
 need rg
 
+if [ -z "$AP_WIFI_IFACE" ]; then
+    AP_WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status |
+        awk -F: '$2 == "wifi" && $3 == "connected" &&
+                 ($4 ~ /Hotspot|Linux-Bridge-Test/) { print $1; exit }')
+    if [ -z "$AP_WIFI_IFACE" ]; then
+        AP_WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device status |
+            awk -F: '$2 == "wifi" { print $1; exit }')
+    fi
+fi
+
 if [ -z "$WIFI_IFACE" ]; then
-    WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device status |
-        awk -F: '$2 == "wifi" { print $1; exit }')
+    if [ -n "$ESP32_WIFI_IFACE" ]; then
+        WIFI_IFACE=$ESP32_WIFI_IFACE
+    else
+        WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device status |
+            awk -F: -v ap="$AP_WIFI_IFACE" '$2 == "wifi" && $1 != ap { print $1; exit }')
+        if [ -z "$WIFI_IFACE" ]; then
+            WIFI_IFACE=$AP_WIFI_IFACE
+        fi
+    fi
 fi
 [ -n "$WIFI_IFACE" ] || {
     printf 'error: no Wi-Fi interface found by NetworkManager\n' >&2
@@ -50,11 +71,16 @@ PREV_CON=$(nmcli -t -f NAME,DEVICE con show --active |
     awk -F: -v dev="$WIFI_IFACE" '$2 == dev { print $1; exit }')
 
 restore_wifi() {
+    if [ -n "${AP_WIFI_IFACE:-}" ] && [ -n "${AP_WAS_ACTIVE:-}" ]; then
+        nmcli con up "$AP_WAS_ACTIVE" ifname "$AP_WIFI_IFACE" >/dev/null 2>&1 || true
+    fi
     if [ "$RESTORE_WIFI" = "1" ] && [ -n "${PREV_CON:-}" ]; then
         printf '\nRestoring Wi-Fi connection: %s\n' "$PREV_CON"
         nmcli con up "$PREV_CON" ifname "$WIFI_IFACE" >/dev/null 2>&1 || {
             printf 'warning: failed to restore Wi-Fi connection %s\n' "$PREV_CON" >&2
         }
+    elif [ "$RESTORE_WIFI" = "1" ] && [ "$WIFI_IFACE" != "${AP_WIFI_IFACE:-}" ]; then
+        nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
     fi
 }
 trap restore_wifi EXIT
@@ -86,14 +112,69 @@ wait_for_ssid() {
     return 1
 }
 
+esp32_bssid() {
+    local bssid
+
+    bssid=$(nmcli -t -f SSID,BSSID device wifi list ifname "$WIFI_IFACE" |
+        awk -F: -v ssid="$ESP32_AP_SSID" '$1 == ssid {
+            print substr($0, length($1) + 2)
+            exit
+        }')
+    bssid=${bssid//\\:/:}
+    printf '%s\n' "$bssid"
+}
+
+wait_wifi_available() {
+    local deadline=$((SECONDS + WAIT_SECONDS))
+    local state
+
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        state=$(nmcli -t -f GENERAL.STATE device show "$WIFI_IFACE" |
+            awk -F: '{ print $2; exit }')
+        case "$state" in
+            30*|100*) return 0 ;;
+        esac
+        sleep 1
+    done
+    return 1
+}
+
+ensure_linux_ap() {
+    local state
+
+    [ -n "${AP_WIFI_IFACE:-}" ] || return 0
+    [ "$WIFI_IFACE" != "$AP_WIFI_IFACE" ] || return 0
+    state=$(nmcli -t -f DEVICE,STATE,CONNECTION device status |
+        awk -F: -v dev="$AP_WIFI_IFACE" '$1 == dev { print $2 ":" $3; exit }')
+    case "$state" in
+        connected:*) return 0 ;;
+    esac
+    nmcli con up "$LINUX_AP_CONN" ifname "$AP_WIFI_IFACE" >/dev/null 2>&1 || true
+}
+
 connect_esp32_ap() {
     local i
 
+    nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
+    nmcli connection delete "$ESP32_CONN_NAME" >/dev/null 2>&1 || true
+    nmcli connection add type wifi ifname "$WIFI_IFACE" \
+        con-name "$ESP32_CONN_NAME" ssid "$ESP32_AP_SSID" >/dev/null
+    nmcli connection modify "$ESP32_CONN_NAME" \
+        connection.autoconnect no \
+        wifi-sec.key-mgmt wpa-psk \
+        wifi-sec.psk "$ESP32_AP_PASS"
+
     for i in $(seq 1 "$CONNECT_RETRIES"); do
         printf '\nConnect attempt %s/%s to %s\n' "$i" "$CONNECT_RETRIES" "$ESP32_AP_SSID"
+        wait_wifi_available || true
         nmcli device wifi rescan ifname "$WIFI_IFACE" ssid "$ESP32_AP_SSID" >/dev/null 2>&1 || true
-        sleep 2
-        if nmcli device wifi connect "$ESP32_AP_SSID" password "$ESP32_AP_PASS" ifname "$WIFI_IFACE"; then
+        sleep 4
+        ESP32_BSSID=$(esp32_bssid)
+        if [ -n "$ESP32_BSSID" ]; then
+            nmcli connection modify "$ESP32_CONN_NAME" 802-11-wireless.bssid "$ESP32_BSSID"
+        fi
+        ensure_linux_ap
+        if nmcli connection up "$ESP32_CONN_NAME" ifname "$WIFI_IFACE"; then
             return 0
         fi
         sleep 2
@@ -102,14 +183,24 @@ connect_esp32_ap() {
 }
 
 printf 'Wi-Fi interface: %s\n' "$WIFI_IFACE"
+printf 'Linux AP iface:  %s\n' "${AP_WIFI_IFACE:-none}"
 printf 'Previous Wi-Fi:  %s\n' "${PREV_CON:-none}"
 printf 'ESP32 SSID:      %s\n' "$ESP32_AP_SSID"
 printf 'ESP32 HTTP:      %s\n' "$ESP32_HTTP"
 printf 'Run log:         %s\n' "$RUN_LOG"
 
+AP_WAS_ACTIVE=$(nmcli -t -f NAME,DEVICE con show --active |
+    awk -F: -v dev="${AP_WIFI_IFACE:-}" '$2 == dev { print $1; exit }')
+
 nmcli radio wifi on
-nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
+if [ "$WIFI_IFACE" != "${AP_WIFI_IFACE:-}" ]; then
+    nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
+else
+    printf 'warning: ESP32 Wi-Fi iface and AP iface are the same; Linux AP will be interrupted\n' >&2
+    nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
+fi
 sleep 5
+ensure_linux_ap
 
 wait_for_ssid || {
     printf 'error: SSID not found: %s\n' "$ESP32_AP_SSID" >&2

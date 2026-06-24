@@ -41,6 +41,16 @@ items:
   title: Replace the ESP32 WiFi scan placeholder with live scan results after board-specific
     WiFi management is selected.
   status: blocked
+- id: hardware-esp32-ap-association
+  area: hardware
+  title: Debug intermittent ESP32 SoftAP association failures from the Linux USB WiFi
+    test adapter.
+  status: blocked
+  notes: On 2026-06-24 wlxd84489239707 intermittently scanned ESP32-Min-Broker
+    at BSSID E0:5A:1B:5A:B4:1D but NetworkManager/wpa_supplicant timed out during
+    authentication and reported ssid-not-found. The failure reproduced even after
+    deactivating the Linux-Bridge-Test AP, so continue from ESP32 SoftAP logs,
+    radio/driver compatibility, or reset/flash validation.
 - id: hardware-ip-values
   area: hardware
   title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values

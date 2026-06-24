@@ -10,9 +10,13 @@ set -euo pipefail
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 LOG_DIR=${LOG_DIR:-"$ROOT_DIR/tests/linux/out/hardware"}
 WIFI_IFACE=${WIFI_IFACE:-}
+AP_WIFI_IFACE=${AP_WIFI_IFACE:-}
+ESP32_WIFI_IFACE=${ESP32_WIFI_IFACE:-}
 LINUX_AP_SSID=${LINUX_AP_SSID:-Linux-Bridge-Test}
 LINUX_AP_PASS=${LINUX_AP_PASS:-bridge1234}
-LINUX_AP_CHANNEL=${LINUX_AP_CHANNEL:-1}
+LINUX_AP_CHANNEL=${LINUX_AP_CHANNEL:-6}
+LINUX_AP_CONN=${LINUX_AP_CONN:-Linux-Bridge-Test-ap}
+LINUX_AP_ADDR=${LINUX_AP_ADDR:-auto}
 WAIT_SECONDS=${WAIT_SECONDS:-120}
 RESET_ESP32=${RESET_ESP32:-0}
 START_BROKER=${START_BROKER:-1}
@@ -38,14 +42,20 @@ need() {
 need curl
 need ip
 need nmcli
+need rg
+need ss
 
 detect_wifi_iface() {
     if [ -n "$WIFI_IFACE" ]; then
         printf '%s\n' "$WIFI_IFACE"
         return 0
     fi
+    if [ -n "$AP_WIFI_IFACE" ]; then
+        printf '%s\n' "$AP_WIFI_IFACE"
+        return 0
+    fi
     nmcli -t -f DEVICE,TYPE device status |
-        awk -F: '$2 == "wifi" { print $1; exit }'
+        awk -F: -v sta="$ESP32_WIFI_IFACE" '$2 == "wifi" && $1 != sta { print $1; exit }'
 }
 
 cleanup() {
@@ -74,12 +84,13 @@ wait_tcp() {
 
 find_esp_on_linux_ap() {
     iface=$1
+    gateway=${LINUX_AP_ADDR%/*}
     deadline=$((SECONDS + WAIT_SECONDS))
     while [ "$SECONDS" -lt "$deadline" ]; do
         while read -r ipaddr _; do
             [ -n "$ipaddr" ] || continue
             case "$ipaddr" in
-                10.42.0.1|169.254.*) continue ;;
+                "$gateway"|169.254.*) continue ;;
             esac
             if curl -fsS --max-time 4 "http://$ipaddr:8080/status" >/dev/null 2>&1; then
                 printf '%s\n' "$ipaddr"
@@ -91,15 +102,39 @@ find_esp_on_linux_ap() {
     return 1
 }
 
+choose_linux_ap_addr() {
+    local third gateway
+
+    if [ "$LINUX_AP_ADDR" != "auto" ]; then
+        printf '%s\n' "$LINUX_AP_ADDR"
+        return 0
+    fi
+
+    for third in $(seq 77 99); do
+        gateway="10.$third.0.1"
+        if ! ss -ltnup 2>/dev/null | rg --fixed-strings "$gateway:" >/dev/null &&
+           ! ip -4 route show 2>/dev/null | rg --fixed-strings "10.$third.0.0/24" >/dev/null; then
+            printf '%s/24\n' "$gateway"
+            return 0
+        fi
+    done
+
+    printf 'error: no free 10.77.0.1-10.99.0.1 AP subnet found\n' >&2
+    return 1
+}
+
 WIFI_IFACE=$(detect_wifi_iface)
 [ -n "$WIFI_IFACE" ] || {
     printf 'error: no Wi-Fi interface found by NetworkManager\n' >&2
     exit 1
 }
+LINUX_AP_ADDR=$(choose_linux_ap_addr)
 
 printf 'Wi-Fi interface: %s\n' "$WIFI_IFACE"
+printf 'ESP32 Wi-Fi if:  %s\n' "${ESP32_WIFI_IFACE:-auto/unused}"
 printf 'Linux AP SSID:   %s\n' "$LINUX_AP_SSID"
 printf 'Linux AP pass:   %s\n' "$LINUX_AP_PASS"
+printf 'Linux AP addr:   %s\n' "$LINUX_AP_ADDR"
 printf 'Start broker:    %s\n' "$START_BROKER"
 printf 'Wait ESP32:      %s\n' "$WAIT_ESP32"
 printf 'Run log:         %s\n' "$RUN_LOG"
@@ -127,24 +162,45 @@ fi
 printf '\n[2/5] Start Linux Wi-Fi AP for ESP32 STA\n'
 nmcli radio wifi on
 nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
-nmcli device wifi hotspot ifname "$WIFI_IFACE" ssid "$LINUX_AP_SSID" password "$LINUX_AP_PASS"
-HOTSPOT_CONN=$(nmcli -g GENERAL.CONNECTION device show "$WIFI_IFACE")
-nmcli connection modify "$HOTSPOT_CONN" 802-11-wireless.band bg 802-11-wireless.channel "$LINUX_AP_CHANNEL"
-nmcli connection up "$HOTSPOT_CONN" ifname "$WIFI_IFACE" >/dev/null
+if [ -f "/run/nm-dnsmasq-$WIFI_IFACE.pid" ]; then
+    DNSMASQ_PID=$(cat "/run/nm-dnsmasq-$WIFI_IFACE.pid" 2>/dev/null || true)
+    if [ -n "$DNSMASQ_PID" ]; then
+        kill "$DNSMASQ_PID" >/dev/null 2>&1 || true
+    fi
+    rm -f "/run/nm-dnsmasq-$WIFI_IFACE.pid" >/dev/null 2>&1 || true
+fi
+pkill -f "dnsmasq.*dnsmasq-$WIFI_IFACE\\.leases" >/dev/null 2>&1 || true
+pkill -f "dnsmasq.*nm-dnsmasq-$WIFI_IFACE\\.pid" >/dev/null 2>&1 || true
+nmcli connection down "$LINUX_AP_CONN" >/dev/null 2>&1 || true
+nmcli connection delete "$LINUX_AP_CONN" >/dev/null 2>&1 || true
+nmcli connection add type wifi ifname "$WIFI_IFACE" \
+    con-name "$LINUX_AP_CONN" ssid "$LINUX_AP_SSID" >/dev/null
+nmcli connection modify "$LINUX_AP_CONN" \
+    connection.autoconnect no \
+    802-11-wireless.mode ap \
+    802-11-wireless.band bg \
+    802-11-wireless.channel "$LINUX_AP_CHANNEL" \
+    wifi-sec.key-mgmt wpa-psk \
+    wifi-sec.psk "$LINUX_AP_PASS" \
+    ipv4.method shared \
+    ipv4.addresses "$LINUX_AP_ADDR" \
+    ipv6.method ignore
+nmcli connection up "$LINUX_AP_CONN" ifname "$WIFI_IFACE" >/dev/null
+HOTSPOT_CONN=$LINUX_AP_CONN
 nmcli device show "$WIFI_IFACE" | tee "$LOG_DIR/linux-ap-device-$STAMP.txt"
 
 printf '\n[3/5] ESP32 configuration expectation\n'
 printf 'Configure ESP32 STA from its web UI or persisted settings:\n'
 printf '  wifi_ssid=%s\n' "$LINUX_AP_SSID"
 printf '  wifi_password=%s\n' "$LINUX_AP_PASS"
-printf '  Linux broker host=10.42.0.1 mqtt=%s p2p=%s\n' "$BROKER_PORT" "$P2P_PORT"
+printf '  Linux broker host=%s mqtt=%s p2p=%s\n' "${LINUX_AP_ADDR%/*}" "$BROKER_PORT" "$P2P_PORT"
 printf 'ESP32 may keep its own AP enabled for your second laptop.\n'
 
 if [ "$WAIT_ESP32" != "1" ]; then
     printf '\nLinux AP + broker environment is up.\n'
     printf 'SSID:     %s\n' "$LINUX_AP_SSID"
     printf 'Password: %s\n' "$LINUX_AP_PASS"
-    printf 'Broker:   10.42.0.1:%s\n' "$BROKER_PORT"
+    printf 'Broker:   %s:%s\n' "${LINUX_AP_ADDR%/*}" "$BROKER_PORT"
     exit 0
 fi
 
@@ -178,5 +234,5 @@ wait_tcp "$ESP32_STA_IP" 4884 || {
 }
 
 printf '\nLinux AP + broker bridge test environment is up.\n'
-printf 'Linux AP gateway/broker: 10.42.0.1\n'
+printf 'Linux AP gateway/broker: %s\n' "${LINUX_AP_ADDR%/*}"
 printf 'ESP32 STA:              %s\n' "$ESP32_STA_IP"
