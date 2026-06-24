@@ -28,6 +28,46 @@ SERIAL_PORT=/dev/ttyUSB0 LOG_SECONDS=90 ./scripts/hw_esp32_flash_monitor.sh
 SKIP_BUILD=1 SKIP_FLASH=1 ./scripts/hw_esp32_flash_monitor.sh
 ```
 
+## UART Console Control
+
+The ESP32 firmware starts a lightweight UART command console on the CP210x-style
+`/dev/ttyUSB*` port. `/dev/ttyACM0` is intentionally not used on this bench
+because it is the SEGGER J-Link interface.
+
+Run one command and print the response:
+
+```sh
+./scripts/hw_esp32_console.sh status
+./scripts/hw_esp32_console.sh show
+./scripts/hw_esp32_console.sh scan
+```
+
+On CP210x auto-reset boards, opening the serial port for a one-shot command may
+reset the ESP32. The script waits for the firmware console to become ready
+before sending the command. For iterative development, keep one interactive
+session open.
+
+Open an interactive line-oriented console:
+
+```sh
+./scripts/hw_esp32_console.sh
+```
+
+Supported commands:
+
+- `help`
+- `status`
+- `show`
+- `scan`
+- `wifi <ssid> <password>`: save STA Wi-Fi and request reconnect.
+- `clear-wifi`: clear STA Wi-Fi and return to AP-only config.
+- `ap <ssid> <password>`: save ESP32 SoftAP settings; reboot to apply.
+- `broker <mqtt_port> <p2p_port>`: save broker ports; reboot to apply.
+- `peer <index> <name> <host> [mqtt_port] [p2p_port] [0|1]`
+- `defaults small|large`
+- `reset`
+- `reboot`
+
 ## Single-Wi-Fi ESP32 AP Homepage Test
 
 Use this as the default development check for the ESP32 provisioning UI. The

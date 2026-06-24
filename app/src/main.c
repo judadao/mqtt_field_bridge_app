@@ -6,6 +6,7 @@
 #include "p2p.h"
 
 #include "bridge_control.h"
+#include "product_console.h"
 #include "product_config.h"
 #include "product_runtime.h"
 #include "product_wifi.h"
@@ -49,6 +50,7 @@ int main(void)
 
     bridge_control_init();
     provisioning_http_start();
+    product_console_start();
 
     if (!settings.broker.broker_enabled) {
         LOG_INF("broker disabled by product config");

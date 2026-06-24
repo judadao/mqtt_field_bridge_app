@@ -35,6 +35,7 @@ target_sources(app PRIVATE
   src/product_config.c
   src/product_runtime.c
   src/product_topics.c
+  src/product_console.c
   src/product_wifi.c
   src/bridge_control.c
   src/provisioning_http.c

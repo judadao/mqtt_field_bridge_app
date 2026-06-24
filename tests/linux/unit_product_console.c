@@ -1,0 +1,173 @@
+/*
+ * unit_product_console - UART console command parser tests.
+ */
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "../../app/src/product_config.h"
+#include "../../app/src/product_console.h"
+#include "../../app/src/product_runtime.h"
+
+static int tests_run;
+static int tests_passed;
+static int tests_failed;
+
+#define CHECK(expr) do {                                                \
+    tests_run++;                                                        \
+    if (expr) {                                                         \
+        tests_passed++;                                                 \
+    } else {                                                            \
+        tests_failed++;                                                 \
+        fprintf(stderr, "FAIL  %s:%d  %s\n", __FILE__, __LINE__, #expr);\
+    }                                                                   \
+} while (0)
+
+#define RUN(fn) do {                                                    \
+    printf("  %-50s ", #fn);                                            \
+    before_each();                                                      \
+    fn();                                                               \
+    printf("%s\n", tests_failed == 0 ? "ok" : "FAIL");                 \
+} while (0)
+
+static char out_buf[4096];
+static int reboot_called;
+
+static void write_cb(void *ctx, const char *text)
+{
+    (void)ctx;
+    strncat(out_buf, text, sizeof(out_buf) - strlen(out_buf) - 1);
+}
+
+static void reboot_cb(void *ctx)
+{
+    (void)ctx;
+    reboot_called++;
+}
+
+static int run_cmd(const char *cmd)
+{
+    char line[256];
+
+    snprintf(line, sizeof(line), "%s", cmd);
+    out_buf[0] = '\0';
+    return product_console_handle_line(line, write_cb, NULL, reboot_cb, NULL);
+}
+
+static void before_each(void)
+{
+    unlink("/tmp/unit_console_peers.bin");
+    unlink("/tmp/unit_console_settings.bin");
+    unlink("/tmp/unit_console_wifi.bin");
+    setenv("BRIDGE_PEERS_FILE", "/tmp/unit_console_peers.bin", 1);
+    setenv("BRIDGE_SETTINGS_FILE", "/tmp/unit_console_settings.bin", 1);
+    setenv("BRIDGE_WIFI_FILE", "/tmp/unit_console_wifi.bin", 1);
+    out_buf[0] = '\0';
+    reboot_called = 0;
+    product_config_init();
+    product_runtime_init();
+}
+
+static void test_help_and_status(void)
+{
+    CHECK(run_cmd("help") == 0);
+    CHECK(strstr(out_buf, "commands:") != NULL);
+    CHECK(run_cmd("status") == 0);
+    CHECK(strstr(out_buf, "OK wifi=init") != NULL);
+}
+
+static void test_wifi_command_saves_sta_config(void)
+{
+    field_bridge_settings_t settings;
+
+    CHECK(run_cmd("wifi Linux-Bridge-Test bridge1234") == 0);
+    CHECK(strstr(out_buf, "OK saved wifi") != NULL);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(strcmp(settings.network.wifi_ssid, "Linux-Bridge-Test") == 0);
+    CHECK(strcmp(settings.network.wifi_password, "bridge1234") == 0);
+    CHECK(settings.network.dhcp_enabled == 1);
+}
+
+static void test_clear_wifi_returns_to_ap_only(void)
+{
+    field_bridge_settings_t settings;
+
+    CHECK(run_cmd("wifi Linux-Bridge-Test bridge1234") == 0);
+    CHECK(run_cmd("clear-wifi") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(settings.network.wifi_ssid[0] == '\0');
+    CHECK(settings.network.wifi_password[0] == '\0');
+    CHECK(strcmp(settings.network.device_ip, "192.168.4.1") == 0);
+}
+
+static void test_ap_and_broker_save_config(void)
+{
+    field_bridge_settings_t settings;
+
+    CHECK(run_cmd("ap ESP32-Console 87654321") == 0);
+    CHECK(run_cmd("broker 1884 4885") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(strcmp(settings.network.ap_ssid, "ESP32-Console") == 0);
+    CHECK(strcmp(settings.network.ap_password, "87654321") == 0);
+    CHECK(settings.broker.mqtt_port == 1884);
+    CHECK(settings.broker.p2p_port == 4885);
+}
+
+static void test_peer_command_saves_peer(void)
+{
+    field_bridge_peer_t peer;
+
+    CHECK(run_cmd("peer 1 node2 10.78.0.23 1883 4884 1") == 0);
+    CHECK(product_config_get_peer(1, &peer) == 0);
+    CHECK(strcmp(peer.name, "node2") == 0);
+    CHECK(strcmp(peer.host, "10.78.0.23") == 0);
+    CHECK(peer.mqtt_port == 1883);
+    CHECK(peer.p2p_port == 4884);
+    CHECK(peer.enabled == 1);
+}
+
+static void test_scan_and_show(void)
+{
+    CHECK(run_cmd("show") == 0);
+    CHECK(strstr(out_buf, "OK device=esp32-min-broker") != NULL);
+    CHECK(run_cmd("scan") == 0);
+    CHECK(strstr(out_buf, "OK scan [") != NULL);
+}
+
+static void test_reset_defaults_and_reboot(void)
+{
+    field_bridge_settings_t settings;
+
+    CHECK(run_cmd("ap ESP32-Console 87654321") == 0);
+    CHECK(run_cmd("reset") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(strcmp(settings.network.ap_ssid, "ESP32-Min-Broker") == 0);
+    CHECK(run_cmd("reboot") == 0);
+    CHECK(reboot_called == 1);
+}
+
+static void test_rejects_bad_commands(void)
+{
+    CHECK(run_cmd("wifi onlyssid") != 0);
+    CHECK(strstr(out_buf, "ERR usage") != NULL);
+    CHECK(run_cmd("nope") != 0);
+    CHECK(strstr(out_buf, "ERR unknown") != NULL);
+}
+
+int main(void)
+{
+    printf("=== unit_product_console ===\n");
+    RUN(test_help_and_status);
+    RUN(test_wifi_command_saves_sta_config);
+    RUN(test_clear_wifi_returns_to_ap_only);
+    RUN(test_ap_and_broker_save_config);
+    RUN(test_peer_command_saves_peer);
+    RUN(test_scan_and_show);
+    RUN(test_reset_defaults_and_reboot);
+    RUN(test_rejects_bad_commands);
+
+    printf("%d/%d console checks passed\n", tests_passed, tests_run);
+    return tests_failed ? 1 : 0;
+}

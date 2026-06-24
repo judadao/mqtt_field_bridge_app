@@ -17,6 +17,7 @@ OUTDIR = out
 
 .PHONY: all test unit-tests unit_product_config unit_product_runtime \
         unit_product_topics unit_bridge_control \
+        unit_product_console \
         unit_product_io_bridge \
         unit_provisioning_http web-network-test ui-browser-test bridge-wifi-sim-test run-web-server run_web_config_server integration-tests stress scale-tests \
         scale-ring-tests clean broker-p2p
@@ -77,6 +78,24 @@ $(OUTDIR)/unit_product_topics: unit_product_topics.c \
 	    $(APP_SRC)/product_topics.c \
 	    -o $@
 
+$(OUTDIR)/unit_product_console: unit_product_console.c \
+                                $(APP_SRC)/product_console.c \
+                                $(APP_SRC)/product_console.h \
+                                $(APP_SRC)/product_config.c \
+                                $(APP_SRC)/product_config.h \
+                                $(APP_SRC)/product_runtime.c \
+                                $(APP_SRC)/product_runtime.h \
+                                $(APP_SRC)/product_wifi.c \
+                                $(APP_SRC)/product_wifi.h \
+                                | $(OUTDIR)
+	$(CC) $(CFLAGS) \
+	    unit_product_console.c \
+	    $(APP_SRC)/product_console.c \
+	    $(APP_SRC)/product_config.c \
+	    $(APP_SRC)/product_runtime.c \
+	    $(APP_SRC)/product_wifi.c \
+	    -o $@
+
 $(OUTDIR)/unit_product_io_bridge: unit_product_io_bridge.c \
                                   $(APP_SRC)/product_io_bridge.c \
                                   $(APP_SRC)/product_io_bridge.h \
@@ -129,6 +148,7 @@ $(OUTDIR)/run_web_config_server: run_web_config_server.c \
 unit-tests: $(OUTDIR)/unit_product_config \
             $(OUTDIR)/unit_product_runtime \
             $(OUTDIR)/unit_product_topics \
+            $(OUTDIR)/unit_product_console \
             $(OUTDIR)/unit_product_io_bridge \
             $(OUTDIR)/unit_bridge_control \
             $(OUTDIR)/unit_provisioning_http
@@ -141,6 +161,9 @@ unit-tests: $(OUTDIR)/unit_product_config \
 	@echo ""
 	@echo "--- unit_product_topics ---"
 	$(OUTDIR)/unit_product_topics
+	@echo ""
+	@echo "--- unit_product_console ---"
+	$(OUTDIR)/unit_product_console
 	@echo ""
 	@echo "--- unit_product_io_bridge ---"
 	$(OUTDIR)/unit_product_io_bridge
@@ -162,6 +185,9 @@ unit_product_runtime: $(OUTDIR)/unit_product_runtime
 
 unit_product_topics: $(OUTDIR)/unit_product_topics
 	$(OUTDIR)/unit_product_topics
+
+unit_product_console: $(OUTDIR)/unit_product_console
+	$(OUTDIR)/unit_product_console
 
 unit_product_io_bridge: $(OUTDIR)/unit_product_io_bridge
 	$(OUTDIR)/unit_product_io_bridge
