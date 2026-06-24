@@ -11,6 +11,7 @@ let scanResults = [];
 let bridgeCurrent = null;
 let bridgeRecent = [];
 let saveTimer = 0;
+let selectedBridgePeerIndex = 0;
 
 try {
   token = sessionStorage.getItem('field_bridge_token') || '';
@@ -175,6 +176,27 @@ function renderPeers() {
   $('peer-empty').classList.toggle('hide', visible.length > 0);
 }
 
+function renderBridgePeerSelector() {
+  const select = $('bridge_peer_index');
+  if (!select) return;
+  const currentValue = Number.isInteger(selectedBridgePeerIndex)
+    ? selectedBridgePeerIndex
+    : +(select.value || 0);
+  select.innerHTML = peers.map((p, i) => {
+    const x = norm(p);
+    const label = x.enabled
+      ? `Broker ${i} - ${x.name || x.host || 'configured'}`
+      : `Broker ${i} - empty`;
+    return `<option value="${i}">${esc(label)}</option>`;
+  }).join('');
+  if (!peers.length) {
+    select.innerHTML = '<option value="0">Broker 0</option>';
+  }
+  const max = Math.max(0, peers.length - 1);
+  selectedBridgePeerIndex = Math.min(Math.max(currentValue, 0), max);
+  select.value = String(selectedBridgePeerIndex);
+}
+
 function availablePeerIndex() {
   let i = peers.findIndex(p => {
     const x = norm(p);
@@ -185,6 +207,11 @@ function availablePeerIndex() {
 }
 
 function bridgeJoinPeerIndex() {
+  const selected = +($('bridge_peer_index') && $('bridge_peer_index').value);
+  if (Number.isInteger(selected) && selected >= 0 && selected < peers.length) {
+    selectedBridgePeerIndex = selected;
+    return selected;
+  }
   const autoIndex = autoBridgePeerIndex();
   return autoIndex >= 0 ? autoIndex : availablePeerIndex();
 }
@@ -239,6 +266,7 @@ async function loadBridgeWifi() {
       json('/bridge-wifi/current'),
       json('/bridge-wifi/recent'),
     ]);
+    renderBridgePeerSelector();
     renderBridgeWifi();
     renderPeers();
   } catch (x) {
@@ -272,7 +300,7 @@ async function joinBridgeWifiFrom(entry) {
     return;
   }
   try {
-    notice(`Joining ${entry.ssid}`, 'muted', 0);
+    notice(`Joining ${entry.ssid} as broker ${peerIndex}`, 'muted', 0);
     await json('/bridge-wifi/join', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -287,7 +315,7 @@ async function joinBridgeWifiFrom(entry) {
       }),
     });
     await load();
-    notice(`Joined ${entry.ssid} as peer index ${peerIndex}`, 'ok');
+    notice(`Joined ${entry.ssid} as broker ${peerIndex}`, 'ok');
   } catch (x) {
     failMsg(x, `Join ${entry.ssid} failed`);
   }
@@ -452,6 +480,9 @@ $('broker-start').onclick = () => brokerControl(1);
 $('broker-stop').onclick = () => brokerControl(0);
 $('scan-bridge-wifi').onclick = scanBridgeWifi;
 $('bridge_wifi_enabled').onchange = setBridgeWifiEnabled;
+$('bridge_peer_index').onchange = () => {
+  selectedBridgePeerIndex = +($('bridge_peer_index').value || 0);
+};
 
 if (token) {
   showApp();

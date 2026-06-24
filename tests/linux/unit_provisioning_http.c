@@ -156,6 +156,8 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "Available Bridge WiFi") != NULL);
     CHECK(strstr(resp, "Recent Bridge WiFi") != NULL);
     CHECK(strstr(resp, "id=\"scan-bridge-wifi\"") != NULL);
+    CHECK(strstr(resp, "id=\"bridge_peer_index\"") != NULL);
+    CHECK(strstr(resp, "Bridge Broker") != NULL);
     CHECK(strstr(resp, "Auto Bridge Peer") < strstr(resp, "Available Bridge WiFi"));
     CHECK(strstr(resp, "Available Bridge WiFi") < strstr(resp, "Recent Bridge WiFi"));
     CHECK(strstr(resp, "Current Bridge WiFi") > strstr(resp, "Connection Details"));
@@ -194,7 +196,7 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "cfg_mqtt_port") != NULL);
     CHECK(strstr(resp, "save-toast hide") != NULL);
     CHECK(strstr(resp, ">No changes</div>") == NULL);
-    CHECK(strstr(resp, "--primary:#006a6a") != NULL);
+    CHECK(strstr(resp, "--primary:#1976d2") != NULL);
     CHECK(strstr(resp, "--accent:#") == NULL);
     CHECK(strstr(resp, "X-Auth-Token") != NULL);
     CHECK(strstr(resp, "token = r.token") != NULL);
@@ -228,6 +230,16 @@ static void test_get_index_html_alias(void)
 {
     char resp[24000];
     int n = http_req("GET /index.html HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "Field Bridge Settings") != NULL);
+}
+
+static void test_get_index_absolute_url_without_path(void)
+{
+    char resp[24000];
+    int n = http_req("GET http://192.168.127.4:8080 HTTP/1.1\r\nHost: 192.168.127.4:8080\r\n\r\n",
+                     resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
@@ -941,6 +953,7 @@ int main(void)
     RUN(test_get_status);
     RUN(test_get_index_html);
     RUN(test_get_index_html_alias);
+    RUN(test_get_index_absolute_url_without_path);
     RUN(test_login_valid);
     RUN(test_login_invalid);
     RUN(test_get_config_requires_auth);

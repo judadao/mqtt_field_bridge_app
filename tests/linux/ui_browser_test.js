@@ -228,6 +228,7 @@ async function main() {
         requests.push({
           url: msg.params.request.url,
           method: msg.params.request.method,
+          postData: msg.params.request.postData || '',
         });
       }
     });
@@ -250,6 +251,7 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.querySelector("#broker #mesh_enabled") === null');
     await waitEval(cdp, sessionId, 'document.querySelector("#peers #mesh_enabled") !== null');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge_wifi_enabled").checked === true');
+    await waitEval(cdp, sessionId, 'document.getElementById("bridge_peer_index").value === "0"');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-current-state").textContent === "disconnected"');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-details").open === false');
     await waitEval(cdp, sessionId, 'document.querySelector("#bridge-scan-list").closest(".wifi-list-panel").querySelector("#scan-bridge-wifi") !== null');
@@ -272,6 +274,11 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-scan-list").textContent.includes("MQTT-BRIDGE-node1")');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-scan-list").textContent.includes("MQTT-BRIDGE-node10")');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-scan-list").scrollHeight > document.getElementById("bridge-scan-list").clientHeight');
+    await evalPage(cdp, sessionId, `
+      const peerSelect = document.getElementById('bridge_peer_index');
+      peerSelect.value = '1';
+      peerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    `);
     requests.length = 0;
     await evalPage(cdp, sessionId, `
       document.querySelector('#bridge-scan-list button').click();
@@ -279,9 +286,13 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Joined MQTT-BRIDGE-node1")');
     check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/bridge-wifi/join`),
           'bridge WiFi join should POST /bridge-wifi/join');
-    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"0\\"]").textContent.includes("Auto Bridge WiFi")');
-    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"0\\"]").textContent.includes("MQTT-BRIDGE-node1")');
-    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"0\\"]").textContent.includes("127.0.0.2")');
+    check(requests.some(r => r.method === 'POST' &&
+          r.url === `${BASE}/bridge-wifi/join` &&
+          /"peer_index":1/.test(r.postData)),
+          'bridge WiFi join should use selected broker slot');
+    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("Auto Bridge WiFi")');
+    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("MQTT-BRIDGE-node1")');
+    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("127.0.0.2")');
     await waitEval(cdp, sessionId, 'document.getElementById("add-peer") === null');
     await evalPage(cdp, sessionId, 'document.getElementById("bridge-details").open = true');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge-current").textContent.includes("MQTT-BRIDGE-node1")');

@@ -228,6 +228,37 @@ static int parse_request_line(const char *buf,
     return 0;
 }
 
+static void normalize_request_path(char *path, int cap)
+{
+    const char *absolute;
+    const char *slash;
+
+    if (!path || cap <= 0) {
+        return;
+    }
+
+    absolute = NULL;
+    if (strncmp(path, "http://", 7) == 0) {
+        absolute = path + 7;
+    } else if (strncmp(path, "https://", 8) == 0) {
+        absolute = path + 8;
+    }
+
+    if (absolute) {
+        slash = strchr(absolute, '/');
+        if (slash) {
+            memmove(path, slash, strlen(slash) + 1);
+        } else {
+            snprintf(path, (size_t)cap, "%s", "/");
+        }
+    }
+
+    char *query = strchr(path, '?');
+    if (query) {
+        *query = '\0';
+    }
+}
+
 static int extract_content_length(const char *headers)
 {
     const char *p = strstr(headers, "Content-Length: ");
@@ -1171,6 +1202,7 @@ static void handle_client(int fd)
         send_json(fd, 400, "{\"error\":\"bad request\"}");
         goto done;
     }
+    normalize_request_path(path, sizeof(path));
 
     const char *hdr_end = strstr(buf, "\r\n\r\n");
     if (!hdr_end) { send_json(fd, 400, "{\"error\":\"bad request\"}"); goto done; }
