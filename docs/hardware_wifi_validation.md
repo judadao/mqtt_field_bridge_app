@@ -114,13 +114,13 @@ for reliable SoftAP provisioning.
 
 Latest measured ESP32 run:
 
-- Homepage size: 929 bytes.
-- Repeated `/status` time: 0.029-0.169 s.
-- Repeated `/` time: 0.067-0.266 s.
+- Homepage size: 3,548 bytes.
+- `/status` time: 0.097 s.
+- `/` time: 2.359 s on the first post-flash run.
 - Authenticated `/config` passed.
-- Authenticated `/wifi/scan` passed with 12 AP result(s).
-- Product build memory: FLASH 607,536 B; DRAM0 187,448 B / 192 KB; DRAM1
-  69,360 B / 96 KB.
+- Authenticated `/wifi/scan` passed with 8 AP result(s).
+- Product build memory: FLASH 612,208 B; DRAM0 188,104 B / 192 KB; DRAM1
+  72,432 B / 96 KB.
 
 ```sh
 ESP32_AP_SSID=ESP32-Min-Broker ESP32_AP_PASS=12345678 \
