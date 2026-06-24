@@ -9,11 +9,13 @@ if command -v jq >/dev/null 2>&1; then
     EXTRA_MODULES=$(jq -r '.deps | to_entries | map(.value.module_path // .value.path) | join(";")' "$ROOT_DIR/deps.json")
     DEPHY_PATH=$(jq -r '.deps.dephy.path // empty' "$ROOT_DIR/deps.json")
     DEPHY_WORKSPACE=$(jq -r '.build.dephy_workspace // empty' "$ROOT_DIR/deps.json")
+    EXTRA_CONF_FILES=$(jq -r '.build.extra_conf_files // [] | join(";")' "$ROOT_DIR/deps.json")
 else
     BOARD=$(sed -n 's/.*"board": *"\([^"]*\)".*/\1/p' "$ROOT_DIR/deps.json" | head -n 1)
     EXTRA_MODULES=$(sed -n 's/.*"path": *"\([^"]*\)".*/\1/p' "$ROOT_DIR/deps.json" | paste -sd ';' -)
     DEPHY_PATH=$(sed -n '/"dephy"/,/"}/s/.*"path": *"\([^"]*\)".*/\1/p' "$ROOT_DIR/deps.json" | head -n 1)
     DEPHY_WORKSPACE=deps/dephy/zephyrproject
+    EXTRA_CONF_FILES=
 fi
 
 if [ -z "$BOARD" ]; then
@@ -42,6 +44,26 @@ for module_path in $EXTRA_MODULES; do
     fi
 done
 IFS=$OLD_IFS
+
+EXTRA_CONF_FILES_ABS=""
+if [ -n "$EXTRA_CONF_FILES" ]; then
+    OLD_IFS=$IFS
+    IFS=';'
+    for conf_path in $EXTRA_CONF_FILES; do
+        conf_abs="$ROOT_DIR/$conf_path"
+        if [ ! -f "$conf_abs" ]; then
+            printf 'error: extra Zephyr conf file not found: %s\n' "$conf_path" >&2
+            exit 1
+        fi
+
+        if [ -z "$EXTRA_CONF_FILES_ABS" ]; then
+            EXTRA_CONF_FILES_ABS="$conf_abs"
+        else
+            EXTRA_CONF_FILES_ABS="$EXTRA_CONF_FILES_ABS;$conf_abs"
+        fi
+    done
+    IFS=$OLD_IFS
+fi
 
 if [ -n "$DEPHY_WORKSPACE" ] && [ -x "$ROOT_DIR/$DEPHY_WORKSPACE/.venv/bin/west" ]; then
     WEST="$ROOT_DIR/$DEPHY_WORKSPACE/.venv/bin/west"
@@ -73,5 +95,11 @@ if [ -d "$WEST_WORKDIR/.venv/bin" ]; then
     export PATH
 fi
 
-(cd "$WEST_WORKDIR" && "$WEST" build --pristine auto -d "$BUILD_DIR" -b "$BOARD" "$ROOT_DIR/app" \
-    -- -DZEPHYR_EXTRA_MODULES="$EXTRA_MODULES_ABS")
+if [ -n "$EXTRA_CONF_FILES_ABS" ]; then
+    (cd "$WEST_WORKDIR" && "$WEST" build --pristine auto -d "$BUILD_DIR" -b "$BOARD" "$ROOT_DIR/app" \
+        -- -DZEPHYR_EXTRA_MODULES="$EXTRA_MODULES_ABS" \
+           -DEXTRA_CONF_FILE="$EXTRA_CONF_FILES_ABS")
+else
+    (cd "$WEST_WORKDIR" && "$WEST" build --pristine auto -d "$BUILD_DIR" -b "$BOARD" "$ROOT_DIR/app" \
+        -- -DZEPHYR_EXTRA_MODULES="$EXTRA_MODULES_ABS")
+fi
