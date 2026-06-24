@@ -60,7 +60,6 @@ button:disabled{opacity:.55;cursor:wait}
 .ok{color:var(--ok)}
 .bad{color:var(--bad)}
 .save-toast{position:fixed;right:20px;bottom:20px;z-index:10;box-shadow:0 8px 24px rgba(15,23,42,.18)}
-.event-log{min-height:42px;max-height:120px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);padding:8px;color:var(--muted)}
 .broker-panel{display:grid;gap:12px;margin-bottom:12px}
 .bridge-status-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin-top:10px}
 .bridge-current-card,.bridge-log-card,.broker-list-panel{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:12px}

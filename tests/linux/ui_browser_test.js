@@ -275,16 +275,7 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("192.168.127.10")');
     await waitEval(cdp, sessionId, 'document.getElementById("add-peer") === null');
 
-    await evalPage(cdp, sessionId, `
-      const realFetch = window.fetch;
-      window.fetch = () => Promise.reject(new Error('forced fetch failure'));
-      loadPeers().catch(x => failMsg(x, 'Broker load failed'))
-        .finally(() => { window.fetch = realFetch; });
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("event-log").textContent.includes("forced fetch failure")');
-    const eventLog = await evalPage(cdp, sessionId, 'document.getElementById("event-log").textContent');
-    check(/Broker load failed/.test(eventLog), 'event log should record failed broker load');
-    check(/\d/.test(eventLog), 'event log should include a timestamp');
+    await waitEval(cdp, sessionId, 'document.getElementById("event-log") === null');
 
     console.log(`${tests - failures}/${tests} browser checks passed`);
     if (failures) process.exitCode = 1;

@@ -2,7 +2,6 @@ const $ = id => document.getElementById(id);
 const form = $('peer-form');
 const st = $('status');
 const ss = $('save-state');
-const elog = $('event-log');
 
 let cfg = {};
 let peers = [];
@@ -41,18 +40,6 @@ function norm(p) {
   };
 }
 
-function stamp() {
-  return new Date().toLocaleString();
-}
-
-function logLine(msg) {
-  if (!elog) return;
-  const line = `${stamp()}  ${msg}`;
-  elog.textContent = elog.textContent === '-' ? line : `${line}\n${elog.textContent}`;
-  const rows = elog.textContent.split('\n');
-  if (rows.length > 8) elog.textContent = rows.slice(0, 8).join('\n');
-}
-
 function notice(msg, cls = 'muted', hold = 1800) {
   clearTimeout(saveTimer);
   ss.textContent = msg;
@@ -66,7 +53,6 @@ function failMsg(x, prefix) {
     const j = JSON.parse(m);
     if (j.error) m = j.error;
   } catch (e) {}
-  logLine(`${prefix}: ${m}`);
   notice(`${prefix}: ${m}`, 'bad', 0);
 }
 
