@@ -106,20 +106,20 @@ AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \
     ./scripts/hw_esp32_homepage_test.sh
 ```
 
-The ESP32 Zephyr image serves a compact single-file web UI at `/` to avoid
-large-response stalls on the ESP32 Wi-Fi socket path. It includes browser
-controls for Login, Status, Config load/save, and WiFi Scan. The full development
-UI remains available in host-side tests, but the ESP32 runtime page is optimized
-for reliable SoftAP provisioning.
+The ESP32 Zephyr image serves a compact single-file web UI at `/` with
+`Content-Encoding: gzip` to avoid large-response stalls on the ESP32 Wi-Fi
+socket path. It includes browser controls for Login, Status, Config load/save,
+and WiFi Scan. The full development UI remains available in host-side tests, but
+the ESP32 runtime page is optimized for reliable SoftAP provisioning.
 
 Latest measured ESP32 run:
 
-- Homepage size: 3,548 bytes.
-- `/status` time: 0.097 s.
-- `/` time: 2.359 s on the first post-flash run.
+- Homepage source size: 3,548 bytes; gzip transfer size: 1,670 bytes.
+- `/status` time: 0.165 s.
+- `/` time: 0.349 s on the first post-flash run.
 - Authenticated `/config` passed.
-- Authenticated `/wifi/scan` passed with 8 AP result(s).
-- Product build memory: FLASH 612,208 B; DRAM0 188,104 B / 192 KB; DRAM1
+- Authenticated `/wifi/scan` passed with 6 AP result(s).
+- Product build memory: FLASH 612,256 B; DRAM0 188,616 B / 192 KB; DRAM1
   72,432 B / 96 KB.
 
 ```sh

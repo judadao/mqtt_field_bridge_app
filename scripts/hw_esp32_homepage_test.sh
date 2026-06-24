@@ -28,6 +28,7 @@ STATUS_JSON="$LOG_DIR/esp32-homepage-status.json"
 CONFIG_JSON="$LOG_DIR/esp32-homepage-config.json"
 SCAN_JSON="$LOG_DIR/esp32-homepage-scan.json"
 DEVICE_IP="$LOG_DIR/esp32-homepage-device.txt"
+PASSWD_FILE=
 exec > >(tee "$RUN_LOG") 2>&1
 
 need() {
@@ -63,6 +64,9 @@ PREV_CON=$(nmcli -t -f NAME,DEVICE con show --active |
     awk -F: -v dev="$WIFI_IFACE" '$2 == dev { print $1; exit }')
 
 restore_wifi() {
+    if [ -n "${PASSWD_FILE:-}" ]; then
+        rm -f "$PASSWD_FILE"
+    fi
     if [ -n "${AP_WIFI_IFACE:-}" ] && [ -n "${AP_WAS_ACTIVE:-}" ]; then
         nmcli con up "$AP_WAS_ACTIVE" ifname "$AP_WIFI_IFACE" >/dev/null 2>&1 || true
     fi
@@ -147,14 +151,24 @@ ensure_linux_ap() {
 connect_esp32_ap() {
     local i
 
-    nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
+    nmcli connection down "$ESP32_CONN_NAME" >/dev/null 2>&1 || true
+    nmcli connection down "$ESP32_AP_SSID" >/dev/null 2>&1 || true
+    nmcli --wait 10 device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
     nmcli connection delete "$ESP32_CONN_NAME" >/dev/null 2>&1 || true
+    if [ "$ESP32_CONN_NAME" != "$ESP32_AP_SSID" ]; then
+        nmcli connection delete "$ESP32_AP_SSID" >/dev/null 2>&1 || true
+    fi
+    PASSWD_FILE=$(mktemp)
+    chmod 600 "$PASSWD_FILE"
+    printf '802-11-wireless-security.psk:%s\n' "$ESP32_AP_PASS" > "$PASSWD_FILE"
     nmcli connection add type wifi ifname "$WIFI_IFACE" \
         con-name "$ESP32_CONN_NAME" ssid "$ESP32_AP_SSID" >/dev/null
     nmcli connection modify "$ESP32_CONN_NAME" \
         connection.autoconnect no \
-        wifi-sec.key-mgmt wpa-psk \
-        wifi-sec.psk "$ESP32_AP_PASS"
+        802-11-wireless.mode infrastructure \
+        802-11-wireless-security.key-mgmt wpa-psk \
+        802-11-wireless-security.psk "$ESP32_AP_PASS" \
+        802-11-wireless-security.psk-flags 0
 
     for i in $(seq 1 "$CONNECT_RETRIES"); do
         printf '\nConnect attempt %s/%s to %s\n' "$i" "$CONNECT_RETRIES" "$ESP32_AP_SSID"
@@ -162,14 +176,30 @@ connect_esp32_ap() {
         nmcli device wifi rescan ifname "$WIFI_IFACE" ssid "$ESP32_AP_SSID" >/dev/null 2>&1 || true
         sleep 4
         ESP32_BSSID=$(esp32_bssid)
-        if [ -n "$ESP32_BSSID" ]; then
-            nmcli connection modify "$ESP32_CONN_NAME" 802-11-wireless.bssid "$ESP32_BSSID"
-        fi
         ensure_linux_ap
-        if nmcli connection up "$ESP32_CONN_NAME" ifname "$WIFI_IFACE"; then
+        if [ -n "$ESP32_BSSID" ]; then
+            if nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
+                ifname "$WIFI_IFACE" ap "$ESP32_BSSID" passwd-file "$PASSWD_FILE"; then
+                return 0
+            fi
+        elif nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
+            ifname "$WIFI_IFACE" passwd-file "$PASSWD_FILE"; then
             return 0
         fi
         sleep 2
+    done
+    return 1
+}
+
+fetch_homepage() {
+    local i
+
+    for i in 1 2 3; do
+        curl -fsS --compressed --max-time 15 \
+            -w "homepage_time=%{time_total}s homepage_size=%{size_download}B\n" \
+            "$ESP32_HTTP/" -o "$INDEX_HTML" && return 0
+        printf 'warning: homepage fetch failed, retry %s/3\n' "$i" >&2
+        sleep 1
     done
     return 1
 }
@@ -217,9 +247,7 @@ for i in $(seq 1 "$ITERATIONS"); do
         "$ESP32_HTTP/status" |
         tee "$STATUS_JSON"
     printf '\n'
-    curl -fsS --max-time 10 \
-        -w "homepage_time=%{time_total}s homepage_size=%{size_download}B\n" \
-        "$ESP32_HTTP/" -o "$INDEX_HTML"
+    fetch_homepage
 done
 
 rg --fixed-strings 'Field Bridge Settings' "$INDEX_HTML" >/dev/null || {
