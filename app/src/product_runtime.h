@@ -11,7 +11,7 @@
 #define FIELD_BRIDGE_PAYLOAD_MAX 256
 
 typedef struct {
-    char wifi_state[FIELD_BRIDGE_STATE_MAX];
+    char network_state[FIELD_BRIDGE_STATE_MAX];
     char ip_addr[FIELD_BRIDGE_HOST_MAX];
     char broker_state[FIELD_BRIDGE_STATE_MAX];
     char p2p_role[FIELD_BRIDGE_STATE_MAX];

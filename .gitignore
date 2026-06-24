@@ -1,5 +1,6 @@
 build/
 build_product/
+build_product_eth/
 build_out/
 deps/
 tests/linux/out/

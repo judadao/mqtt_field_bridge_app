@@ -8,8 +8,8 @@
 #include "bridge_control.h"
 #include "product_console.h"
 #include "product_config.h"
+#include "product_ethernet.h"
 #include "product_runtime.h"
-#include "product_wifi.h"
 #include "provisioning_http.h"
 
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
@@ -25,13 +25,12 @@ int main(void)
     if (product_config_get_settings(&settings) == 0) {
         char ip_addr[FIELD_BRIDGE_HOST_MAX];
 
-        LOG_INF("network startup requested: device=%s ip=%s dhcp=%u ssid=%s",
+        LOG_INF("network startup requested: device=%s ip=%s dhcp=%u transport=ethernet",
                 settings.system.device_name,
                 settings.network.device_ip,
-                settings.network.dhcp_enabled,
-                settings.network.wifi_ssid[0] ? settings.network.wifi_ssid : "(ap-only)");
-        if (product_wifi_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
-            product_runtime_broker_failed("wifi start failed");
+                settings.network.dhcp_enabled);
+        if (product_ethernet_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
+            product_runtime_broker_failed("ethernet start failed");
             return -1;
         }
         if (ip_addr[0]) {

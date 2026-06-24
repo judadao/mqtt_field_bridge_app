@@ -10,7 +10,6 @@
 #include "product_config.h"
 #include "product_runtime.h"
 #include "product_topics.h"
-#include "product_wifi.h"
 #include "bridge_control.h"
 #ifndef __ZEPHYR__
 #include "generated/provisioning_index.h"
@@ -20,14 +19,6 @@ LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
 
 #ifndef PROVISIONING_HTTP_PORT
 #define PROVISIONING_HTTP_PORT 8080
-#endif
-
-#ifndef __ZEPHYR__
-__attribute__((weak)) int product_wifi_apply_settings(const field_bridge_settings_t *settings)
-{
-    (void)settings;
-    return 0;
-}
 #endif
 
 /* ── JSON helpers ────────────────────────────────────────────────────────── */
@@ -102,16 +93,6 @@ static int json_decode_settings(const char *json, field_bridge_settings_t *out)
     memset(out, 0, sizeof(*out));
     if (json_str_field(json, "device_name", out->system.device_name,
                        sizeof(out->system.device_name)) != 0) return -1;
-    if (json_str_field(json, "admin_password", out->system.admin_password,
-                       sizeof(out->system.admin_password)) != 0) return -1;
-    if (json_str_field(json, "wifi_ssid", out->network.wifi_ssid,
-                       sizeof(out->network.wifi_ssid)) != 0) return -1;
-    if (json_str_field(json, "wifi_password", out->network.wifi_password,
-                       sizeof(out->network.wifi_password)) != 0) return -1;
-    if (json_str_field(json, "ap_ssid", out->network.ap_ssid,
-                       sizeof(out->network.ap_ssid)) != 0) return -1;
-    if (json_str_field(json, "ap_password", out->network.ap_password,
-                       sizeof(out->network.ap_password)) != 0) return -1;
     if (json_str_field(json, "device_ip", out->network.device_ip,
                        sizeof(out->network.device_ip)) != 0) return -1;
     if (json_str_field(json, "gateway", out->network.gateway,
@@ -151,52 +132,6 @@ static int json_decode_publish_test(const char *json, field_bridge_publish_test_
     if (json_uint8_field(json, "retain", &out->retain) != 0) return -1;
     if (out->qos > 1 || out->retain > 1) return -1;
     return 0;
-}
-
-typedef struct {
-    field_bridge_wifi_entry_t entry;
-    int peer_index;
-} bridge_wifi_join_req_t;
-
-static int json_decode_bridge_wifi_join(const char *json,
-                                        bridge_wifi_join_req_t *out)
-{
-    uint16_t peer_index;
-
-    memset(out, 0, sizeof(*out));
-    if (json_str_field(json, "ssid", out->entry.ssid,
-                       sizeof(out->entry.ssid)) != 0) return -1;
-    json_str_field(json, "password", out->entry.password,
-                   sizeof(out->entry.password));
-    json_str_field(json, "peer_name", out->entry.peer_name,
-                   sizeof(out->entry.peer_name));
-    if (json_str_field(json, "host", out->entry.host,
-                       sizeof(out->entry.host)) != 0) return -1;
-    if (json_uint16_field(json, "mqtt_port",
-                          &out->entry.mqtt_port) != 0) return -1;
-    if (json_uint16_field(json, "p2p_port",
-                          &out->entry.p2p_port) != 0) return -1;
-    if (json_uint16_field(json, "peer_index", &peer_index) != 0) return -1;
-    if (peer_index >= FIELD_BRIDGE_PEER_MAX) return -1;
-    out->peer_index = (int)peer_index;
-    return 0;
-}
-
-static void resolve_bridge_wifi_mock_ips(const field_bridge_wifi_entry_t *entry,
-                                         char *local_sta_ip, size_t local_cap,
-                                         char *gateway_ip, size_t gateway_cap)
-{
-#ifndef __ZEPHYR__
-    snprintf(local_sta_ip, local_cap, "%s", "127.0.0.10");
-    snprintf(gateway_ip, gateway_cap, "%s", entry->host);
-#else
-    /*
-     * ESP32 implementation should fill these from the STA netif after DHCP:
-     * local_sta_ip = this node's STA address, gateway_ip = selected AP address.
-     */
-    snprintf(local_sta_ip, local_cap, "%s", "");
-    snprintf(gateway_ip, gateway_cap, "%s", entry->host);
-#endif
 }
 
 /* ── HTTP helpers ────────────────────────────────────────────────────────── */
@@ -297,15 +232,13 @@ static char config_json_buf[CONFIG_JSON_BUF_SIZE];
 #endif
 #define HTTP_COMBINED_RESPONSE_SIZE 2048
 static char combined_response_buf[HTTP_COMBINED_RESPONSE_SIZE];
-static char session_token[32];
-static unsigned session_seq;
 
 #ifdef __ZEPHYR__
 static const char index_lite_html[] =
 "<!doctype html><html><head><meta name=viewport content=\"width=device-width,initial-scale=1\">"
 "<title>Field Bridge Settings</title><style>"
-":root{--b:#eef2f5;--f:#17212b;--m:#60717d;--p:#fff;--l:#cfd9e2;--a:#006a6a;--d:#b3261e}"
-"@media(prefers-color-scheme:dark){:root{--b:#101417;--f:#eef3f7;--m:#a7b3bb;--p:#171c20;--l:#33424a;--a:#80cbc4;--d:#ffb4ab}}"
+":root{--b:#eef2f5;--f:#17212b;--m:#60717d;--p:#fff;--l:#cfd9e2;--a:#1976d2;--d:#b3261e}"
+"@media(prefers-color-scheme:dark){:root{--b:#101417;--f:#eef3f7;--m:#a7b3bb;--p:#171c20;--l:#33424a;--a:#90caf9;--d:#ffb4ab}}"
 "*{box-sizing:border-box}body{margin:0;background:var(--b);color:var(--f);font:14px/1.45 system-ui,Segoe UI,sans-serif}"
 "header{background:var(--p);border-bottom:1px solid var(--l);padding:14px 16px}main{max-width:760px;margin:auto;padding:14px}"
 "h1{margin:0;font-size:22px}.sub{color:var(--m);font-size:12px}.card{background:var(--p);border:1px solid var(--l);border-radius:8px;padding:12px;margin:0 0 12px}"
@@ -315,24 +248,21 @@ static const char index_lite_html[] =
 "textarea{min-height:150px;font:12px ui-monospace,monospace}pre{white-space:pre-wrap;word-break:break-word;background:var(--b);border:1px solid var(--l);border-radius:6px;padding:10px;min-height:84px}"
 ".pill{display:inline-block;border:1px solid var(--l);border-radius:99px;padding:4px 9px;color:var(--m)}.ok{color:#2e7d32}.err{color:var(--d)}"
 "@media(max-width:520px){main{padding:10px}.row button,.row input{width:100%;max-width:none}}</style></head>"
-"<body><header><h1>Field Bridge Settings</h1><div class=sub>ESP32 min broker local console</div></header><main>"
-"<section class=card><div class=row><input id=p type=password value=admin placeholder=\"admin password\">"
-"<button onclick=L()>Login</button><button class=alt onclick=S()>Refresh</button><span id=s class=pill>booting</span></div></section>"
+"<body><header><h1>Field Bridge Settings</h1><div class=sub>Ethernet broker bridge</div></header><main>"
+"<section class=card><div class=row><button class=alt onclick=S()>Refresh</button><span id=s class=pill>booting</span></div></section>"
 "<section class=card><table><tbody id=t><tr><th>Status</th><td>Loading</td></tr></tbody></table></section>"
 "<section class=card><div class=row><button onclick=C()>Load Config</button><button onclick=V()>Save Config</button>"
-"<button class=alt onclick=W()>Scan WiFi</button></div><p class=sub>JSON config stays editable for debug.</p><textarea id=c spellcheck=false></textarea></section>"
+"<button class=alt onclick=P(R('/peers'))>Load Brokers</button></div><p class=sub>Ethernet JSON config stays editable for debug.</p><textarea id=c spellcheck=false></textarea></section>"
 "<section class=card><b>Output</b><pre id=o></pre></section>"
-"<script>let T='',E=id=>document.getElementById(id);"
-"async function R(u,m,b){let h=T?{'X-Auth-Token':T}:{};if(b)h['Content-Type']='application/json';"
-"let r=await fetch(u,{method:m||'GET',headers:h,body:b}),x=await r.text();if(!r.ok)throw x;return x}"
+"<script>let E=id=>document.getElementById(id);"
+"async function R(u,m,b){let h={};if(b)h['Content-Type']='application/json';let r=await fetch(u,{method:m||'GET',headers:h,body:b}),x=await r.text();if(!r.ok)throw x;return x}"
 "function O(x,k){E('o').textContent=x;E('s').textContent=k||'OK';E('s').className='pill '+(k=='ERR'?'err':'ok')}"
 "function P(x){x.then(v=>O(v)).catch(e=>O(e,'ERR'))}"
-"function TBL(j){let r=JSON.parse(j);E('t').innerHTML=['wifi_state','ip_addr','broker_state','p2p_role','connected_peers','remote_subscriptions','last_error'].map(k=>'<tr><th>'+k+'</th><td>'+(r[k]||'-')+'</td></tr>').join('')}"
+"function TBL(j){let r=JSON.parse(j);E('t').innerHTML=['network_state','ip_addr','broker_state','p2p_role','connected_peers','remote_subscriptions','last_error'].map(k=>'<tr><th>'+k+'</th><td>'+(r[k]||'-')+'</td></tr>').join('')}"
 "function S(){P(R('/status').then(x=>(TBL(x),x)))}"
-"function L(){P(R('/login','POST',JSON.stringify({password:E('p').value})).then(x=>(T=JSON.parse(x).token,'logged in')))}"
 "function C(){P(R('/config').then(x=>(E('c').value=JSON.stringify(JSON.parse(x),null,2),x)))}"
 "function V(){P(R('/config','POST',E('c').value))}"
-"function W(){P(R('/wifi/scan'))}S()</script></main></body></html>";
+"S()</script></main></body></html>";
 
 static const unsigned char index_lite_gz[] =
 "\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\x03\x95\x57\x6d\x73\x9b\x46\x10\xfe\x2b\x24\x9e\x0e\xd0\x80"
@@ -502,38 +432,15 @@ static void send_json(int fd, int status, const char *body)
 static void send_index_page(int fd)
 {
 #ifdef __ZEPHYR__
-    (void)index_lite_html;
-    send_response_bytes(fd, 200, "text/html; charset=utf-8",
-                        "gzip", index_lite_gz, index_lite_gz_len);
+    (void)index_lite_gz;
+    (void)index_lite_gz_len;
+    send_response_type(fd, 200, "text/html; charset=utf-8", index_lite_html);
 #else
     send_response_type(fd, 200, "text/html; charset=utf-8", index_html);
 #endif
 }
 
 static int append_json_str(char *buf, int cap, int *pos, const char *s);
-
-static int request_has_auth(const char *headers)
-{
-    char search[64];
-
-    if (session_token[0] == '\0') {
-        return 0;
-    }
-    snprintf(search, sizeof(search), "X-Auth-Token: %s", session_token);
-    return strstr(headers, search) != NULL;
-}
-
-static void issue_session_token(const char *password)
-{
-    unsigned mix = 2166136261u;
-
-    while (*password) {
-        mix ^= (unsigned char)*password++;
-        mix *= 16777619u;
-    }
-    session_seq++;
-    snprintf(session_token, sizeof(session_token), "%08x%08x", session_seq, mix);
-}
 
 static void handle_get_status(int fd)
 {
@@ -546,14 +453,14 @@ static void handle_get_status(int fd)
     }
     int n = snprintf(buf, sizeof(buf),
                      "{\"status\":\"ok\",\"peers\":%d,"
-                     "\"wifi_state\":",
+                     "\"network_state\":",
                      product_config_peer_count());
     if (n <= 0 || n >= (int)sizeof(buf)) {
         send_json(fd, 500, "{\"error\":\"status too large\"}");
         return;
     }
     int pos = n;
-    if (append_json_str(buf, sizeof(buf), &pos, status.wifi_state) != 0) goto overflow;
+    if (append_json_str(buf, sizeof(buf), &pos, status.network_state) != 0) goto overflow;
     n = snprintf(buf + pos, sizeof(buf) - (size_t)pos, ",\"ip_addr\":");
     if (n <= 0 || n >= (int)(sizeof(buf) - (size_t)pos)) goto overflow;
     pos += n;
@@ -611,25 +518,6 @@ static int append_json_str(char *buf, int cap, int *pos, const char *s)
     return 0;
 }
 
-static void handle_login(int fd, const char *body)
-{
-    char password[FIELD_BRIDGE_PASSWORD_MAX];
-
-    if (json_str_field(body, "password", password, sizeof(password)) != 0) {
-        send_json(fd, 400, "{\"error\":\"missing password\"}");
-        return;
-    }
-    if (!product_config_check_admin_password(password)) {
-        send_json(fd, 403, "{\"error\":\"login failed\"}");
-        return;
-    }
-    issue_session_token(password);
-    char resp_body[80];
-    snprintf(resp_body, sizeof(resp_body),
-             "{\"status\":\"ok\",\"token\":\"%s\"}", session_token);
-    send_json(fd, 200, resp_body);
-}
-
 static void handle_get_config(int fd)
 {
     field_bridge_settings_t s;
@@ -647,26 +535,6 @@ static void handle_get_config(int fd)
     if (written < 0 || written >= cap - pos) goto overflow;
     pos += written;
     if (append_json_str(buf, cap, &pos, s.system.device_name) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"admin_password\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, s.system.admin_password) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"wifi_ssid\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, s.network.wifi_ssid) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"wifi_password\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, s.network.wifi_password) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"ap_ssid\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, s.network.ap_ssid) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"ap_password\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, s.network.ap_password) != 0) goto overflow;
     written = snprintf(buf + pos, (size_t)(cap - pos), ",\"device_ip\":");
     if (written < 0 || written >= cap - pos) goto overflow;
     pos += written;
@@ -720,7 +588,6 @@ static void handle_post_config(int fd, const char *body)
         send_json(fd, 500, "{\"error\":\"persist failed\"}");
         return;
     }
-    (void)product_wifi_apply_settings(&settings);
     product_runtime_network_start(&settings);
     bridge_control_apply_peers();
     send_json(fd, 200, "{\"status\":\"ok\"}");
@@ -732,7 +599,6 @@ static void handle_config_reset(int fd)
         send_json(fd, 500, "{\"error\":\"reset failed\"}");
         return;
     }
-    session_token[0] = '\0';
     product_runtime_init();
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
@@ -859,307 +725,6 @@ overflow:
     send_json(fd, 500, "{\"error\":\"peer status too large\"}");
 }
 
-static int append_bridge_wifi_entry(char *buf, int cap, int *pos,
-                                    const field_bridge_wifi_entry_t *entry)
-{
-    int written = snprintf(buf + *pos, (size_t)(cap - *pos),
-                           "{\"ssid\":");
-    if (written < 0 || written >= cap - *pos) return -1;
-    *pos += written;
-    if (append_json_str(buf, cap, pos, entry->ssid) != 0) return -1;
-    written = snprintf(buf + *pos, (size_t)(cap - *pos), ",\"peer_name\":");
-    if (written < 0 || written >= cap - *pos) return -1;
-    *pos += written;
-    if (append_json_str(buf, cap, pos, entry->peer_name) != 0) return -1;
-    written = snprintf(buf + *pos, (size_t)(cap - *pos), ",\"host\":");
-    if (written < 0 || written >= cap - *pos) return -1;
-    *pos += written;
-    if (append_json_str(buf, cap, pos, entry->host) != 0) return -1;
-    written = snprintf(buf + *pos, (size_t)(cap - *pos),
-                       ",\"mqtt_port\":%u,\"p2p_port\":%u}",
-                       entry->mqtt_port, entry->p2p_port);
-    if (written < 0 || written >= cap - *pos) return -1;
-    *pos += written;
-    return 0;
-}
-
-static void handle_wifi_scan(int fd)
-{
-    field_bridge_wifi_state_t state;
-    if (product_config_get_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
-        return;
-    }
-    if (!state.enabled) {
-        send_json(fd, 409, "{\"error\":\"bridge wifi disabled\"}");
-        return;
-    }
-#ifndef __ZEPHYR__
-    send_json(fd, 200,
-              "[{\"ssid\":\"MQTT-BRIDGE-node1\",\"peer_name\":\"node1\","
-              "\"host\":\"127.0.0.2\",\"mqtt_port\":11883,"
-              "\"p2p_port\":14884,\"rssi\":-51,\"channel\":1,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node2\",\"peer_name\":\"node2\","
-              "\"host\":\"127.0.0.3\",\"mqtt_port\":11884,"
-              "\"p2p_port\":14886,\"rssi\":-63,\"channel\":6,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node3\",\"peer_name\":\"node3\","
-              "\"host\":\"127.0.0.4\",\"mqtt_port\":11885,"
-              "\"p2p_port\":14888,\"rssi\":-70,\"channel\":11,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node4\",\"peer_name\":\"node4\","
-              "\"host\":\"127.0.0.5\",\"mqtt_port\":11886,"
-              "\"p2p_port\":14890,\"rssi\":-72,\"channel\":3,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node5\",\"peer_name\":\"node5\","
-              "\"host\":\"127.0.0.6\",\"mqtt_port\":11887,"
-              "\"p2p_port\":14892,\"rssi\":-74,\"channel\":4,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node6\",\"peer_name\":\"node6\","
-              "\"host\":\"127.0.0.7\",\"mqtt_port\":11888,"
-              "\"p2p_port\":14894,\"rssi\":-76,\"channel\":5,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node7\",\"peer_name\":\"node7\","
-              "\"host\":\"127.0.0.8\",\"mqtt_port\":11889,"
-              "\"p2p_port\":14896,\"rssi\":-78,\"channel\":7,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node8\",\"peer_name\":\"node8\","
-              "\"host\":\"127.0.0.9\",\"mqtt_port\":11890,"
-              "\"p2p_port\":14898,\"rssi\":-80,\"channel\":8,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node9\",\"peer_name\":\"node9\","
-              "\"host\":\"127.0.0.10\",\"mqtt_port\":11891,"
-              "\"p2p_port\":14900,\"rssi\":-82,\"channel\":9,"
-              "\"security\":\"wpa2\"},"
-              "{\"ssid\":\"MQTT-BRIDGE-node10\",\"peer_name\":\"node10\","
-              "\"host\":\"127.0.0.11\",\"mqtt_port\":11892,"
-              "\"p2p_port\":14902,\"rssi\":-84,\"channel\":10,"
-              "\"security\":\"wpa2\"}]");
-#else
-    char *buf = peers_json_buf;
-    int rc = product_wifi_scan_json(buf, PEERS_JSON_BUF_SIZE);
-    if (rc != 0) {
-        char err[80];
-
-        snprintf(err, sizeof(err),
-                 "{\"error\":\"wifi scan failed\",\"code\":%d}", rc);
-        send_json(fd, 500, err);
-        return;
-    }
-    send_json(fd, 200, buf);
-#endif
-}
-
-static void handle_bridge_wifi_current(int fd)
-{
-    field_bridge_wifi_state_t state;
-    char *buf = config_json_buf;
-    const int cap = CONFIG_JSON_BUF_SIZE;
-    int pos = 0;
-    int written;
-
-    if (product_config_get_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
-        return;
-    }
-
-    written = snprintf(buf + pos, (size_t)(cap - pos),
-                       "{\"enabled\":%u,\"connected\":%u,\"status\":\"%s\","
-                       "\"current\":",
-                       state.enabled, state.connected,
-                       state.connected ? "connected" : "disconnected");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_bridge_wifi_entry(buf, cap, &pos, &state.current) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos),
-                       ",\"local_sta_ip\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, state.local_sta_ip) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos),
-                       ",\"gateway_ip\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, state.gateway_ip) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos),
-                       ",\"peer_broker_ip\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, state.current.host) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"last_error\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, state.last_error) != 0) goto overflow;
-    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"last_event\":");
-    if (written < 0 || written >= cap - pos) goto overflow;
-    pos += written;
-    if (append_json_str(buf, cap, &pos, state.last_event) != 0) goto overflow;
-    if (pos >= cap - 2) goto overflow;
-    buf[pos++] = '}';
-    buf[pos] = '\0';
-    send_json(fd, 200, buf);
-    return;
-
-overflow:
-    send_json(fd, 500, "{\"error\":\"bridge wifi current too large\"}");
-}
-
-static void handle_bridge_wifi_enabled(int fd, const char *body)
-{
-    field_bridge_wifi_state_t state;
-    uint8_t enabled;
-
-    if (json_decode_broker_control(body, &enabled) != 0) {
-        send_json(fd, 400, "{\"error\":\"invalid bridge wifi enabled JSON\"}");
-        return;
-    }
-    if (product_config_get_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
-        return;
-    }
-    state.enabled = enabled;
-    state.connected = 0;
-    state.last_error[0] = '\0';
-    snprintf(state.last_event, sizeof(state.last_event),
-             enabled ? "bridge wifi enabled" : "bridge wifi disabled");
-    if (product_config_set_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi persist failed\"}");
-        return;
-    }
-    send_json(fd, 200, enabled ? "{\"status\":\"enabled\"}" :
-              "{\"status\":\"disabled\"}");
-}
-
-static void handle_bridge_wifi_disconnect(int fd)
-{
-    field_bridge_wifi_state_t state;
-    field_bridge_peer_t peer;
-
-    if (product_config_get_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
-        return;
-    }
-
-    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
-        if (product_config_get_peer(i, &peer) != 0) {
-            continue;
-        }
-        if (peer.enabled &&
-            strcmp(peer.host, state.current.host) == 0 &&
-            peer.mqtt_port == state.current.mqtt_port &&
-            peer.p2p_port == state.current.p2p_port) {
-            memset(&peer, 0, sizeof(peer));
-            (void)product_config_set_peer(i, &peer);
-        }
-    }
-
-    state.connected = 0;
-    state.local_sta_ip[0] = '\0';
-    state.gateway_ip[0] = '\0';
-    state.last_error[0] = '\0';
-    snprintf(state.last_event, sizeof(state.last_event), "disconnected");
-    if (product_config_set_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi persist failed\"}");
-        return;
-    }
-    bridge_control_apply_peers();
-    send_json(fd, 200, "{\"status\":\"disconnected\"}");
-}
-
-static void handle_bridge_wifi_recent(int fd)
-{
-    field_bridge_wifi_state_t state;
-    char *buf = peers_json_buf;
-    const int cap = PEERS_JSON_BUF_SIZE;
-    int pos = 0;
-    int written_count = 0;
-
-    if (product_config_get_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
-        return;
-    }
-
-    buf[pos++] = '[';
-    for (int i = 0; i < FIELD_BRIDGE_RECENT_WIFI_MAX; i++) {
-        if (state.recent[i].ssid[0] == '\0') continue;
-        if (written_count++ > 0) buf[pos++] = ',';
-        if (append_bridge_wifi_entry(buf, cap, &pos, &state.recent[i]) != 0) {
-            send_json(fd, 500, "{\"error\":\"bridge wifi recent too large\"}");
-            return;
-        }
-    }
-    buf[pos++] = ']';
-    buf[pos] = '\0';
-    send_json(fd, 200, buf);
-}
-
-static void handle_bridge_wifi_recent_delete(int fd, int idx)
-{
-    if (product_config_remove_recent_bridge_wifi(idx) != 0) {
-        send_json(fd, 404, "{\"error\":\"recent bridge wifi index not found\"}");
-        return;
-    }
-    send_json(fd, 200, "{\"status\":\"deleted\"}");
-}
-
-static void handle_bridge_wifi_join(int fd, const char *body)
-{
-    bridge_wifi_join_req_t req;
-    field_bridge_wifi_state_t state;
-    field_bridge_peer_t peer;
-
-    if (json_decode_bridge_wifi_join(body, &req) != 0) {
-        send_json(fd, 400, "{\"error\":\"invalid bridge wifi join JSON\"}");
-        return;
-    }
-    if (product_config_get_bridge_wifi(&state) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi unavailable\"}");
-        return;
-    }
-    if (!state.enabled) {
-        state.connected = 0;
-        state.last_error[0] = '\0';
-        snprintf(state.last_event, sizeof(state.last_event),
-                 "bridge wifi disabled");
-        (void)product_config_set_bridge_wifi(&state);
-        send_json(fd, 409, "{\"error\":\"bridge wifi disabled\"}");
-        return;
-    }
-
-    state.current = req.entry;
-    state.enabled = 1;
-    state.connected = 1;
-    resolve_bridge_wifi_mock_ips(&req.entry,
-                                 state.local_sta_ip,
-                                 sizeof(state.local_sta_ip),
-                                 state.gateway_ip,
-                                 sizeof(state.gateway_ip));
-    state.last_error[0] = '\0';
-    snprintf(state.last_event, sizeof(state.last_event),
-             "joined peer index %d", req.peer_index);
-    if (product_config_set_bridge_wifi(&state) != 0 ||
-        product_config_add_recent_bridge_wifi(&req.entry) != 0) {
-        send_json(fd, 500, "{\"error\":\"bridge wifi persist failed\"}");
-        return;
-    }
-
-    memset(&peer, 0, sizeof(peer));
-    strncpy(peer.name,
-            req.entry.peer_name[0] ? req.entry.peer_name : req.entry.ssid,
-            sizeof(peer.name) - 1);
-    strncpy(peer.host, req.entry.host, sizeof(peer.host) - 1);
-    peer.mqtt_port = req.entry.mqtt_port;
-    peer.p2p_port = req.entry.p2p_port;
-    peer.enabled = 1;
-    if (product_config_set_peer(req.peer_index, &peer) != 0) {
-        send_json(fd, 500, "{\"error\":\"peer persist failed\"}");
-        return;
-    }
-    bridge_control_apply_peers();
-    send_json(fd, 200, "{\"status\":\"joined\"}");
-}
-
 static void handle_post_peer(int fd, int idx, const char *body)
 {
     if (idx < 0 || idx >= FIELD_BRIDGE_PEER_MAX) {
@@ -1220,72 +785,28 @@ static void handle_client(int fd)
     }
     buf[total] = '\0';
     body_start = strstr(buf, "\r\n\r\n") + 4;
-    int authed = request_has_auth(buf);
-
     if (strcmp(method, "GET") == 0 &&
         (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)) {
         send_index_page(fd);
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/status") == 0) {
         handle_get_status(fd);
-    } else if (strcmp(method, "POST") == 0 && strcmp(path, "/login") == 0) {
-        handle_login(fd, body_start);
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/config") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_get_config(fd);
+        handle_get_config(fd);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/config") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_post_config(fd, body_start);
+        handle_post_config(fd, body_start);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/config/reset") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_config_reset(fd);
+        handle_config_reset(fd);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/broker/control") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_broker_control(fd, body_start);
+        handle_broker_control(fd, body_start);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/publish-test") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_publish_test(fd, body_start);
+        handle_publish_test(fd, body_start);
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/peers") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_get_peers(fd);
+        handle_get_peers(fd);
     } else if (strcmp(method, "GET") == 0 && strcmp(path, "/peer-status") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_get_peer_status(fd);
-    } else if (strcmp(method, "GET") == 0 && strcmp(path, "/wifi/scan") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_wifi_scan(fd);
-    } else if (strcmp(method, "GET") == 0 &&
-               strcmp(path, "/bridge-wifi/current") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_bridge_wifi_current(fd);
-    } else if (strcmp(method, "GET") == 0 &&
-               strcmp(path, "/bridge-wifi/recent") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_bridge_wifi_recent(fd);
-    } else if (strcmp(method, "DELETE") == 0 &&
-               strncmp(path, "/bridge-wifi/recent/", 20) == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else {
-            int idx = atoi(path + 20);
-            handle_bridge_wifi_recent_delete(fd, idx);
-        }
-    } else if (strcmp(method, "POST") == 0 &&
-               strcmp(path, "/bridge-wifi/join") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_bridge_wifi_join(fd, body_start);
-    } else if (strcmp(method, "POST") == 0 &&
-               strcmp(path, "/bridge-wifi/enabled") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_bridge_wifi_enabled(fd, body_start);
-    } else if (strcmp(method, "POST") == 0 &&
-               strcmp(path, "/bridge-wifi/disconnect") == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else handle_bridge_wifi_disconnect(fd);
+        handle_get_peer_status(fd);
     } else if (strcmp(method, "POST") == 0 && strncmp(path, "/peers/", 7) == 0) {
-        if (!authed) send_json(fd, 403, "{\"error\":\"auth required\"}");
-        else {
-            int idx = atoi(path + 7);
-            handle_post_peer(fd, idx, body_start);
-        }
+        int idx = atoi(path + 7);
+        handle_post_peer(fd, idx, body_start);
     } else {
         send_json(fd, 404, "{\"error\":\"not found\"}");
     }

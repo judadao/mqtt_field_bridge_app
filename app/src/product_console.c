@@ -6,7 +6,6 @@
 #include "product_config.h"
 #include "product_console.h"
 #include "product_runtime.h"
-#include "product_wifi.h"
 
 #ifdef __ZEPHYR__
 #include <zephyr/console/console.h>
@@ -16,8 +15,6 @@
 
 LOG_MODULE_REGISTER(product_console, LOG_LEVEL_INF);
 #endif
-
-#define CONSOLE_SCAN_JSON_MAX 1024
 
 static void pc_write(product_console_write_fn write_fn, void *ctx,
                           const char *fmt, ...)
@@ -50,15 +47,15 @@ static char *next_token(char **save)
 static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     pc_write(write_fn, ctx,
-                  "commands: help status show scan wifi clear-wifi ap broker peer defaults reset reboot\n");
+                  "commands: help status info show ip dhcp broker peer defaults reset reboot\n");
     pc_write(write_fn, ctx,
-                  "  wifi <ssid> <pass>        save/apply STA Wi-Fi\n");
+                  "  info                     show runtime and saved network/broker config\n");
     pc_write(write_fn, ctx,
-                  "  clear-wifi                return to AP-only STA config\n");
+                  "  ip <addr> [gw] [mask]    save static network IP, reboot to apply\n");
     pc_write(write_fn, ctx,
-                  "  ap <ssid> <pass>          save SoftAP config, reboot to apply\n");
+                  "  dhcp                     enable DHCP, reboot to apply\n");
     pc_write(write_fn, ctx,
-                  "  broker <mqtt> <p2p>       save broker ports\n");
+                  "  broker <mqtt> <p2p>       save local broker ports\n");
     pc_write(write_fn, ctx,
                   "  peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
     pc_write(write_fn, ctx,
@@ -74,8 +71,8 @@ static int cmd_status(product_console_write_fn write_fn, void *ctx)
         return -1;
     }
     pc_write(write_fn, ctx,
-                  "OK wifi=%s ip=%s broker=%s p2p=%s peers=%u remote_subs=%u error=%s\n",
-                  status.wifi_state,
+                  "OK network=%s ip=%s broker=%s p2p=%s peers=%u remote_subs=%u error=%s\n",
+                  status.network_state,
                   status.ip_addr,
                   status.broker_state,
                   status.p2p_role,
@@ -88,67 +85,107 @@ static int cmd_status(product_console_write_fn write_fn, void *ctx)
 static int cmd_show(product_console_write_fn write_fn, void *ctx)
 {
     field_bridge_settings_t settings;
-    field_bridge_wifi_state_t bridge_wifi;
 
-    if (product_config_get_settings(&settings) != 0 ||
-        product_config_get_bridge_wifi(&bridge_wifi) != 0) {
+    if (product_config_get_settings(&settings) != 0) {
         pc_write(write_fn, ctx, "ERR config unavailable\n");
         return -1;
     }
     pc_write(write_fn, ctx,
-                  "OK device=%s ap=%s ap_ip=%s sta=%s dhcp=%u mqtt=%u p2p=%u bridge=%u mesh=%u\n",
+                  "OK device=%s ip=%s gw=%s mask=%s dns=%s dhcp=%u mqtt=%u p2p=%u bridge=%u mesh=%u\n",
                   settings.system.device_name,
-                  settings.network.ap_ssid,
                   settings.network.device_ip,
-                  settings.network.wifi_ssid[0] ? settings.network.wifi_ssid : "-",
+                  settings.network.gateway,
+                  settings.network.netmask,
+                  settings.network.dns,
                   settings.network.dhcp_enabled,
                   settings.broker.mqtt_port,
                   settings.broker.p2p_port,
                   settings.broker.bridge_enabled,
                   settings.broker.mesh_enabled);
-    pc_write(write_fn, ctx,
-                  "OK bridge_wifi enabled=%u connected=%u ssid=%s host=%s\n",
-                  bridge_wifi.enabled,
-                  bridge_wifi.connected,
-                  bridge_wifi.current.ssid[0] ? bridge_wifi.current.ssid : "-",
-                  bridge_wifi.current.host[0] ? bridge_wifi.current.host : "-");
     return 0;
 }
 
-static int save_and_apply_wifi(field_bridge_settings_t *settings,
-                               product_console_write_fn write_fn,
-                               void *ctx)
+static int cmd_info(product_console_write_fn write_fn, void *ctx)
 {
-    if (product_config_set_settings(settings) != 0) {
+    field_bridge_runtime_status_t status;
+    field_bridge_settings_t settings;
+
+    if (product_runtime_get_status(&status) != 0 ||
+        product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR info unavailable\n");
+        return -1;
+    }
+
+    pc_write(write_fn, ctx,
+                  "OK runtime net=%s ip=%s broker=%s p2p=%s peers=%u remote_subs=%u error=%s\n",
+                  status.network_state,
+                  status.ip_addr,
+                  status.broker_state,
+                  status.p2p_role,
+                  status.connected_peers,
+                  status.remote_subscriptions,
+                  status.last_error[0] ? status.last_error : "-");
+    pc_write(write_fn, ctx,
+                  "OK config device=%s dhcp=%u ip=%s gw=%s mask=%s dns=%s mqtt=%u p2p=%u broker=%u bridge=%u mesh=%u\n",
+                  settings.system.device_name,
+                  settings.network.dhcp_enabled,
+                  settings.network.device_ip,
+                  settings.network.gateway,
+                  settings.network.netmask,
+                  settings.network.dns,
+                  settings.broker.mqtt_port,
+                  settings.broker.p2p_port,
+                  settings.broker.broker_enabled,
+                  settings.broker.bridge_enabled,
+                  settings.broker.mesh_enabled);
+    return 0;
+}
+
+static int cmd_ip(char **save, product_console_write_fn write_fn, void *ctx)
+{
+    char *ip = next_token(save);
+    char *gw = next_token(save);
+    char *mask = next_token(save);
+    field_bridge_settings_t settings;
+
+    if (!ip || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: ip <addr> [gw] [mask]\n");
+        return -1;
+    }
+
+    copy_arg(settings.network.device_ip, sizeof(settings.network.device_ip), ip);
+    if (gw) {
+        copy_arg(settings.network.gateway, sizeof(settings.network.gateway), gw);
+        copy_arg(settings.network.dns, sizeof(settings.network.dns), gw);
+    } else if (!settings.network.gateway[0]) {
+        copy_arg(settings.network.gateway, sizeof(settings.network.gateway), "192.168.127.5");
+        copy_arg(settings.network.dns, sizeof(settings.network.dns), "192.168.127.5");
+    }
+    if (mask) {
+        copy_arg(settings.network.netmask, sizeof(settings.network.netmask), mask);
+    } else if (!settings.network.netmask[0]) {
+        copy_arg(settings.network.netmask, sizeof(settings.network.netmask), "255.255.0.0");
+    }
+    if (!settings.network.dns[0]) {
+        copy_arg(settings.network.dns, sizeof(settings.network.dns),
+                 settings.network.gateway[0] ? settings.network.gateway : "192.168.127.5");
+    }
+    settings.network.dhcp_enabled = 0;
+
+    if (product_config_set_settings(&settings) != 0) {
         pc_write(write_fn, ctx, "ERR save failed\n");
         return -1;
     }
-    if (product_wifi_apply_settings(settings) != 0) {
-        pc_write(write_fn, ctx, "ERR apply failed\n");
-        return -1;
-    }
-    product_runtime_network_start(settings);
-    pc_write(write_fn, ctx, "OK saved wifi; STA reconnect requested\n");
+    pc_write(write_fn, ctx,
+                  "OK saved static ip=%s gw=%s mask=%s dns=%s; reboot to apply\n",
+                  settings.network.device_ip,
+                  settings.network.gateway,
+                  settings.network.netmask,
+                  settings.network.dns);
     return 0;
 }
 
-static int cmd_wifi(char **save, product_console_write_fn write_fn, void *ctx)
-{
-    char *ssid = next_token(save);
-    char *pass = next_token(save);
-    field_bridge_settings_t settings;
-
-    if (!ssid || !pass || product_config_get_settings(&settings) != 0) {
-        pc_write(write_fn, ctx, "ERR usage: wifi <ssid> <pass>\n");
-        return -1;
-    }
-    copy_arg(settings.network.wifi_ssid, sizeof(settings.network.wifi_ssid), ssid);
-    copy_arg(settings.network.wifi_password, sizeof(settings.network.wifi_password), pass);
-    settings.network.dhcp_enabled = 1;
-    return save_and_apply_wifi(&settings, write_fn, ctx);
-}
-
-static int cmd_clear_wifi(product_console_write_fn write_fn, void *ctx)
+static int cmd_dhcp(product_console_write_fn write_fn, void *ctx)
 {
     field_bridge_settings_t settings;
 
@@ -156,38 +193,12 @@ static int cmd_clear_wifi(product_console_write_fn write_fn, void *ctx)
         pc_write(write_fn, ctx, "ERR config unavailable\n");
         return -1;
     }
-    settings.network.wifi_ssid[0] = '\0';
-    settings.network.wifi_password[0] = '\0';
-    copy_arg(settings.network.device_ip, sizeof(settings.network.device_ip), "192.168.4.1");
-    copy_arg(settings.network.gateway, sizeof(settings.network.gateway), "192.168.4.1");
-    copy_arg(settings.network.dns, sizeof(settings.network.dns), "192.168.4.1");
     settings.network.dhcp_enabled = 1;
     if (product_config_set_settings(&settings) != 0) {
         pc_write(write_fn, ctx, "ERR save failed\n");
         return -1;
     }
-    product_runtime_network_start(&settings);
-    pc_write(write_fn, ctx, "OK cleared STA Wi-Fi; reboot if SoftAP is not visible\n");
-    return 0;
-}
-
-static int cmd_ap(char **save, product_console_write_fn write_fn, void *ctx)
-{
-    char *ssid = next_token(save);
-    char *pass = next_token(save);
-    field_bridge_settings_t settings;
-
-    if (!ssid || !pass || product_config_get_settings(&settings) != 0) {
-        pc_write(write_fn, ctx, "ERR usage: ap <ssid> <pass>\n");
-        return -1;
-    }
-    copy_arg(settings.network.ap_ssid, sizeof(settings.network.ap_ssid), ssid);
-    copy_arg(settings.network.ap_password, sizeof(settings.network.ap_password), pass);
-    if (product_config_set_settings(&settings) != 0) {
-        pc_write(write_fn, ctx, "ERR save failed\n");
-        return -1;
-    }
-    pc_write(write_fn, ctx, "OK saved AP config; reboot to apply\n");
+    pc_write(write_fn, ctx, "OK saved DHCP enabled; reboot to apply\n");
     return 0;
 }
 
@@ -246,23 +257,6 @@ static int cmd_peer(char **save, product_console_write_fn write_fn, void *ctx)
     return 0;
 }
 
-static int cmd_scan(product_console_write_fn write_fn, void *ctx)
-{
-    char json[CONSOLE_SCAN_JSON_MAX];
-    int rc = product_wifi_scan_json(json, sizeof(json));
-
-    if (rc != 0) {
-        pc_write(write_fn, ctx, "ERR scan failed rc=%d\n", rc);
-        return -1;
-    }
-    if (write_fn) {
-        write_fn(ctx, "OK scan ");
-        write_fn(ctx, json);
-        write_fn(ctx, "\n");
-    }
-    return 0;
-}
-
 static int cmd_defaults(char **save, product_console_write_fn write_fn, void *ctx)
 {
     char *profile = next_token(save);
@@ -314,17 +308,14 @@ int product_console_handle_line(char *line,
     if (strcmp(cmd, "show") == 0) {
         return cmd_show(write_fn, write_ctx);
     }
-    if (strcmp(cmd, "scan") == 0) {
-        return cmd_scan(write_fn, write_ctx);
+    if (strcmp(cmd, "info") == 0) {
+        return cmd_info(write_fn, write_ctx);
     }
-    if (strcmp(cmd, "wifi") == 0) {
-        return cmd_wifi(&save, write_fn, write_ctx);
+    if (strcmp(cmd, "ip") == 0) {
+        return cmd_ip(&save, write_fn, write_ctx);
     }
-    if (strcmp(cmd, "clear-wifi") == 0) {
-        return cmd_clear_wifi(write_fn, write_ctx);
-    }
-    if (strcmp(cmd, "ap") == 0) {
-        return cmd_ap(&save, write_fn, write_ctx);
+    if (strcmp(cmd, "dhcp") == 0) {
+        return cmd_dhcp(write_fn, write_ctx);
     }
     if (strcmp(cmd, "broker") == 0) {
         return cmd_broker(&save, write_fn, write_ctx);

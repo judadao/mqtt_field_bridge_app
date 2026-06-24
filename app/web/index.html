@@ -17,18 +17,7 @@
 </div>
 </header>
 <main>
-<section id="login" class="panel">
-<h2>Login</h2>
-<form id="login-form" class="grid">
-<label>Admin Password<input id="login-password" type="password" value="admin">
-</label>
-<div class="actions">
-<button type="submit">Login</button>
-<span id="login-state" class="muted">Default password: admin</span>
-</div>
-</form>
-</section>
-<section id="app" class="hide">
+<section id="app">
 <section class="hero">
 <div class="panel">
 <h2>Overview</h2>
@@ -48,9 +37,9 @@
 <td id="p2p-state" class="value">-</td>
 </tr>
 <tr>
-<th>Provisioning AP</th>
+<th>Network</th>
 <td>
-<span id="wifi-state" class="pill muted">-</span>
+<span id="network-state" class="pill muted">-</span>
 </td>
 </tr>
 </table>
@@ -59,7 +48,7 @@
 <h2>Network</h2>
 <table class="kv">
 <tr>
-<th>AP / Broker IP</th>
+<th>Ethernet IP</th>
 <td id="ip-state" class="value">-</td>
 </tr>
 <tr>
@@ -98,17 +87,13 @@
 </div>
 </div>
 <div class="grid">
-<label>AP / Provisioning IP<input id="device_ip" maxlength="63">
+<label>Ethernet IP<input id="device_ip" maxlength="63">
 </label>
-<label>AP Gateway<input id="gateway" maxlength="63">
+<label>Gateway<input id="gateway" maxlength="63">
 </label>
 <label>Netmask<input id="netmask" maxlength="63">
 </label>
 <label>DNS<input id="dns" maxlength="63">
-</label>
-<label>AP SSID<input id="ap_ssid" maxlength="63">
-</label>
-<label>AP Password<input id="ap_password" type="password" maxlength="63">
 </label>
 </div>
 <div class="actions">
@@ -150,86 +135,43 @@
 </div>
 </section>
 <section id="peers" class="panel view hide">
-<h2>Bridge Peers</h2>
+<h2>Broker Peers</h2>
 <div class="feature-row">
 <div>
-<div class="feature-title">Auto Bridge</div>
-<div class="muted small">Automatically bridge to the selected WiFi broker</div>
+<div class="feature-title">Bridge Routing</div>
+<div class="muted small">Use configured broker peers over Ethernet</div>
 </div>
 <div class="feature-detail">
-<label>Auto Bridge<input id="mesh_enabled" type="checkbox">
+<label>Bridge Enabled<input id="mesh_enabled" type="checkbox">
 </label>
 </div>
 </div>
 <div class="feature-row">
 <div>
-<div class="feature-title">Bridge WiFi</div>
-<div class="muted small">One active bridge AP connection</div>
+<div class="feature-title">Broker Target</div>
+<div class="muted small">Select the broker slot to edit</div>
 </div>
 <div class="feature-detail">
-<label>Bridge WiFi Enabled<input id="bridge_wifi_enabled" type="checkbox">
-</label>
 <label>Bridge Broker<select id="bridge_peer_index">
 <option value="0">Broker 0</option>
 </select>
 </label>
-<span id="bridge-current-state" class="pill muted">disconnected</span>
+<span id="peer-current-state" class="pill muted">manual</span>
 </div>
 </div>
-<div class="bridge-wifi-panel">
-<div class="wifi-list-panel bridge-peer-panel">
-<div class="wifi-list-head">
+<div class="broker-panel">
+<div class="broker-list-panel bridge-peer-panel">
+<div class="broker-list-head">
 <div>
-<h3>Auto Bridge Peer</h3>
-<span class="muted small">Reflects current Bridge WiFi</span>
+<h3>Broker Slots</h3>
+<span class="muted small">Manual Ethernet bridge targets</span>
 </div>
 </div>
 <div id="peer-form" class="peer-summary-list">
 </div>
-<div id="peer-empty" class="empty">No Bridge WiFi peer connected</div>
-</div>
-<section class="wifi-list-panel">
-<div class="wifi-list-head">
-<div>
-<h3>Available Bridge WiFi</h3>
-<span class="muted small">Scan results</span>
-</div>
-<button type="button" id="scan-bridge-wifi" class="secondary">Scan WiFi</button>
-</div>
-<div id="bridge-scan-list" class="wifi-list scan-list">No scan results</div>
-</section>
-<section class="wifi-list-panel">
-<div class="wifi-list-head">
-<div>
-<h3>Recent Bridge WiFi</h3>
-<span class="muted small">Last 3 targets</span>
+<div id="peer-empty" class="empty">No broker slots available</div>
 </div>
 </div>
-<div id="bridge-recent-list" class="wifi-list recent-list">No recent bridge WiFi</div>
-</section>
-<details id="bridge-details" class="bridge-details">
-<summary>Connection Details</summary>
-<div class="bridge-status-grid">
-<div class="bridge-current-card">
-<div class="field-label">Current Bridge WiFi</div>
-<div id="bridge-current" class="bridge-name">-</div>
-<div id="bridge-current-detail" class="bridge-detail">-</div>
-<div class="bridge-ip-grid">
-<div><span>Local STA IP</span><strong id="bridge-local-sta-ip">-</strong></div>
-<div><span>Gateway / AP IP</span><strong id="bridge-gateway-ip">-</strong></div>
-<div><span>Peer Broker IP</span><strong id="bridge-peer-broker-ip">-</strong></div>
-</div>
-</div>
-<div class="bridge-log-card">
-<div class="field-label">Last Bridge Event</div>
-<div id="bridge-last-event" class="bridge-log">-</div>
-</div>
-<div class="bridge-log-card error">
-<div class="field-label">Last Bridge Error</div>
-<div id="bridge-last-error" class="bridge-log">-</div>
-</div>
-</div>
-</details>
 <label>Event Log / Time<div id="event-log" class="event-log">-</div>
 </label>
 </section>
@@ -237,8 +179,6 @@
 <h2>System Setting</h2>
 <div class="grid">
 <label>Device Name<input id="device_name" maxlength="31">
-</label>
-<label>Admin Password<input id="admin_password" type="password" maxlength="63">
 </label>
 </div>
 <div class="actions">

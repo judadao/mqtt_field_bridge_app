@@ -74,7 +74,6 @@ int main(void)
 
     printf("Provisioning web server listening on http://127.0.0.1:%d/\n",
            PROVISIONING_HTTP_PORT);
-    printf("Login password: %s\n", settings.system.admin_password);
     printf("Network config: ip=%s gateway=%s netmask=%s dns=%s dhcp=%u\n",
            settings.network.device_ip,
            settings.network.gateway,

@@ -1,5 +1,17 @@
 # TODO
 
+## Product direction: Ethernet-only broker bridge
+
+- Completed: product networking is Ethernet-only in the active firmware and UI.
+  WiFi STA, SoftAP provisioning, Bridge WiFi scan/join/recent flows, AP-specific
+  config fields, login/session auth, and admin password settings were removed
+  from the product path.
+- Completed: broker bridge targets are user-specified. Users choose broker slot,
+  host/IP, MQTT port, P2P port, enabled state, and display name; no discovery is
+  required to create bridge peers.
+- Completed: tests and docs now cover Ethernet DHCP/static config, manual broker
+  peer flows, no-auth APIs, and removed WiFi/login routes.
+
 ## ESP32 hardware Wi-Fi validation
 
 - Completed: implement and hardware-test real ESP32 `/wifi/scan` support.
@@ -40,6 +52,12 @@
 - Add safeguards for scanning while SoftAP is active. ESP32 AP and STA share one
   2.4 GHz radio, so scans may need shorter dwell times under load and clear
   UI/API errors if scanning disrupts the provisioning AP connection.
+- Debug ESP32 SoftAP association below the product app layer. On 2026-06-24,
+  a temporary minimal Zephyr AP-only app with DRAM0 near 51% and heap near 94 KiB
+  still advertised BSSID `E0:5A:1B:5A:B4:1D` but Linux USB Wi-Fi association
+  timed out even with BSSID pinned, so the remaining failure is likely in the
+  Zephyr ESP32 SoftAP driver/radio/client-adapter path rather than the web UI or
+  broker footprint alone.
 - Add UART command provisioning as the non-web fallback:
   provide serial commands over `/dev/ttyUSB*` for showing status, scanning Wi-Fi,
   setting STA SSID/password, resetting config, and rebooting.

@@ -60,10 +60,8 @@ static void before_each(void)
 {
     unlink("/tmp/unit_console_peers.bin");
     unlink("/tmp/unit_console_settings.bin");
-    unlink("/tmp/unit_console_wifi.bin");
     setenv("BRIDGE_PEERS_FILE", "/tmp/unit_console_peers.bin", 1);
     setenv("BRIDGE_SETTINGS_FILE", "/tmp/unit_console_settings.bin", 1);
-    setenv("BRIDGE_WIFI_FILE", "/tmp/unit_console_wifi.bin", 1);
     out_buf[0] = '\0';
     reboot_called = 0;
     product_config_init();
@@ -74,43 +72,18 @@ static void test_help_and_status(void)
 {
     CHECK(run_cmd("help") == 0);
     CHECK(strstr(out_buf, "commands:") != NULL);
+    CHECK(strstr(out_buf, "wifi") == NULL);
+    CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
-    CHECK(strstr(out_buf, "OK wifi=init") != NULL);
+    CHECK(strstr(out_buf, "OK network=init") != NULL);
 }
 
-static void test_wifi_command_saves_sta_config(void)
+static void test_broker_save_config(void)
 {
     field_bridge_settings_t settings;
 
-    CHECK(run_cmd("wifi Linux-Bridge-Test bridge1234") == 0);
-    CHECK(strstr(out_buf, "OK saved wifi") != NULL);
-    CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(strcmp(settings.network.wifi_ssid, "Linux-Bridge-Test") == 0);
-    CHECK(strcmp(settings.network.wifi_password, "bridge1234") == 0);
-    CHECK(settings.network.dhcp_enabled == 1);
-}
-
-static void test_clear_wifi_returns_to_ap_only(void)
-{
-    field_bridge_settings_t settings;
-
-    CHECK(run_cmd("wifi Linux-Bridge-Test bridge1234") == 0);
-    CHECK(run_cmd("clear-wifi") == 0);
-    CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(settings.network.wifi_ssid[0] == '\0');
-    CHECK(settings.network.wifi_password[0] == '\0');
-    CHECK(strcmp(settings.network.device_ip, "192.168.4.1") == 0);
-}
-
-static void test_ap_and_broker_save_config(void)
-{
-    field_bridge_settings_t settings;
-
-    CHECK(run_cmd("ap ESP32-Console 87654321") == 0);
     CHECK(run_cmd("broker 1884 4885") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(strcmp(settings.network.ap_ssid, "ESP32-Console") == 0);
-    CHECK(strcmp(settings.network.ap_password, "87654321") == 0);
     CHECK(settings.broker.mqtt_port == 1884);
     CHECK(settings.broker.p2p_port == 4885);
 }
@@ -132,18 +105,39 @@ static void test_scan_and_show(void)
 {
     CHECK(run_cmd("show") == 0);
     CHECK(strstr(out_buf, "OK device=esp32-min-broker") != NULL);
-    CHECK(run_cmd("scan") == 0);
-    CHECK(strstr(out_buf, "OK scan [") != NULL);
+    CHECK(strstr(out_buf, " ip=192.168.127.4 ") != NULL);
+    CHECK(run_cmd("info") == 0);
+    CHECK(strstr(out_buf, "OK runtime") != NULL);
+    CHECK(strstr(out_buf, "OK config") != NULL);
+}
+
+static void test_ip_and_dhcp_commands_save_network_config(void)
+{
+    field_bridge_settings_t settings;
+
+    CHECK(run_cmd("ip 192.168.127.4 192.168.127.5 255.255.0.0") == 0);
+    CHECK(strstr(out_buf, "OK saved static ip=192.168.127.4") != NULL);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(strcmp(settings.network.device_ip, "192.168.127.4") == 0);
+    CHECK(strcmp(settings.network.gateway, "192.168.127.5") == 0);
+    CHECK(strcmp(settings.network.netmask, "255.255.0.0") == 0);
+    CHECK(strcmp(settings.network.dns, "192.168.127.5") == 0);
+    CHECK(settings.network.dhcp_enabled == 0);
+
+    CHECK(run_cmd("dhcp") == 0);
+    CHECK(strstr(out_buf, "OK saved DHCP enabled") != NULL);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(settings.network.dhcp_enabled == 1);
 }
 
 static void test_reset_defaults_and_reboot(void)
 {
     field_bridge_settings_t settings;
 
-    CHECK(run_cmd("ap ESP32-Console 87654321") == 0);
+    CHECK(run_cmd("ip 192.168.10.2 192.168.10.1 255.255.255.0") == 0);
     CHECK(run_cmd("reset") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(strcmp(settings.network.ap_ssid, "ESP32-Min-Broker") == 0);
+    CHECK(strcmp(settings.network.device_ip, "192.168.127.4") == 0);
     CHECK(run_cmd("reboot") == 0);
     CHECK(reboot_called == 1);
 }
@@ -151,7 +145,9 @@ static void test_reset_defaults_and_reboot(void)
 static void test_rejects_bad_commands(void)
 {
     CHECK(run_cmd("wifi onlyssid") != 0);
-    CHECK(strstr(out_buf, "ERR usage") != NULL);
+    CHECK(strstr(out_buf, "ERR unknown") != NULL);
+    CHECK(run_cmd("scan") != 0);
+    CHECK(strstr(out_buf, "ERR unknown") != NULL);
     CHECK(run_cmd("nope") != 0);
     CHECK(strstr(out_buf, "ERR unknown") != NULL);
 }
@@ -160,11 +156,10 @@ int main(void)
 {
     printf("=== unit_product_console ===\n");
     RUN(test_help_and_status);
-    RUN(test_wifi_command_saves_sta_config);
-    RUN(test_clear_wifi_returns_to_ap_only);
-    RUN(test_ap_and_broker_save_config);
+    RUN(test_broker_save_config);
     RUN(test_peer_command_saves_peer);
     RUN(test_scan_and_show);
+    RUN(test_ip_and_dhcp_commands_save_network_config);
     RUN(test_reset_defaults_and_reboot);
     RUN(test_rejects_bad_commands);
 

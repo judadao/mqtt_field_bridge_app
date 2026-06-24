@@ -39,6 +39,7 @@ h2{font-size:14px;letter-spacing:0;text-transform:uppercase;color:var(--muted);m
 .peer-summary-grid div{border-top:1px solid var(--line);padding-top:8px;min-width:0}
 .peer-summary-grid span{display:block;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase}
 .peer-summary-grid strong{display:block;margin-top:2px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--fg);overflow-wrap:anywhere}
+.peer-editor-grid{display:grid;grid-template-columns:1.2fr 1.5fr repeat(3,minmax(96px,.7fr));gap:10px;margin:10px 0}
 label{display:grid;gap:5px;font-size:12px;color:var(--muted);font-weight:600}
 input,select{width:100%;min-height:36px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--fg);outline:none}
 input:focus,select:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(25,118,210,.18)}
@@ -60,10 +61,10 @@ button:disabled{opacity:.55;cursor:wait}
 .bad{color:var(--bad)}
 .save-toast{position:fixed;right:20px;bottom:20px;z-index:10;box-shadow:0 8px 24px rgba(15,23,42,.18)}
 .event-log{min-height:42px;max-height:120px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);padding:8px;color:var(--muted)}
-.bridge-wifi-panel{display:grid;gap:12px;margin-bottom:12px}
+.broker-panel{display:grid;gap:12px;margin-bottom:12px}
 .bridge-status-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px;margin-top:10px}
-.bridge-current-card,.bridge-log-card,.wifi-list-panel{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:12px}
-.bridge-wifi-panel>.wifi-list-panel{background:var(--panel);border-color:var(--primary);box-shadow:0 0 0 2px rgba(25,118,210,.08)}
+.bridge-current-card,.bridge-log-card,.broker-list-panel{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:12px}
+.broker-panel>.broker-list-panel{background:var(--panel);border-color:var(--primary);box-shadow:0 0 0 2px rgba(25,118,210,.08)}
 .bridge-current-card{background:linear-gradient(180deg,var(--panel),var(--panel2))}
 .field-label{font-size:11px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 .bridge-name{font-size:18px;font-weight:800;color:var(--fg);min-height:26px;overflow-wrap:anywhere}
@@ -73,29 +74,19 @@ button:disabled{opacity:.55;cursor:wait}
 .bridge-ip-grid span{display:block;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase}
 .bridge-ip-grid strong{display:block;margin-top:2px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--fg);overflow-wrap:anywhere}
 .bridge-log{min-height:42px;max-height:88px;overflow:auto;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--muted)}
-.wifi-lists{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
 .bridge-details{border:1px solid var(--line);border-radius:8px;background:var(--panel2);padding:10px 12px}
 .bridge-details[open]{background:var(--panel)}
 .bridge-details summary{cursor:pointer;font-weight:800;color:var(--fg)}
-.wifi-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
-.wifi-list-head h3{margin:0;font-size:13px;color:var(--fg)}
-.wifi-list{display:grid;gap:8px}
-.scan-list{max-height:196px;overflow-y:auto;padding-right:4px}
-.recent-list{min-height:196px;max-height:196px;overflow:hidden}
+.broker-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.broker-list-head h3{margin:0;font-size:13px;color:var(--fg)}
 .bridge-peer-panel{display:grid;gap:10px}
-.wifi-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:10px}
-.wifi-row.active{border-color:var(--primary);box-shadow:0 0 0 2px rgba(25,118,210,.12)}
-.wifi-title{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:800;color:var(--fg);overflow-wrap:anywhere}
-.wifi-badge{border:1px solid var(--primary);border-radius:999px;padding:2px 7px;color:var(--primary);font-size:11px;font-weight:800}
-.wifi-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.broker-badge{border:1px solid var(--primary);border-radius:999px;padding:2px 7px;color:var(--primary);font-size:11px;font-weight:800}
 .row-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
-.wifi-row button{white-space:nowrap}
 .small{font-size:12px}
 @media(max-width:760px){main{padding:14px}
-.grid,.hero,.feature-row,.bridge-status-grid,.wifi-lists,.bridge-ip-grid,.peer-summary-grid{grid-template-columns:1fr}
-.wifi-list-head{align-items:stretch;flex-direction:column}
-.wifi-row{grid-template-columns:1fr}
-.wifi-row button,.wifi-list-head button,.row-actions{width:100%}
+.grid,.hero,.feature-row,.bridge-status-grid,.bridge-ip-grid,.peer-summary-grid,.peer-editor-grid{grid-template-columns:1fr}
+.broker-list-head{align-items:stretch;flex-direction:column}
+.broker-list-head button,.row-actions{width:100%}
 .actions{justify-content:flex-start}
 .tabs{display:grid;grid-template-columns:1fr}
 .tab{text-align:left}

@@ -37,6 +37,6 @@ fi
 
 printf '\nStarting Linux provisioning UI...\n'
 printf 'Open: http://127.0.0.1:8080/\n'
-printf 'Login password: admin\n\n'
+printf 'Login is disabled for the Ethernet provisioning UI.\n\n'
 
 exec "$ROOT_DIR/tests/linux/run_web_config_server.sh"

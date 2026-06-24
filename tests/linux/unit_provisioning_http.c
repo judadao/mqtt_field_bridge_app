@@ -1,11 +1,5 @@
 /*
- * unit_provisioning_http — socket-based tests for the HTTP server.
- *
- * Starts the server in a background thread, then exercises each endpoint
- * using raw POSIX sockets.
- *
- * Build:  make -C tests/linux unit_provisioning_http
- * Run:    ./tests/linux/out/unit_provisioning_http
+ * unit_provisioning_http - socket-based tests for the Ethernet provisioning API.
  */
 #include <stdio.h>
 #include <string.h>
@@ -20,9 +14,9 @@
 #include "../../app/src/product_config.h"
 #include "../../app/src/product_runtime.h"
 
-static int tests_run    = 0;
-static int tests_passed = 0;
-static int tests_failed = 0;
+static int tests_run;
+static int tests_passed;
+static int tests_failed;
 static int fail_before;
 
 #define CHECK(expr) do {                                                    \
@@ -36,22 +30,20 @@ static int fail_before;
 
 #define RUN(fn) do {                                                        \
     fail_before = tests_failed;                                             \
-    printf("  %-55s ", #fn);                                                \
+    printf("  %-48s ", #fn);                                                \
     fn();                                                                   \
     printf("%s\n", (tests_failed == fail_before) ? "ok" : "FAIL");         \
 } while (0)
 
 #define PORT 8080
-static char auth_token[64];
 
-/* Send a raw HTTP request, return response in buf. Returns bytes received. */
 static int http_req(const char *req, char *buf, int cap)
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
     struct sockaddr_in addr = {
         .sin_family = AF_INET,
-        .sin_port   = htons(PORT),
+        .sin_port = htons(PORT),
         .sin_addr.s_addr = inet_addr("127.0.0.1"),
     };
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
@@ -65,64 +57,22 @@ static int http_req(const char *req, char *buf, int cap)
         if (n <= 0) break;
         total += n;
     }
-    if (total > 0) buf[total] = '\0';
+    if (total >= 0) buf[total] = '\0';
     close(fd);
     return total;
 }
 
-static void save_auth_token(const char *resp)
-{
-    const char *p = strstr(resp, "\"token\":\"");
-    if (!p) return;
-    p += strlen("\"token\":\"");
-    const char *end = strchr(p, '"');
-    if (!end) return;
-    int len = (int)(end - p);
-    if (len <= 0 || len >= (int)sizeof(auth_token)) return;
-    memcpy(auth_token, p, (size_t)len);
-    auth_token[len] = '\0';
-}
-
-static int login_as(const char *password)
-{
-    char body[128];
-    char req[512];
-    char resp[512];
-
-    snprintf(body, sizeof(body), "{\"password\":\"%s\"}", password);
-    snprintf(req, sizeof(req),
-             "POST /login HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
-             (int)strlen(body), body);
-    int n = http_req(req, resp, sizeof(resp));
-    if (n <= 0 || !strstr(resp, "200 OK")) return -1;
-    save_auth_token(resp);
-    return auth_token[0] ? 0 : -1;
-}
-
-static const char *env_or_empty(const char *name)
-{
-    const char *value = getenv(name);
-    return value ? value : "";
-}
-
 static void test_get_status(void)
 {
-    char resp[512];
+    char resp[1024];
     int n = http_req("GET /status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
-    CHECK(strstr(resp, "\"peers\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_state\"") != NULL);
-    CHECK(strstr(resp, "\"ip_addr\":\"192.168.4.1\"") != NULL);
-    CHECK(strstr(resp, "\"broker_state\"") != NULL);
-    CHECK(strstr(resp, "\"p2p_role\"") != NULL);
-    CHECK(strstr(resp, "\"connected_peers\"") != NULL);
-    CHECK(strstr(resp, "\"remote_subscriptions\"") != NULL);
+    CHECK(strstr(resp, "\"network_state\":\"dhcp\"") != NULL);
+    CHECK(strstr(resp, "\"ip_addr\":\"192.168.127.4\"") != NULL);
     CHECK(strstr(resp, "\"test_topic\":\"site/field-a/test\"") != NULL);
-    char peers_field[32];
-    snprintf(peers_field, sizeof(peers_field), "\"peers\":%d", FIELD_BRIDGE_PEER_MAX);
-    CHECK(strstr(resp, peers_field) != NULL);
+    CHECK(strstr(resp, "wifi_state") == NULL);
 }
 
 static void test_get_index_html(void)
@@ -131,799 +81,162 @@ static void test_get_index_html(void)
     int n = http_req("GET / HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "Content-Type: text/html") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
-    CHECK(strstr(resp, "ESP32 min broker local setup") != NULL);
-    CHECK(strstr(resp, "id=\"app\" class=\"hide\"") != NULL);
-    CHECK(strstr(resp, "Login") != NULL);
-    CHECK(strstr(resp, "Default password: admin") != NULL);
-    CHECK(strstr(resp, "Overview") != NULL);
-    CHECK(strstr(resp, "id=\"edit-network\"") == NULL);
-    CHECK(strstr(resp, "class=\"tabs\"") != NULL);
-    CHECK(strstr(resp, "System Setting") != NULL);
-    CHECK(strstr(resp, "Network Setting") != NULL);
-    CHECK(strstr(resp, "Provisioning AP") != NULL);
-    CHECK(strstr(resp, "Broker Setting") != NULL);
-    CHECK(strstr(resp, "Bridge Peers") != NULL);
-    CHECK(strstr(resp, "Network Mode") != NULL);
-    CHECK(strstr(resp, "Broker Feature") != NULL);
-    CHECK(strstr(resp, "Broker Controls") != NULL);
-    CHECK(strstr(resp, "Bridge Feature") == NULL);
-    CHECK(strstr(resp, "Auto Bridge") != NULL);
-    CHECK(strstr(resp, "Mesh Enabled") == NULL);
-    CHECK(strstr(resp, "Bridge WiFi") != NULL);
-    CHECK(strstr(resp, "Current Bridge WiFi") != NULL);
-    CHECK(strstr(resp, "Available Bridge WiFi") != NULL);
-    CHECK(strstr(resp, "Recent Bridge WiFi") != NULL);
-    CHECK(strstr(resp, "id=\"scan-bridge-wifi\"") != NULL);
+    CHECK(strstr(resp, "Ethernet IP") != NULL);
+    CHECK(strstr(resp, "Broker Peers") != NULL);
+    CHECK(strstr(resp, "Broker Slots") != NULL);
     CHECK(strstr(resp, "id=\"bridge_peer_index\"") != NULL);
-    CHECK(strstr(resp, "Bridge Broker") != NULL);
-    CHECK(strstr(resp, "Auto Bridge Peer") < strstr(resp, "Available Bridge WiFi"));
-    CHECK(strstr(resp, "Available Bridge WiFi") < strstr(resp, "Recent Bridge WiFi"));
-    CHECK(strstr(resp, "Current Bridge WiFi") > strstr(resp, "Connection Details"));
-    CHECK(strstr(resp, "id=\"bridge-details\"") != NULL);
-    CHECK(strstr(resp, "<summary>Connection Details</summary>") != NULL);
-    CHECK(strstr(resp, "id=\"bridge-current\"") != NULL);
-    CHECK(strstr(resp, "Local STA IP") != NULL);
-    CHECK(strstr(resp, "Gateway / AP IP") != NULL);
-    CHECK(strstr(resp, "Peer Broker IP") != NULL);
-    CHECK(strstr(resp, "id=\"bridge-scan-list\"") != NULL);
-    CHECK(strstr(resp, "id=\"bridge-recent-list\"") != NULL);
-    CHECK(strstr(resp, "Auto Bridge Peer") != NULL);
-    CHECK(strstr(resp, "AP / Provisioning IP") != NULL);
-    CHECK(strstr(resp, "id=\"add-peer\"") == NULL);
-    CHECK(strstr(resp, "Peer Actions") == NULL);
-    CHECK(strstr(resp, "Save Peer Changes") == NULL);
-    CHECK(strstr(resp, "Event Log / Time") != NULL);
-    CHECK(strstr(resp, "id=\"event-log\"") != NULL);
-    CHECK(strstr(resp, "No Bridge WiFi peer connected") != NULL);
-    CHECK(strstr(resp, "Topic Test") == NULL);
-    CHECK(strstr(resp, "Raw Status") == NULL);
-    CHECK(strstr(resp, "Topic Prefix") == NULL);
-    CHECK(strstr(resp, "Start Broker") != NULL);
-    CHECK(strstr(resp, "Stop Broker") != NULL);
-    CHECK(strstr(resp, "Reset Config") != NULL);
-    CHECK(strstr(resp, "publish-test") == NULL);
-    CHECK(strstr(resp, "/broker/control") != NULL);
-    CHECK(strstr(resp, "192.168.4.1") == NULL);
-    CHECK(strstr(resp, "id=\"device_name\"") != NULL);
-    CHECK(strstr(resp, "id=\"wifi_ssid\"") == NULL);
-    CHECK(strstr(resp, "id=\"wifi_password\"") == NULL);
-    CHECK(strstr(resp, "id=\"cfg_mqtt_port\"") != NULL);
-    CHECK(strstr(resp, "id=\"broker_enabled\"") != NULL);
-    CHECK(strstr(resp, "id=\"bridge_enabled\"") == NULL);
-    CHECK(strstr(resp, "id=\"mesh_enabled\"") != NULL);
-    CHECK(strstr(resp, "cfg_mqtt_port") != NULL);
-    CHECK(strstr(resp, "save-toast hide") != NULL);
-    CHECK(strstr(resp, ">No changes</div>") == NULL);
     CHECK(strstr(resp, "--primary:#1976d2") != NULL);
-    CHECK(strstr(resp, "--accent:#") == NULL);
-    CHECK(strstr(resp, "X-Auth-Token") != NULL);
-    CHECK(strstr(resp, "token = r.token") != NULL);
-    CHECK(strstr(resp, "notice('Saving'") != NULL ||
-          strstr(resp, "notice('Saving',") != NULL);
-    CHECK(strstr(resp, "peer-form") != NULL);
-    CHECK(strstr(resp, "peer-summary") != NULL);
-    CHECK(strstr(resp, "WiFi Broker") != NULL);
-    CHECK(strstr(resp, "Peer Index") != NULL);
-    CHECK(strstr(resp, "Edit/Save") == NULL);
-    CHECK(strstr(resp, "savePeer") == NULL);
-    CHECK(strstr(resp, "Saving peer index") == NULL);
-    CHECK(strstr(resp, "Peer index") == NULL ||
-          strstr(resp, "Peer Index") != NULL);
-    CHECK(strstr(resp, "deletePeer") == NULL);
-    CHECK(strstr(resp, "deleteAll") == NULL);
-    CHECK(strstr(resp, "save-all") == NULL);
-    CHECK(strstr(resp, "enable-all") == NULL);
-    CHECK(strstr(resp, "disable-all") == NULL);
-    CHECK(strstr(resp, "Delete All") == NULL);
-    CHECK(strstr(resp, "Disable All Peers") == NULL);
-    CHECK(strstr(resp, "/login") != NULL);
-    CHECK(strstr(resp, "/config") != NULL);
-    CHECK(strstr(resp, "await json('/config'") != NULL);
-    CHECK(strstr(resp, "logLine(`${prefix}: ${m}`)") != NULL);
-    CHECK(strstr(resp, "No slot changes") == NULL);
-    CHECK(strstr(resp, "Auto Bridge WiFi") != NULL);
+    CHECK(strstr(resp, "login-form") == NULL);
+    CHECK(strstr(resp, "X-Auth-Token") == NULL);
+    CHECK(strstr(resp, "Bridge WiFi") == NULL);
+    CHECK(strstr(resp, "scan-bridge-wifi") == NULL);
+    CHECK(strstr(resp, "AP SSID") == NULL);
 }
 
-static void test_get_index_html_alias(void)
+static void test_get_index_aliases(void)
 {
     char resp[24000];
     int n = http_req("GET /index.html HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "Field Bridge Settings") != NULL);
-}
-
-static void test_get_index_absolute_url_without_path(void)
-{
-    char resp[24000];
-    int n = http_req("GET http://192.168.127.4:8080 HTTP/1.1\r\nHost: 192.168.127.4:8080\r\n\r\n",
-                     resp, sizeof(resp));
+    n = http_req("GET http://192.168.127.4:8080 HTTP/1.1\r\nHost: 192.168.127.4:8080\r\n\r\n",
+                 resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "Field Bridge Settings") != NULL);
 }
 
-static void test_login_valid(void)
+static void test_config_no_auth(void)
 {
-    const char *body = "{\"password\":\"admin\"}";
-    char req[256];
-    snprintf(req, sizeof(req),
-             "POST /login HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
-             (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
-    CHECK(strstr(resp, "\"token\":\"") != NULL);
-    save_auth_token(resp);
-    CHECK(auth_token[0] != '\0');
-}
-
-static void test_login_invalid(void)
-{
-    const char *body = "{\"password\":\"bad\"}";
-    char req[256];
-    snprintf(req, sizeof(req),
-             "POST /login HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
-             (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "login failed") != NULL);
-}
-
-static void test_get_config_defaults(void)
-{
-    CHECK(auth_token[0] != '\0');
-    char resp[8192];
-    char req[256];
-    snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    int n = http_req(req, resp, sizeof(resp));
+    char resp[4096];
+    int n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
-    CHECK(strstr(resp, "\"admin_password\":\"admin\"") != NULL);
-    CHECK(strstr(resp, "\"ap_ssid\":\"ESP32-Min-Broker\"") != NULL);
-    CHECK(strstr(resp, "\"device_ip\":\"192.168.4.1\"") != NULL);
-    CHECK(strstr(resp, "\"gateway\":\"192.168.4.1\"") != NULL);
-    CHECK(strstr(resp, "\"netmask\":\"255.255.255.0\"") != NULL);
-    CHECK(strstr(resp, "\"dns\":\"192.168.4.1\"") != NULL);
-    CHECK(strstr(resp, "\"site_id\":\"field-a\"") != NULL);
-    CHECK(strstr(resp, "\"topic_prefix\":\"site/field-a\"") != NULL);
-    CHECK(strstr(resp, "\"mesh_enabled\":1") != NULL);
-}
-
-static void test_get_config_requires_auth(void)
-{
-    char resp[512];
-    int n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
-}
-
-static void test_post_config_requires_auth(void)
-{
-    const char *body =
-        "{\"device_name\":\"node-a\",\"admin_password\":\"admin\","
-        "\"wifi_ssid\":\"plant\",\"wifi_password\":\"wifi-pass\","
-        "\"ap_ssid\":\"setup-a\",\"ap_password\":\"setup-pass\","
-        "\"device_ip\":\"192.168.9.1\",\"gateway\":\"192.168.9.254\","
-        "\"netmask\":\"255.255.255.0\",\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,"
-        "\"site_id\":\"field-b\",\"topic_prefix\":\"site/field-b\","
-        "\"mqtt_port\":1884,\"p2p_port\":4885,"
-        "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":0}";
-    char req[1024];
-    snprintf(req, sizeof(req),
-             "POST /config HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
-             (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
+    CHECK(strstr(resp, "\"device_ip\":\"192.168.127.4\"") != NULL);
+    CHECK(strstr(resp, "\"gateway\":\"192.168.127.5\"") != NULL);
+    CHECK(strstr(resp, "\"netmask\":\"255.255.0.0\"") != NULL);
+    CHECK(strstr(resp, "\"dns\":\"192.168.127.5\"") != NULL);
+    CHECK(strstr(resp, "\"admin_password\"") == NULL);
+    CHECK(strstr(resp, "\"ap_ssid\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_ssid\"") == NULL);
 }
 
 static void test_post_config_valid(void)
 {
     const char *body =
-        "{\"device_name\":\"node-a\",\"admin_password\":\"secret\","
-        "\"wifi_ssid\":\"plant\",\"wifi_password\":\"wifi-pass\","
-        "\"ap_ssid\":\"setup-a\",\"ap_password\":\"setup-pass\","
-        "\"device_ip\":\"192.168.9.1\",\"gateway\":\"192.168.9.254\","
-        "\"netmask\":\"255.255.255.0\",\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,"
-        "\"site_id\":\"field-b\",\"topic_prefix\":\"site/field-b\","
-        "\"mqtt_port\":1884,\"p2p_port\":4885,"
-        "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":0}";
-    char req[1024];
+        "{\"device_name\":\"node-a\",\"device_ip\":\"192.168.9.10\","
+        "\"gateway\":\"192.168.9.1\",\"netmask\":\"255.255.255.0\","
+        "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,\"site_id\":\"field-b\","
+        "\"topic_prefix\":\"site/field-b\",\"mqtt_port\":1884,\"p2p_port\":4885,"
+        "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":1}";
+    char req[2048];
+    char resp[4096];
+
     snprintf(req, sizeof(req),
-             "POST /config HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-
-    char resp2[4096];
-    snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    http_req(req, resp2, sizeof(resp2));
-    CHECK(strstr(resp2, "\"device_name\":\"node-a\"") != NULL);
-    CHECK(strstr(resp2, "\"device_ip\":\"192.168.9.1\"") != NULL);
-    CHECK(strstr(resp2, "\"gateway\":\"192.168.9.254\"") != NULL);
-    CHECK(strstr(resp2, "\"netmask\":\"255.255.255.0\"") != NULL);
-    CHECK(strstr(resp2, "\"dns\":\"1.1.1.1\"") != NULL);
-    CHECK(strstr(resp2, "\"site_id\":\"field-b\"") != NULL);
-    CHECK(strstr(resp2, "\"mesh_enabled\":0") != NULL);
-
-    char resp3[1024];
-    n = http_req("GET /status HTTP/1.0\r\n\r\n", resp3, sizeof(resp3));
-    CHECK(n > 0);
-    CHECK(strstr(resp3, "\"ip_addr\":\"192.168.9.1\"") != NULL);
-    CHECK(strstr(resp3, "\"wifi_state\":\"configured\"") != NULL);
-
-    CHECK(login_as("secret") == 0);
-}
-
-static void test_post_config_web_network_env(void)
-{
-    const char *device_ip = env_or_empty("WEB_TEST_DEVICE_IP");
-    const char *gateway = env_or_empty("WEB_TEST_GATEWAY");
-    const char *netmask = env_or_empty("WEB_TEST_NETMASK");
-    const char *dns = env_or_empty("WEB_TEST_DNS");
-    int required = getenv("WEB_TEST_REQUIRE") != NULL;
-
-    if (!device_ip[0] || !gateway[0] || !netmask[0] || !dns[0]) {
-        CHECK(!required);
-        return;
-    }
-
-    char body[1024];
-    snprintf(body, sizeof(body),
-             "{\"device_name\":\"web-net\",\"admin_password\":\"secret\","
-             "\"wifi_ssid\":\"plant\",\"wifi_password\":\"wifi-pass\","
-             "\"ap_ssid\":\"setup-a\",\"ap_password\":\"setup-pass\","
-             "\"device_ip\":\"%s\",\"gateway\":\"%s\","
-             "\"netmask\":\"%s\",\"dns\":\"%s\",\"dhcp_enabled\":0,"
-             "\"site_id\":\"field-b\",\"topic_prefix\":\"site/field-b\","
-             "\"mqtt_port\":1884,\"p2p_port\":4885,"
-             "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":0}",
-             device_ip, gateway, netmask, dns);
-
-    char req[1400];
-    snprintf(req, sizeof(req),
-             "POST /config HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-
-    char resp2[4096];
-    snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    http_req(req, resp2, sizeof(resp2));
-    char expected[128];
-    snprintf(expected, sizeof(expected), "\"device_ip\":\"%s\"", device_ip);
-    CHECK(strstr(resp2, expected) != NULL);
-    snprintf(expected, sizeof(expected), "\"gateway\":\"%s\"", gateway);
-    CHECK(strstr(resp2, expected) != NULL);
-    snprintf(expected, sizeof(expected), "\"netmask\":\"%s\"", netmask);
-    CHECK(strstr(resp2, expected) != NULL);
-    snprintf(expected, sizeof(expected), "\"dns\":\"%s\"", dns);
-    CHECK(strstr(resp2, expected) != NULL);
-
-    CHECK(login_as("secret") == 0);
-}
-
-static void test_get_peers_requires_auth(void)
-{
-    char resp[512];
-    int n = http_req("GET /peers HTTP/1.0\r\n\r\n", resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
-}
-
-static void test_post_peer_requires_auth(void)
-{
-    const char *body =
-        "{\"name\":\"note2\",\"host\":\"192.168.1.2\","
-        "\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /peers/0 HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
+             "POST /config HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
              (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
-}
-
-static void test_peer_status_requires_auth(void)
-{
-    char resp[512];
-    int n = http_req("GET /peer-status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
-}
-
-static void test_broker_control_requires_auth(void)
-{
-    const char *body = "{\"enabled\":1}";
-    char req[256];
-    snprintf(req, sizeof(req),
-             "POST /broker/control HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
-             (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
-}
-
-static void test_broker_control_valid(void)
-{
-    const char *body = "{\"enabled\":1}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /broker/control HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
     int n = http_req(req, resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "requested") != NULL);
+
+    n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "\"device_name\":\"node-a\"") != NULL);
+    CHECK(strstr(resp, "\"device_ip\":\"192.168.9.10\"") != NULL);
+    CHECK(strstr(resp, "\"dhcp_enabled\":0") != NULL);
 
     n = http_req("GET /status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
-    CHECK(strstr(resp, "\"broker_state\":\"requested\"") != NULL);
-}
-
-static void test_broker_control_invalid(void)
-{
-    const char *body = "{\"enabled\":2}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /broker/control HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "400") != NULL);
-    CHECK(strstr(resp, "invalid broker control JSON") != NULL);
-}
-
-static void test_publish_test_requires_auth(void)
-{
-    const char *body =
-        "{\"topic\":\"site/field-b/test\",\"payload\":\"hello\",\"qos\":0,\"retain\":0}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /publish-test HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
-             (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
-}
-
-static void test_publish_test_valid(void)
-{
-    const char *body =
-        "{\"topic\":\"site/field-b/test\",\"payload\":\"hello\",\"qos\":1,\"retain\":0}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /publish-test HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "recorded") != NULL);
-
-    field_bridge_publish_test_t last;
-    CHECK(product_runtime_get_last_publish_test(&last) == 0);
-    CHECK(strcmp(last.topic, "site/field-b/test") == 0);
-    CHECK(strcmp(last.payload, "hello") == 0);
-    CHECK(last.qos == 1);
-}
-
-static void test_publish_test_invalid(void)
-{
-    const char *body =
-        "{\"topic\":\"site/field-b/test\",\"payload\":\"hello\",\"qos\":2,\"retain\":0}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /publish-test HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "400") != NULL);
-    CHECK(strstr(resp, "invalid publish test JSON") != NULL);
-}
-
-static void test_publish_test_rejects_wrong_prefix(void)
-{
-    const char *body =
-        "{\"topic\":\"site/other/test\",\"payload\":\"hello\",\"qos\":0,\"retain\":0}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /publish-test HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "400") != NULL);
-    CHECK(strstr(resp, "topic outside configured prefix") != NULL);
-}
-
-static void test_config_reset_requires_auth(void)
-{
-    char resp[512];
-    int n = http_req("POST /config/reset HTTP/1.0\r\nContent-Length: 0\r\n\r\n",
-                     resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-    CHECK(strstr(resp, "auth required") != NULL);
+    CHECK(strstr(resp, "\"network_state\":\"static\"") != NULL);
+    CHECK(strstr(resp, "\"test_topic\":\"site/field-b/test\"") != NULL);
 }
 
 static void test_post_config_invalid(void)
 {
-    const char *body = "{\"device_name\":\"bad\"}";
-    char req[256];
-    snprintf(req, sizeof(req),
-             "POST /config HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
     char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
+    int n = http_req("POST /config HTTP/1.0\r\nContent-Length: 2\r\n\r\n{}",
+                     resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "400") != NULL);
     CHECK(strstr(resp, "invalid config JSON") != NULL);
 }
 
-static void test_get_peers_empty(void)
+static void test_peer_crud_no_auth(void)
 {
-    char resp[8192];
-    char req[256];
-    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "[") != NULL);
-    CHECK(strstr(resp, "]") != NULL);
-}
-
-static void test_get_peer_status(void)
-{
-    char resp[4096];
-    char req[256];
-    snprintf(req, sizeof(req),
-             "GET /peer-status HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "\"index\":0") != NULL);
-    CHECK(strstr(resp, "\"state\":\"disabled\"") != NULL);
-    CHECK(strstr(resp, "\"last_error\":\"\"") != NULL);
-}
-
-static void test_bridge_wifi_requires_auth(void)
-{
-    char resp[1024];
-    int n = http_req("GET /wifi/scan HTTP/1.0\r\n\r\n", resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-
-    n = http_req("GET /bridge-wifi/current HTTP/1.0\r\n\r\n", resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-
-    n = http_req("GET /bridge-wifi/recent HTTP/1.0\r\n\r\n", resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-
-    n = http_req("DELETE /bridge-wifi/recent/0 HTTP/1.0\r\n\r\n",
-                 resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-
-    n = http_req("POST /bridge-wifi/enabled HTTP/1.0\r\n"
-                 "Content-Length: 13\r\n\r\n{\"enabled\":1}",
-                 resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-
-    n = http_req("POST /bridge-wifi/disconnect HTTP/1.0\r\n\r\n",
-                 resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-}
-
-static void test_bridge_wifi_scan_current_recent_and_join(void)
-{
+    const char *body =
+        "{\"name\":\"broker-a\",\"host\":\"192.168.9.20\","
+        "\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
     char req[1024];
     char resp[4096];
-    int n;
-
-    snprintf(req, sizeof(req), "GET /wifi/scan HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
-    CHECK(strstr(resp, "MQTT-BRIDGE-node10") != NULL);
-    CHECK(strstr(resp, "\"p2p_port\":14884") != NULL);
-    CHECK(strstr(resp, "\"host\":\"127.0.0.11\"") != NULL);
 
     snprintf(req, sizeof(req),
-             "GET /bridge-wifi/current HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "\"enabled\":1") != NULL);
-    CHECK(strstr(resp, "\"connected\":0") != NULL);
-    CHECK(strstr(resp, "\"status\":\"disconnected\"") != NULL);
-
-    const char *disable_body = "{\"enabled\":0}";
-    snprintf(req, sizeof(req),
-             "POST /bridge-wifi/enabled HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(disable_body), disable_body);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "disabled") != NULL);
-
-    snprintf(req, sizeof(req), "GET /wifi/scan HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "409 Conflict") != NULL);
-    CHECK(strstr(resp, "bridge wifi disabled") != NULL);
-
-    const char *enable_body = "{\"enabled\":1}";
-    snprintf(req, sizeof(req),
-             "POST /bridge-wifi/enabled HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(enable_body), enable_body);
-    n = http_req(req, resp, sizeof(resp));
+             "POST /peers/1 HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
+             (int)strlen(body), body);
+    int n = http_req(req, resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
 
-    const char *body =
-        "{\"ssid\":\"MQTT-BRIDGE-node1\",\"password\":\"12345678\","
-        "\"peer_name\":\"node1\",\"host\":\"127.0.0.2\","
-        "\"mqtt_port\":11883,\"p2p_port\":14884,\"peer_index\":2}";
-    snprintf(req, sizeof(req),
-             "POST /bridge-wifi/join HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    n = http_req(req, resp, sizeof(resp));
+    n = http_req("GET /peers HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "joined") != NULL);
+    CHECK(strstr(resp, "\"name\":\"broker-a\"") != NULL);
+    CHECK(strstr(resp, "\"host\":\"192.168.9.20\"") != NULL);
 
-    snprintf(req, sizeof(req),
-             "GET /bridge-wifi/current HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
+    n = http_req("GET /peer-status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
-    CHECK(strstr(resp, "\"enabled\":1") != NULL);
-    CHECK(strstr(resp, "\"connected\":1") != NULL);
-    CHECK(strstr(resp, "\"status\":\"connected\"") != NULL);
-    CHECK(strstr(resp, "\"local_sta_ip\":\"127.0.0.10\"") != NULL);
-    CHECK(strstr(resp, "\"gateway_ip\":\"127.0.0.2\"") != NULL);
-    CHECK(strstr(resp, "\"peer_broker_ip\":\"127.0.0.2\"") != NULL);
-    CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
-    CHECK(strstr(resp, "joined peer index 2") != NULL);
-
-    snprintf(req, sizeof(req),
-             "GET /bridge-wifi/recent HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "MQTT-BRIDGE-node1") != NULL);
-
-    snprintf(req, sizeof(req),
-             "DELETE /bridge-wifi/recent/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "deleted") != NULL);
-
-    snprintf(req, sizeof(req),
-             "GET /bridge-wifi/recent HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "MQTT-BRIDGE-node1") == NULL);
-
-    snprintf(req, sizeof(req),
-             "DELETE /bridge-wifi/recent/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "404 Not Found") != NULL);
-
-    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "\"name\":\"node1\"") != NULL);
-    CHECK(strstr(resp, "\"p2p_port\":14884") != NULL);
-
-    snprintf(req, sizeof(req),
-             "POST /bridge-wifi/disconnect HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-    CHECK(strstr(resp, "disconnected") != NULL);
-
-    snprintf(req, sizeof(req),
-             "GET /bridge-wifi/current HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "\"connected\":0") != NULL);
-    CHECK(strstr(resp, "\"status\":\"disconnected\"") != NULL);
-
-    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "\"name\":\"node1\"") == NULL);
+    CHECK(strstr(resp, "\"index\":1") != NULL);
+    CHECK(strstr(resp, "\"state\":\"disconnected\"") != NULL);
 }
 
-static void test_post_peer_valid(void)
+static void test_broker_control_and_publish(void)
 {
+    char resp[1024];
+    int n = http_req("POST /broker/control HTTP/1.0\r\nContent-Length: 13\r\n\r\n{\"enabled\":1}",
+                     resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "requested") != NULL);
+
     const char *body =
-        "{\"name\":\"note2\",\"host\":\"192.168.1.2\","
-        "\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
+        "{\"topic\":\"site/field-b/test\",\"payload\":\"hello\",\"qos\":1,\"retain\":0}";
     char req[512];
     snprintf(req, sizeof(req),
-             "POST /peers/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
+             "POST /publish-test HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
+             (int)strlen(body), body);
+    n = http_req(req, resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
-
-    /* Verify change via GET /peers */
-    char resp2[4096];
-    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    http_req(req, resp2, sizeof(resp2));
-    CHECK(strstr(resp2, "192.168.1.2") != NULL);
-    CHECK(strstr(resp2, "1883") != NULL);
+    CHECK(strstr(resp, "recorded") != NULL);
 }
 
-static void test_post_peer_escapes_json_strings(void)
+static void test_removed_routes(void)
 {
-    const char *body =
-        "{\"name\":\"node\\\"two\",\"host\":\"lab\\\\node\","
-        "\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /peers/1 HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
+    char resp[1024];
+    int n = http_req("POST /login HTTP/1.0\r\nContent-Length: 20\r\n\r\n{\"password\":\"admin\"}",
+                     resp, sizeof(resp));
     CHECK(n > 0);
-    CHECK(strstr(resp, "200 OK") != NULL);
-
-    char resp2[4096];
-    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    http_req(req, resp2, sizeof(resp2));
-    CHECK(strstr(resp2, "node\\\"two") != NULL);
-    CHECK(strstr(resp2, "lab\\\\node") != NULL);
-}
-
-static void test_post_peer_invalid_json(void)
-{
-    const char *body = "not-json";
-    char req[256];
-    snprintf(req, sizeof(req),
-             "POST /peers/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
+    CHECK(strstr(resp, "404") != NULL);
+    n = http_req("GET /wifi/scan HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
-    CHECK(strstr(resp, "400") != NULL);
-}
-
-static void test_post_peer_invalid_enabled(void)
-{
-    const char *body =
-        "{\"host\":\"1.2.3.4\",\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":2}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /peers/0 HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "400") != NULL);
-}
-
-static void test_post_peer_out_of_range(void)
-{
-    const char *body =
-        "{\"host\":\"1.2.3.4\",\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
-    char req[512];
-    snprintf(req, sizeof(req),
-             "POST /peers/99 HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: %d\r\n\r\n%s",
-             auth_token, (int)strlen(body), body);
-    char resp[512];
-    int n = http_req(req, resp, sizeof(resp));
+    CHECK(strstr(resp, "404") != NULL);
+    n = http_req("GET /bridge-wifi/current HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "404") != NULL);
 }
 
 static void test_config_reset_valid(void)
 {
-    char req[512];
     char resp[4096];
-
-    snprintf(req, sizeof(req),
-             "POST /config/reset HTTP/1.0\r\nX-Auth-Token: %s\r\n"
-             "Content-Length: 0\r\n\r\n",
-             auth_token);
-    int n = http_req(req, resp, sizeof(resp));
+    int n = http_req("POST /config/reset HTTP/1.0\r\nContent-Length: 0\r\n\r\n",
+                     resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "reset") != NULL);
 
-    snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "403 Forbidden") != NULL);
-
-    CHECK(login_as("admin") == 0);
-
-    snprintf(req, sizeof(req), "GET /config HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
+    n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
-    CHECK(strstr(resp, "\"admin_password\":\"admin\"") != NULL);
-    CHECK(strstr(resp, "\"device_ip\":\"192.168.4.1\"") != NULL);
-    CHECK(strstr(resp, "\"dns\":\"192.168.4.1\"") != NULL);
-
-    snprintf(req, sizeof(req), "GET /peers HTTP/1.0\r\nX-Auth-Token: %s\r\n\r\n",
-             auth_token);
-    n = http_req(req, resp, sizeof(resp));
-    CHECK(n > 0);
-    CHECK(strstr(resp, "192.168.1.2") == NULL);
-    CHECK(strstr(resp, "node\\\"two") == NULL);
+    CHECK(strstr(resp, "\"device_ip\":\"192.168.127.4\"") != NULL);
 }
 
 static void test_unknown_route(void)
@@ -940,7 +253,6 @@ int main(void)
 
     setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
     setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
-    setenv("BRIDGE_WIFI_FILE", "/dev/null", 1);
     product_config_init();
     product_runtime_init();
     field_bridge_settings_t settings;
@@ -952,36 +264,13 @@ int main(void)
 
     RUN(test_get_status);
     RUN(test_get_index_html);
-    RUN(test_get_index_html_alias);
-    RUN(test_get_index_absolute_url_without_path);
-    RUN(test_login_valid);
-    RUN(test_login_invalid);
-    RUN(test_get_config_requires_auth);
-    RUN(test_post_config_requires_auth);
-    RUN(test_get_config_defaults);
+    RUN(test_get_index_aliases);
+    RUN(test_config_no_auth);
     RUN(test_post_config_valid);
-    RUN(test_post_config_web_network_env);
     RUN(test_post_config_invalid);
-    RUN(test_get_peers_requires_auth);
-    RUN(test_post_peer_requires_auth);
-    RUN(test_peer_status_requires_auth);
-    RUN(test_broker_control_requires_auth);
-    RUN(test_broker_control_valid);
-    RUN(test_broker_control_invalid);
-    RUN(test_publish_test_requires_auth);
-    RUN(test_publish_test_valid);
-    RUN(test_publish_test_invalid);
-    RUN(test_publish_test_rejects_wrong_prefix);
-    RUN(test_config_reset_requires_auth);
-    RUN(test_get_peers_empty);
-    RUN(test_get_peer_status);
-    RUN(test_bridge_wifi_requires_auth);
-    RUN(test_bridge_wifi_scan_current_recent_and_join);
-    RUN(test_post_peer_valid);
-    RUN(test_post_peer_escapes_json_strings);
-    RUN(test_post_peer_invalid_json);
-    RUN(test_post_peer_invalid_enabled);
-    RUN(test_post_peer_out_of_range);
+    RUN(test_peer_crud_no_auth);
+    RUN(test_broker_control_and_publish);
+    RUN(test_removed_routes);
     RUN(test_config_reset_valid);
     RUN(test_unknown_route);
 

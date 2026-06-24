@@ -5,17 +5,10 @@ const ss = $('save-state');
 const elog = $('event-log');
 
 let cfg = {};
-let token = '';
 let peers = [];
-let scanResults = [];
-let bridgeCurrent = null;
-let bridgeRecent = [];
+let peerStatus = [];
+let selectedPeerIndex = 0;
 let saveTimer = 0;
-let selectedBridgePeerIndex = 0;
-
-try {
-  token = sessionStorage.getItem('field_bridge_token') || '';
-} catch (e) {}
 
 function esc(s) {
   return String(s || '').replace(/[&<>"]/g, c => ({
@@ -28,7 +21,6 @@ function esc(s) {
 
 async function json(url, opt = {}) {
   opt.headers = opt.headers || {};
-  if (token) opt.headers['X-Auth-Token'] = token;
   let r;
   try {
     r = await fetch(url, opt);
@@ -74,58 +66,65 @@ function failMsg(x, prefix) {
     const j = JSON.parse(m);
     if (j.error) m = j.error;
   } catch (e) {}
-  if ($('bridge-details')) $('bridge-details').open = true;
   logLine(`${prefix}: ${m}`);
   notice(`${prefix}: ${m}`, 'bad', 0);
 }
 
-function setAuthToken(next) {
-  token = next || '';
-  try {
-    if (token) sessionStorage.setItem('field_bridge_token', token);
-    else sessionStorage.removeItem('field_bridge_token');
-  } catch (e) {}
+function peerState(i) {
+  return peerStatus.find(x => +x.index === +i) || {};
 }
 
-function showLogin(msg = 'Default password: admin', cls = 'muted') {
-  $('login').classList.remove('hide');
-  $('app').classList.add('hide');
-  $('refresh').classList.add('hide');
-  $('login-state').textContent = msg;
-  $('login-state').className = cls;
-}
-
-function showApp() {
-  $('login').classList.add('hide');
-  $('app').classList.remove('hide');
-  $('refresh').classList.remove('hide');
-}
-
-function autoBridgePeerIndex() {
-  if (!bridgeCurrent || !bridgeCurrent.connected || !bridgeCurrent.current) return -1;
-  const current = bridgeCurrent.current;
-  const peerHost = bridgeCurrent.peer_broker_ip || current.host || '';
-  return peers.findIndex(p => {
+function renderPeerSelector() {
+  const select = $('bridge_peer_index');
+  const current = Number.isInteger(selectedPeerIndex) ? selectedPeerIndex : +(select.value || 0);
+  select.innerHTML = peers.map((p, i) => {
     const x = norm(p);
-    return x.enabled &&
-      x.host === peerHost &&
-      x.mqtt_port === +(current.mqtt_port || 1883) &&
-      x.p2p_port === +(current.p2p_port || 4884);
-  });
-}
-
-function isAutoBridgePeer(i, p) {
-  return i === autoBridgePeerIndex() && p.enabled;
+    const label = x.enabled
+      ? `Broker ${i} - ${x.name || x.host || 'configured'}`
+      : `Broker ${i} - empty`;
+    return `<option value="${i}">${esc(label)}</option>`;
+  }).join('');
+  if (!peers.length) {
+    select.innerHTML = '<option value="0">Broker 0</option>';
+  }
+  const max = Math.max(0, peers.length - 1);
+  selectedPeerIndex = Math.min(Math.max(current, 0), max);
+  select.value = String(selectedPeerIndex);
 }
 
 function row(p, i) {
   p = norm(p);
-  const current = bridgeCurrent && bridgeCurrent.current ? bridgeCurrent.current : {};
-  const wifiName = current.ssid || p.name || '-';
-  const localIp = bridgeCurrent && bridgeCurrent.local_sta_ip ? bridgeCurrent.local_sta_ip : '-';
-  const gatewayIp = bridgeCurrent && bridgeCurrent.gateway_ip ? bridgeCurrent.gateway_ip : '-';
-  const brokerIp = bridgeCurrent && bridgeCurrent.peer_broker_ip ? bridgeCurrent.peer_broker_ip : p.host || '-';
-  return `<div class="peer-summary" data-i="${i}"><div class="peer-summary-head"><div><span class="field-label">WiFi Broker</span><strong>${esc(wifiName)}</strong></div><span class="wifi-badge">Auto Bridge WiFi</span></div><div class="peer-summary-grid"><div><span>Peer Index</span><strong>${i}</strong></div><div><span>Broker IP</span><strong>${esc(brokerIp)}</strong></div><div><span>MQTT</span><strong>${p.mqtt_port}</strong></div><div><span>P2P</span><strong>${p.p2p_port}</strong></div><div><span>Local STA IP</span><strong>${esc(localIp)}</strong></div><div><span>Gateway / AP IP</span><strong>${esc(gatewayIp)}</strong></div></div></div>`;
+  const s = peerState(i);
+  return `<div class="peer-summary" data-i="${i}">
+    <div class="peer-summary-head">
+      <div><span class="field-label">Broker ${i}</span><strong>${esc(p.name || 'Unnamed broker')}</strong></div>
+      <span class="broker-badge">${esc(s.state || (p.enabled ? 'configured' : 'disabled'))}</span>
+    </div>
+    <div class="peer-editor-grid">
+      <label>Name<input id="peer_name_${i}" value="${esc(p.name)}" maxlength="31"></label>
+      <label>Host / IP<input id="peer_host_${i}" value="${esc(p.host)}" maxlength="63"></label>
+      <label>MQTT Port<input id="peer_mqtt_${i}" type="number" min="1" max="65535" value="${p.mqtt_port}"></label>
+      <label>P2P Port<input id="peer_p2p_${i}" type="number" min="1" max="65535" value="${p.p2p_port}"></label>
+      <label>Enabled<input id="peer_enabled_${i}" type="checkbox" ${p.enabled ? 'checked' : ''}></label>
+    </div>
+    <div class="peer-summary-grid">
+      <div><span>Host</span><strong>${esc(p.host || '-')}</strong></div>
+      <div><span>MQTT</span><strong>${p.mqtt_port || '-'}</strong></div>
+      <div><span>P2P</span><strong>${p.p2p_port || '-'}</strong></div>
+      <div><span>Runtime</span><strong>${esc(s.state || '-')}</strong></div>
+      <div><span>Error</span><strong>${esc(s.last_error || '-')}</strong></div>
+      <div><span>Enabled</span><strong>${p.enabled ? 'yes' : 'no'}</strong></div>
+    </div>
+    <div class="actions"><button type="button" onclick="savePeer(${i})">Save Broker ${i}</button></div>
+  </div>`;
+}
+
+function renderPeers() {
+  renderPeerSelector();
+  form.innerHTML = peers.map((p, i) => row(p, i)).join('');
+  $('peer-empty').classList.toggle('hide', peers.length > 0);
+  $('peer-current-state').textContent = `${peers.filter(p => norm(p).enabled).length} enabled`;
+  $('peer-current-state').className = 'pill ok';
 }
 
 function put(c) {
@@ -145,14 +144,9 @@ function put(c) {
 }
 
 function collect() {
-  const autoBridge = $('mesh_enabled').checked ? 1 : 0;
+  const bridge = $('mesh_enabled').checked ? 1 : 0;
   return {
     device_name: $('device_name').value,
-    admin_password: $('admin_password').value,
-    wifi_ssid: cfg.wifi_ssid || '',
-    wifi_password: cfg.wifi_password || '',
-    ap_ssid: $('ap_ssid').value,
-    ap_password: $('ap_password').value,
     device_ip: $('device_ip').value,
     gateway: $('gateway').value,
     netmask: $('netmask').value,
@@ -163,216 +157,48 @@ function collect() {
     mqtt_port: +($('cfg_mqtt_port').value || cfg.mqtt_port || 1883),
     p2p_port: +($('cfg_p2p_port').value || cfg.p2p_port || 4884),
     broker_enabled: $('broker_enabled').checked ? 1 : 0,
-    bridge_enabled: autoBridge,
-    mesh_enabled: autoBridge,
+    bridge_enabled: bridge,
+    mesh_enabled: bridge,
   };
 }
 
-function renderPeers() {
-  const visible = peers
-    .map((p, i) => ({ p: norm(p), i }))
-    .filter(x => isAutoBridgePeer(x.i, x.p));
-  form.innerHTML = visible.map(x => row(x.p, x.i)).join('');
-  $('peer-empty').classList.toggle('hide', visible.length > 0);
-}
-
-function renderBridgePeerSelector() {
-  const select = $('bridge_peer_index');
-  if (!select) return;
-  const currentValue = Number.isInteger(selectedBridgePeerIndex)
-    ? selectedBridgePeerIndex
-    : +(select.value || 0);
-  select.innerHTML = peers.map((p, i) => {
-    const x = norm(p);
-    const label = x.enabled
-      ? `Broker ${i} - ${x.name || x.host || 'configured'}`
-      : `Broker ${i} - empty`;
-    return `<option value="${i}">${esc(label)}</option>`;
-  }).join('');
-  if (!peers.length) {
-    select.innerHTML = '<option value="0">Broker 0</option>';
-  }
-  const max = Math.max(0, peers.length - 1);
-  selectedBridgePeerIndex = Math.min(Math.max(currentValue, 0), max);
-  select.value = String(selectedBridgePeerIndex);
-}
-
-function availablePeerIndex() {
-  let i = peers.findIndex(p => {
-    const x = norm(p);
-    return !x.enabled && !x.name && !x.host;
-  });
-  if (i < 0) i = peers.findIndex(() => true);
-  return i;
-}
-
-function bridgeJoinPeerIndex() {
-  const selected = +($('bridge_peer_index') && $('bridge_peer_index').value);
-  if (Number.isInteger(selected) && selected >= 0 && selected < peers.length) {
-    selectedBridgePeerIndex = selected;
-    return selected;
-  }
-  const autoIndex = autoBridgePeerIndex();
-  return autoIndex >= 0 ? autoIndex : availablePeerIndex();
-}
-
-function bridgeWifiEnabled() {
-  return !bridgeCurrent || bridgeCurrent.enabled !== 0;
-}
-
-function renderBridgeWifi() {
-  const current = bridgeCurrent && bridgeCurrent.current ? bridgeCurrent.current : {};
-  const enabled = bridgeWifiEnabled();
-  const connected = enabled && bridgeCurrent && bridgeCurrent.connected;
-  $('bridge-current').textContent = current.ssid || '-';
-  $('bridge-current-detail').textContent = current.host
-    ? `${current.host} / MQTT ${current.mqtt_port || '-'} / P2P ${current.p2p_port || '-'}`
-    : '-';
-  $('bridge-local-sta-ip').textContent = bridgeCurrent && bridgeCurrent.local_sta_ip ? bridgeCurrent.local_sta_ip : '-';
-  $('bridge-gateway-ip').textContent = bridgeCurrent && bridgeCurrent.gateway_ip ? bridgeCurrent.gateway_ip : '-';
-  $('bridge-peer-broker-ip').textContent = bridgeCurrent && bridgeCurrent.peer_broker_ip ? bridgeCurrent.peer_broker_ip : current.host || '-';
-  $('bridge_wifi_enabled').checked = enabled;
-  $('scan-bridge-wifi').disabled = !enabled;
-  $('bridge-current-state').textContent = connected ? 'connected' : 'disconnected';
-  $('bridge-current-state').className = `pill ${connected ? 'ok' : 'bad'}`;
-  $('bridge-last-event').textContent = bridgeCurrent && bridgeCurrent.last_event ? bridgeCurrent.last_event : '-';
-  $('bridge-last-error').textContent = bridgeCurrent && bridgeCurrent.last_error ? bridgeCurrent.last_error : '-';
-  $('bridge-details').open = !!(bridgeCurrent && bridgeCurrent.last_error);
-
-  $('bridge-scan-list').innerHTML = scanResults.length
-    ? scanResults.map((x, i) => {
-      const active = connected && current.ssid === x.ssid;
-      const button = active
-        ? `<button class="danger" type="button" ${enabled ? '' : 'disabled'} onclick="disconnectBridgeWifi()">Disconnect</button>`
-        : `<button type="button" ${enabled ? '' : 'disabled'} onclick="joinBridgeWifi(${i})">Connect</button>`;
-      return `<div class="wifi-row ${active ? 'active' : ''}"><div><div class="wifi-title">${esc(x.ssid)}${active ? '<span class="wifi-badge">Current</span>' : ''}</div><div class="wifi-meta"><span>${esc(x.host)}</span><span>RSSI ${x.rssi ?? '-'}</span><span>CH ${x.channel ?? '-'}</span></div></div>${button}</div>`;
-    }).join('')
-    : `<div class="empty">${enabled ? 'No scan results' : 'Bridge WiFi disabled'}</div>`;
-  $('bridge-recent-list').innerHTML = bridgeRecent.length
-    ? bridgeRecent.slice(0, 3).map((x, i) => {
-      const active = connected && current.ssid === x.ssid;
-      const primary = active
-        ? `<button class="danger" type="button" ${enabled ? '' : 'disabled'} onclick="disconnectBridgeWifi()">Disconnect</button>`
-        : `<button type="button" ${enabled ? '' : 'disabled'} onclick="reconnectBridgeWifi(${i})">Connect</button>`;
-      const remove = `<button class="danger" type="button" onclick="deleteRecentBridgeWifi(${i})">Delete</button>`;
-      return `<div class="wifi-row ${active ? 'active' : ''}"><div><div class="wifi-title">${esc(x.ssid)}${active ? '<span class="wifi-badge">Current</span>' : ''}</div><div class="wifi-meta"><span>${esc(x.host)}</span><span>MQTT ${x.mqtt_port}</span><span>P2P ${x.p2p_port}</span></div></div><div class="row-actions">${primary}${remove}</div></div>`;
-    }).join('')
-    : '<div class="empty">No recent bridge WiFi</div>';
-}
-
-async function loadBridgeWifi() {
+async function savePeer(i) {
+  const body = {
+    name: $(`peer_name_${i}`).value,
+    host: $(`peer_host_${i}`).value,
+    mqtt_port: +($(`peer_mqtt_${i}`).value || 1883),
+    p2p_port: +($(`peer_p2p_${i}`).value || 4884),
+    enabled: $(`peer_enabled_${i}`).checked ? 1 : 0,
+  };
   try {
-    [bridgeCurrent, bridgeRecent] = await Promise.all([
-      json('/bridge-wifi/current'),
-      json('/bridge-wifi/recent'),
-    ]);
-    renderBridgePeerSelector();
-    renderBridgeWifi();
-    renderPeers();
-  } catch (x) {
-    failMsg(x, 'Bridge WiFi load failed');
-  }
-}
-
-async function scanBridgeWifi() {
-  if (!bridgeWifiEnabled()) {
-    notice('Bridge WiFi is disabled', 'bad', 0);
-    return;
-  }
-  try {
-    notice('Scanning bridge WiFi', 'muted', 0);
-    scanResults = await json('/wifi/scan');
-    renderBridgeWifi();
-    notice(`${scanResults.length} bridge WiFi found`, 'ok');
-  } catch (x) {
-    failMsg(x, 'Bridge WiFi scan failed');
-  }
-}
-
-async function joinBridgeWifiFrom(entry) {
-  if (!bridgeWifiEnabled()) {
-    notice('Bridge WiFi is disabled', 'bad', 0);
-    return;
-  }
-  const peerIndex = bridgeJoinPeerIndex();
-  if (peerIndex < 0) {
-    notice('No peer index available', 'bad', 0);
-    return;
-  }
-  try {
-    notice(`Joining ${entry.ssid} as broker ${peerIndex}`, 'muted', 0);
-    await json('/bridge-wifi/join', {
+    notice(`Saving broker ${i}`, 'muted', 0);
+    await json(`/peers/${i}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ssid: entry.ssid,
-        password: entry.password || '',
-        peer_name: entry.peer_name || entry.ssid,
-        host: entry.host,
-        mqtt_port: +(entry.mqtt_port || 1883),
-        p2p_port: +(entry.p2p_port || 4884),
-        peer_index: peerIndex,
-      }),
+      body: JSON.stringify(body),
     });
-    await load();
-    notice(`Joined ${entry.ssid} as broker ${peerIndex}`, 'ok');
+    selectedPeerIndex = i;
+    await loadPeers();
+    notice(`Broker ${i} saved`, 'ok');
   } catch (x) {
-    failMsg(x, `Join ${entry.ssid} failed`);
+    failMsg(x, `Save broker ${i} failed`);
   }
 }
 
-async function setBridgeWifiEnabled() {
-  const enabled = $('bridge_wifi_enabled').checked ? 1 : 0;
-  try {
-    await json('/bridge-wifi/enabled', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    });
-    scanResults = enabled ? scanResults : [];
-    await loadBridgeWifi();
-    notice(enabled ? 'Bridge WiFi enabled' : 'Bridge WiFi disabled', enabled ? 'ok' : 'muted');
-  } catch (x) {
-    $('bridge_wifi_enabled').checked = !enabled;
-    failMsg(x, 'Bridge WiFi switch failed');
-  }
-}
-
-async function disconnectBridgeWifi() {
-  try {
-    notice('Disconnecting bridge WiFi', 'muted', 0);
-    await json('/bridge-wifi/disconnect', { method: 'POST' });
-    await load();
-    notice('Bridge WiFi disconnected', 'ok');
-  } catch (x) {
-    failMsg(x, 'Bridge WiFi disconnect failed');
-  }
-}
-
-async function joinBridgeWifi(i) {
-  await joinBridgeWifiFrom(scanResults[i]);
-}
-
-async function reconnectBridgeWifi(i) {
-  await joinBridgeWifiFrom(bridgeRecent[i]);
-}
-
-async function deleteRecentBridgeWifi(i) {
-  const entry = bridgeRecent[i];
-  if (!entry) return;
-  try {
-    notice(`Deleting ${entry.ssid}`, 'muted', 0);
-    await json(`/bridge-wifi/recent/${i}`, { method: 'DELETE' });
-    await loadBridgeWifi();
-    notice(`Deleted ${entry.ssid}`, 'ok');
-  } catch (x) {
-    failMsg(x, `Delete ${entry.ssid} failed`);
-  }
+async function loadPeers() {
+  [peers, peerStatus] = await Promise.all([
+    json('/peers'),
+    json('/peer-status'),
+  ]);
+  peers = peers.map(norm);
+  renderPeers();
 }
 
 function renderStatus(s) {
   $('broker-state').textContent = s.broker_state || '-';
   $('p2p-state').textContent = `${s.p2p_role || '-'} / peers ${s.connected_peers || 0}`;
+  $('network-state').textContent = `${s.network_state || '-'} / ${s.ip_addr || '-'}`;
+  $('network-state').className = 'pill ok';
   st.textContent = 'Online';
   st.className = 'pill ok';
 }
@@ -386,16 +212,13 @@ async function loadStatus() {
 }
 
 async function load() {
-  const [s, c, p] = await Promise.all([
+  const [s, c] = await Promise.all([
     loadStatus(),
     json('/config'),
-    json('/peers'),
   ]);
   put(c);
-  peers = p.map(norm);
-  $('wifi-state').textContent = c.ap_ssid ? `${c.ap_ssid} / ${c.device_ip || '-'}` : 'AP active';
   renderStatus(s);
-  await loadBridgeWifi();
+  await loadPeers();
 }
 
 async function saveConfig(part) {
@@ -417,9 +240,7 @@ async function resetConfig() {
   try {
     notice('Resetting', 'muted', 0);
     await json('/config/reset', { method: 'POST' });
-    setAuthToken('');
-    $('login-password').value = 'admin';
-    showLogin('Config reset; login again');
+    await load();
     notice('Config reset', 'ok');
   } catch (x) {
     failMsg(x, 'Reset failed');
@@ -450,47 +271,17 @@ function showTab(id) {
   }
 }
 
-$('login-form').onsubmit = async e => {
-  e.preventDefault();
-  try {
-    const r = await json('/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: $('login-password').value }),
-    });
-    token = r.token;
-    setAuthToken(token);
-    showApp();
-    await load();
-  } catch (x) {
-    setAuthToken('');
-    $('login-state').textContent = 'Login failed';
-    $('login-state').className = 'bad';
-  }
-};
-
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => showTab(b.dataset.tab);
 $('refresh').onclick = load;
 $('save-system').onclick = () => saveConfig('System');
 $('reset-config').onclick = resetConfig;
 $('save-network').onclick = () => saveConfig('Network');
 $('save-broker').onclick = () => saveConfig('Broker');
-$('mesh_enabled').onchange = () => saveConfig('Auto Bridge');
+$('mesh_enabled').onchange = () => saveConfig('Bridge Routing');
 $('broker-start').onclick = () => brokerControl(1);
 $('broker-stop').onclick = () => brokerControl(0);
-$('scan-bridge-wifi').onclick = scanBridgeWifi;
-$('bridge_wifi_enabled').onchange = setBridgeWifiEnabled;
 $('bridge_peer_index').onchange = () => {
-  selectedBridgePeerIndex = +($('bridge_peer_index').value || 0);
+  selectedPeerIndex = +($('bridge_peer_index').value || 0);
 };
 
-if (token) {
-  showApp();
-  load().catch(x => {
-    setAuthToken('');
-    showLogin('Session expired; login again');
-    failMsg(x, 'Load failed');
-  });
-} else {
-  loadStatus().catch(x => failMsg(x, 'Status failed'));
-}
+load().catch(x => failMsg(x, 'Load failed'));

@@ -52,7 +52,7 @@ void product_runtime_init(void)
 {
     memset(&runtime_status, 0, sizeof(runtime_status));
     memset(&last_publish, 0, sizeof(last_publish));
-    copy_str(runtime_status.wifi_state, sizeof(runtime_status.wifi_state), "init");
+    copy_str(runtime_status.network_state, sizeof(runtime_status.network_state), "init");
     copy_str(runtime_status.ip_addr, sizeof(runtime_status.ip_addr), "0.0.0.0");
     copy_str(runtime_status.broker_state, sizeof(runtime_status.broker_state), "stopped");
     copy_str(runtime_status.p2p_role, sizeof(runtime_status.p2p_role), "unknown");
@@ -62,26 +62,23 @@ void product_runtime_init(void)
 void product_runtime_network_start(const field_bridge_settings_t *settings)
 {
     if (!settings) {
-        copy_str(runtime_status.wifi_state, sizeof(runtime_status.wifi_state), "error");
+        copy_str(runtime_status.network_state, sizeof(runtime_status.network_state), "error");
         copy_str(runtime_status.last_error, sizeof(runtime_status.last_error),
                  "network settings missing");
         return;
     }
 
-    if (settings->network.wifi_ssid[0] != '\0') {
-        copy_str(runtime_status.wifi_state, sizeof(runtime_status.wifi_state), "configured");
-    } else {
-        copy_str(runtime_status.wifi_state, sizeof(runtime_status.wifi_state), "ap");
-    }
+    copy_str(runtime_status.network_state, sizeof(runtime_status.network_state),
+             settings->network.dhcp_enabled ? "dhcp" : "static");
     copy_str(runtime_status.ip_addr, sizeof(runtime_status.ip_addr),
-             settings->network.device_ip[0] ? settings->network.device_ip : "192.168.4.1");
+             settings->network.device_ip[0] ? settings->network.device_ip : "0.0.0.0");
     runtime_status.last_error[0] = '\0';
 }
 
 int product_runtime_network_ready(void)
 {
-    return strcmp(runtime_status.wifi_state, "configured") == 0 ||
-           strcmp(runtime_status.wifi_state, "ap") == 0;
+    return strcmp(runtime_status.network_state, "dhcp") == 0 ||
+           strcmp(runtime_status.network_state, "static") == 0;
 }
 
 void product_runtime_broker_started(void)

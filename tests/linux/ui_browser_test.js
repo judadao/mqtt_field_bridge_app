@@ -185,7 +185,7 @@ async function main() {
   console.log('=== ui_browser_test ===');
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  for (const file of ['ui_peers.bin', 'ui_settings.bin', 'ui_bridge_wifi.bin']) {
+  for (const file of ['ui_peers.bin', 'ui_settings.bin']) {
     try { fs.unlinkSync(path.join(OUT_DIR, file)); } catch (_) {}
   }
 
@@ -200,7 +200,6 @@ async function main() {
       ...process.env,
       BRIDGE_PEERS_FILE: 'out/ui_peers.bin',
       BRIDGE_SETTINGS_FILE: 'out/ui_settings.bin',
-      BRIDGE_WIFI_FILE: 'out/ui_bridge_wifi.bin',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -239,96 +238,52 @@ async function main() {
     await cdp.send('Page.navigate', { url: `${BASE}/` }, sessionId);
     await waitEval(cdp, sessionId, 'document.readyState === "complete"');
 
-    await evalPage(cdp, sessionId, `
-      document.getElementById('login-password').value = 'admin';
-      document.getElementById('login-form')
-        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    `);
-    await waitEval(cdp, sessionId, '!document.getElementById("app").classList.contains("hide")');
+    await waitEval(cdp, sessionId, 'document.getElementById("login-form") === null');
+    await waitEval(cdp, sessionId, 'document.getElementById("app") !== null');
+    await waitEval(cdp, sessionId, 'document.getElementById("network-state").textContent.includes("static")');
+    await waitEval(cdp, sessionId, 'document.getElementById("ip-state").textContent.includes("192.168.127.4")');
     await evalPage(cdp, sessionId, `
       document.querySelector('[data-tab="peers"]').click();
     `);
     await waitEval(cdp, sessionId, 'document.querySelector("#broker #mesh_enabled") === null');
     await waitEval(cdp, sessionId, 'document.querySelector("#peers #mesh_enabled") !== null');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge_wifi_enabled").checked === true');
     await waitEval(cdp, sessionId, 'document.getElementById("bridge_peer_index").value === "0"');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-current-state").textContent === "disconnected"');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-details").open === false');
-    await waitEval(cdp, sessionId, 'document.querySelector("#bridge-scan-list").closest(".wifi-list-panel").querySelector("#scan-bridge-wifi") !== null');
-    requests.length = 0;
-    await evalPage(cdp, sessionId, `
-      document.getElementById('bridge_wifi_enabled').click();
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("scan-bridge-wifi").disabled === true');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-current-state").textContent === "disconnected"');
-    check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/bridge-wifi/enabled`),
-          'bridge WiFi switch should POST /bridge-wifi/enabled');
-
-    await evalPage(cdp, sessionId, `
-      document.getElementById('bridge_wifi_enabled').click();
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("scan-bridge-wifi").disabled === false');
-    await evalPage(cdp, sessionId, `
-      document.getElementById('scan-bridge-wifi').click();
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-scan-list").textContent.includes("MQTT-BRIDGE-node1")');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-scan-list").textContent.includes("MQTT-BRIDGE-node10")');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-scan-list").scrollHeight > document.getElementById("bridge-scan-list").clientHeight');
+    await waitEval(cdp, sessionId, 'document.getElementById("scan-bridge-wifi") === null');
+    await waitEval(cdp, sessionId, 'document.body.textContent.includes("Broker Slots")');
+    await waitEval(cdp, sessionId, '!document.body.textContent.includes("Bridge WiFi")');
     await evalPage(cdp, sessionId, `
       const peerSelect = document.getElementById('bridge_peer_index');
       peerSelect.value = '1';
       peerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      document.getElementById('peer_name_1').value = 'broker-a';
+      document.getElementById('peer_host_1').value = '192.168.127.10';
+      document.getElementById('peer_mqtt_1').value = '1884';
+      document.getElementById('peer_p2p_1').value = '4885';
+      document.getElementById('peer_enabled_1').checked = true;
     `);
     requests.length = 0;
     await evalPage(cdp, sessionId, `
-      document.querySelector('#bridge-scan-list button').click();
+      document.querySelector('[data-i="1"] button').click();
     `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Joined MQTT-BRIDGE-node1")');
-    check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/bridge-wifi/join`),
-          'bridge WiFi join should POST /bridge-wifi/join');
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker 1 saved")');
     check(requests.some(r => r.method === 'POST' &&
-          r.url === `${BASE}/bridge-wifi/join` &&
-          /"peer_index":1/.test(r.postData)),
-          'bridge WiFi join should use selected broker slot');
-    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("Auto Bridge WiFi")');
-    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("MQTT-BRIDGE-node1")');
-    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("127.0.0.2")');
+          r.url === `${BASE}/peers/1` &&
+          /"host":"192.168.127.10"/.test(r.postData) &&
+          /"p2p_port":4885/.test(r.postData)),
+          'broker slot save should POST selected peer body');
+    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("broker-a")');
+    await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("192.168.127.10")');
     await waitEval(cdp, sessionId, 'document.getElementById("add-peer") === null');
-    await evalPage(cdp, sessionId, 'document.getElementById("bridge-details").open = true');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-current").textContent.includes("MQTT-BRIDGE-node1")');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-peer-broker-ip").textContent.includes("127.0.0.2")');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-local-sta-ip").textContent.includes("127.0.0.10")');
-
-    requests.length = 0;
-    await evalPage(cdp, sessionId, `
-      document.querySelector('#bridge-scan-list .wifi-row.active button').click();
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Bridge WiFi disconnected")');
-    check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/bridge-wifi/disconnect`),
-          'bridge WiFi disconnect should POST /bridge-wifi/disconnect');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-current-state").textContent === "disconnected"');
-    await waitEval(cdp, sessionId, '!document.getElementById("bridge-recent-list").textContent.includes("Current")');
-    await waitEval(cdp, sessionId, 'document.querySelector("#bridge-recent-list button").textContent.includes("Connect")');
-    await waitEval(cdp, sessionId, 'Array.from(document.querySelectorAll("#bridge-recent-list button")).some(b => b.textContent.includes("Delete"))');
-    requests.length = 0;
-    await evalPage(cdp, sessionId, `
-      Array.from(document.querySelectorAll('#bridge-recent-list button'))
-        .find(b => b.textContent.includes('Delete')).click();
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Deleted MQTT-BRIDGE-node1")');
-    check(requests.some(r => r.method === 'DELETE' && r.url === `${BASE}/bridge-wifi/recent/0`),
-          'bridge WiFi recent delete should DELETE /bridge-wifi/recent/0');
-    await waitEval(cdp, sessionId, '!document.getElementById("bridge-recent-list").textContent.includes("MQTT-BRIDGE-node1")');
 
     await evalPage(cdp, sessionId, `
       const realFetch = window.fetch;
       window.fetch = () => Promise.reject(new Error('forced fetch failure'));
-      scanBridgeWifi().finally(() => { window.fetch = realFetch; });
+      loadPeers().catch(x => failMsg(x, 'Broker load failed'))
+        .finally(() => { window.fetch = realFetch; });
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("event-log").textContent.includes("forced fetch failure")');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge-details").open === true');
     const eventLog = await evalPage(cdp, sessionId, 'document.getElementById("event-log").textContent');
-    check(/Bridge WiFi scan failed/.test(eventLog), 'event log should record failed bridge WiFi scan');
+    check(/Broker load failed/.test(eventLog), 'event log should record failed broker load');
     check(/\d/.test(eventLog), 'event log should include a timestamp');
 
     console.log(`${tests - failures}/${tests} browser checks passed`);

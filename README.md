@@ -10,9 +10,8 @@ cd mqtt_field_bridge_app
 ./run_linux_web.sh
 ```
 
-Open `http://127.0.0.1:8080/`.
-
-Login password: `admin`
+Open `http://127.0.0.1:8080/`. The Ethernet provisioning UI loads directly;
+there is no login step.
 
 This starts the product provisioning UI on Linux. It is the fastest way to see
 and test the web flow before using ESP32 hardware.
@@ -20,14 +19,16 @@ and test the web flow before using ESP32 hardware.
 ## Overview
 
 `mqtt_field_bridge_app` composes Dephy modules into a deployable ESP32 field
-bridge. It owns provisioning UI/HTTP APIs, product configuration, Bridge WiFi,
-peer selection, runtime status, and product-level Linux tests.
+bridge. It owns provisioning UI/HTTP APIs, product configuration, Ethernet
+network setup, manual broker peer selection, runtime status, and product-level
+Linux tests.
 
 ## Key Value
 
 - Product integration of `mqtt_min_broker`, `dephy`, `dephy_industrial_io`, and
   `dephy_testkit`.
-- Embedded provisioning UI for network, MQTT, P2P, Bridge WiFi, and peer config.
+- Embedded provisioning UI for Ethernet network settings, MQTT/P2P broker
+  controls, and manual broker peer config.
 - Static-seed P2P product path using `CONFIG_MQTT_P2P_DYNAMIC=y` and
   `CONFIG_MQTT_P2P_STATIC_SEEDS_ONLY=y`.
 - Linux web runner and tests for config, provisioning rendering, peer application, runtime
@@ -81,8 +82,8 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[Installer opens provisioning UI] --> B[Set WiFi and MQTT ports]
-    B --> C[Scan or choose Bridge WiFi peer]
+    A[Installer opens provisioning UI] --> B[Set Ethernet DHCP/static network and MQTT ports]
+    B --> C[Choose broker slot and enter broker host/IP]
     C --> D[Save peer as static P2P seed]
     D --> E[ESP32 starts local broker]
     E --> F[Peer brokers connect]
@@ -100,7 +101,7 @@ reusable, fix it in the module repo first, tag it, then update `deps.json`.
 - `docs/readme_legacy.md`: previous long README and detailed examples.
 - `docs/field_bridge_scenario.md`: field bridge scenario notes.
 - `docs/field_validation_checklist.md`: hardware validation checklist.
-- `docs/bridge_wifi_join_plan.md`: Bridge WiFi join plan.
+- `docs/bridge_wifi_join_plan.md`: legacy Bridge WiFi join plan.
 - `docs/versioning.md`: dependency/version guidance.
 - `docs/todo.md`: current TODO summary.
 

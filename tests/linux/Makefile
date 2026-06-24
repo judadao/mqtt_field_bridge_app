@@ -19,7 +19,7 @@ OUTDIR = out
         unit_product_topics unit_bridge_control \
         unit_product_console \
         unit_product_io_bridge \
-        unit_provisioning_http web-network-test ui-browser-test bridge-wifi-sim-test run-web-server run_web_config_server integration-tests stress scale-tests \
+        unit_provisioning_http web-network-test ui-browser-test run-web-server run_web_config_server integration-tests stress scale-tests \
         scale-ring-tests clean broker-p2p
 
 all: unit-tests
@@ -85,15 +85,12 @@ $(OUTDIR)/unit_product_console: unit_product_console.c \
                                 $(APP_SRC)/product_config.h \
                                 $(APP_SRC)/product_runtime.c \
                                 $(APP_SRC)/product_runtime.h \
-                                $(APP_SRC)/product_wifi.c \
-                                $(APP_SRC)/product_wifi.h \
                                 | $(OUTDIR)
 	$(CC) $(CFLAGS) \
 	    unit_product_console.c \
 	    $(APP_SRC)/product_console.c \
 	    $(APP_SRC)/product_config.c \
 	    $(APP_SRC)/product_runtime.c \
-	    $(APP_SRC)/product_wifi.c \
 	    -o $@
 
 $(OUTDIR)/unit_product_io_bridge: unit_product_io_bridge.c \
@@ -206,9 +203,6 @@ testkit-wrapper:
 
 ui-browser-test: $(OUTDIR)/run_web_config_server
 	@node ui_browser_test.js
-
-bridge-wifi-sim-test:
-	@bash test_bridge_wifi_join_sim.sh
 
 run-web-server: $(OUTDIR)/run_web_config_server
 	@bash run_web_config_server.sh

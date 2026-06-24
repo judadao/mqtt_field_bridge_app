@@ -56,12 +56,59 @@ items:
     as stress/debug only. Later WPA PSK attempts reached association/4-way handshake
     then failed with beacon-loss/WRONG_KEY symptoms on Linux USB adapters. Keep the
     development AP open (`ap_password=open`) so broker/web work is not blocked while
-    WPA compatibility is debugged separately.
+    WPA compatibility is debugged separately. Later on 2026-06-24, product firmware
+    and a temporary minimal Zephyr AP-only app both advertised the ESP32 AP at BSSID
+    E0:5A:1B:5A:B4:1D, but NetworkManager still timed out during association even
+    when BSSID was pinned. The minimal app had DRAM0 near 51% and heap near 94 KiB,
+    so this is not caused by the product web/broker footprint alone. Continue by
+    validating with another client/phone, another ESP32 board or antenna, and the
+    Zephyr ESP32 SoftAP driver/radio path.
 - id: hardware-ip-values
   area: hardware
   title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values
     on hardware.
   status: blocked
+- id: product-ethernet-only-direction
+  area: architecture
+  title: Shift the product direction to Ethernet-only networking.
+  status: done
+  notes: Product startup now uses product_ethernet, WiFi/SoftAP startup is removed
+    from the build, runtime status reports network_state, and the active product
+    surface is Ethernet DHCP/static IPv4.
+- id: product-user-specified-broker
+  area: firmware
+  title: Make bridge broker targets user-specified instead of WiFi-discovered.
+  status: done
+  notes: Web and HTTP tests now cover explicit broker peer slots with name, host/IP,
+    MQTT port, P2P port, and enabled state. Bridge control applies configured peers
+    directly over Ethernet.
+- id: product-remove-wifi-ap-code
+  area: firmware
+  title: Remove WiFi/AP firmware code paths from the product app.
+  status: done
+  notes: Removed product_wifi source/header, WiFi/AP Kconfig defaults, WiFi config
+    fields, Bridge WiFi persistence/API state, WiFi HTTP endpoints, and console
+    WiFi/AP commands. Active runtime status uses network_state.
+- id: product-web-ethernet-broker-ui
+  area: frontend
+  title: Redesign the provisioning web UI for Ethernet and manual broker config.
+  status: done
+  notes: Network page presents Ethernet DHCP/static fields. Broker/Peers page now
+    provides manual broker slot CRUD. AP SSID/password, scan buttons, Bridge WiFi
+    enabled toggles, and WiFi status labels were removed.
+- id: product-remove-login-auth
+  area: frontend
+  title: Remove provisioning login/auth from the Ethernet-only product UI and API.
+  status: done
+  notes: The page loads directly without login. Removed login form, session token
+    handling, auth headers, admin password config field/API exposure, and HTTP
+    auth gates for config, peers, broker control, publish test, and reset.
+- id: product-ethernet-tests-docs
+  area: validation
+  title: Update tests and docs for the Ethernet-only product direction.
+  status: done
+  notes: Updated unit/browser tests for Ethernet network config, no-auth APIs,
+    manual broker peer flows, removed routes, README, and Linux test docs.
 - id: provisioning-render-cost
   area: performance
   title: Profile provisioning HTML/status rendering and cap response sizes for embedded

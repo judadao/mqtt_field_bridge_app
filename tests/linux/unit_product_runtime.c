@@ -51,7 +51,7 @@ static void test_defaults(void)
     field_bridge_runtime_status_t st;
     CHECK(product_runtime_network_ready() == 0);
     CHECK(product_runtime_get_status(&st) == 0);
-    CHECK(strcmp(st.wifi_state, "init") == 0);
+    CHECK(strcmp(st.network_state, "init") == 0);
     CHECK(strcmp(st.ip_addr, "0.0.0.0") == 0);
     CHECK(strcmp(st.broker_state, "stopped") == 0);
     CHECK(strcmp(st.p2p_role, "unknown") == 0);
@@ -59,35 +59,36 @@ static void test_defaults(void)
     CHECK(st.remote_subscriptions == 0);
 }
 
-static void test_network_start_ap_default(void)
+static void test_network_start_static_default(void)
 {
     field_bridge_settings_t cfg;
     memset(&cfg, 0, sizeof(cfg));
-    strcpy(cfg.network.device_ip, "192.168.4.1");
+    strcpy(cfg.network.device_ip, "192.168.127.4");
+    cfg.network.dhcp_enabled = 0;
 
     product_runtime_network_start(&cfg);
     CHECK(product_runtime_network_ready() == 1);
 
     field_bridge_runtime_status_t st;
     CHECK(product_runtime_get_status(&st) == 0);
-    CHECK(strcmp(st.wifi_state, "ap") == 0);
-    CHECK(strcmp(st.ip_addr, "192.168.4.1") == 0);
+    CHECK(strcmp(st.network_state, "static") == 0);
+    CHECK(strcmp(st.ip_addr, "192.168.127.4") == 0);
     CHECK(st.last_error[0] == '\0');
 }
 
-static void test_network_start_wifi_configured(void)
+static void test_network_start_dhcp(void)
 {
     field_bridge_settings_t cfg;
     memset(&cfg, 0, sizeof(cfg));
-    strcpy(cfg.network.wifi_ssid, "plant");
     strcpy(cfg.network.device_ip, "10.0.0.20");
+    cfg.network.dhcp_enabled = 1;
 
     product_runtime_network_start(&cfg);
     CHECK(product_runtime_network_ready() == 1);
 
     field_bridge_runtime_status_t st;
     CHECK(product_runtime_get_status(&st) == 0);
-    CHECK(strcmp(st.wifi_state, "configured") == 0);
+    CHECK(strcmp(st.network_state, "dhcp") == 0);
     CHECK(strcmp(st.ip_addr, "10.0.0.20") == 0);
 }
 
@@ -224,8 +225,8 @@ int main(void)
     setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
 
     RUN(test_defaults);
-    RUN(test_network_start_ap_default);
-    RUN(test_network_start_wifi_configured);
+    RUN(test_network_start_static_default);
+    RUN(test_network_start_dhcp);
     RUN(test_broker_state_transitions);
     RUN(test_broker_failed);
     RUN(test_publish_test_record);

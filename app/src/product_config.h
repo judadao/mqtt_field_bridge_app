@@ -8,11 +8,8 @@
 #endif
 #define FIELD_BRIDGE_NAME_MAX 32
 #define FIELD_BRIDGE_HOST_MAX 64
-#define FIELD_BRIDGE_WIFI_MAX 64
-#define FIELD_BRIDGE_PASSWORD_MAX 64
 #define FIELD_BRIDGE_SITE_MAX 32
 #define FIELD_BRIDGE_TOPIC_MAX 64
-#define FIELD_BRIDGE_RECENT_WIFI_MAX 4
 
 typedef struct {
     char name[FIELD_BRIDGE_NAME_MAX];
@@ -24,14 +21,9 @@ typedef struct {
 
 typedef struct {
     char device_name[FIELD_BRIDGE_NAME_MAX];
-    char admin_password[FIELD_BRIDGE_PASSWORD_MAX];
 } field_bridge_system_settings_t;
 
 typedef struct {
-    char wifi_ssid[FIELD_BRIDGE_WIFI_MAX];
-    char wifi_password[FIELD_BRIDGE_PASSWORD_MAX];
-    char ap_ssid[FIELD_BRIDGE_WIFI_MAX];
-    char ap_password[FIELD_BRIDGE_PASSWORD_MAX];
     char device_ip[FIELD_BRIDGE_HOST_MAX];
     char gateway[FIELD_BRIDGE_HOST_MAX];
     char netmask[FIELD_BRIDGE_HOST_MAX];
@@ -55,26 +47,6 @@ typedef struct {
     field_bridge_broker_settings_t broker;
 } field_bridge_settings_t;
 
-typedef struct {
-    char ssid[FIELD_BRIDGE_WIFI_MAX];
-    char password[FIELD_BRIDGE_PASSWORD_MAX];
-    char peer_name[FIELD_BRIDGE_NAME_MAX];
-    char host[FIELD_BRIDGE_HOST_MAX];
-    uint16_t mqtt_port;
-    uint16_t p2p_port;
-} field_bridge_wifi_entry_t;
-
-typedef struct {
-    field_bridge_wifi_entry_t current;
-    field_bridge_wifi_entry_t recent[FIELD_BRIDGE_RECENT_WIFI_MAX];
-    char local_sta_ip[FIELD_BRIDGE_HOST_MAX];
-    char gateway_ip[FIELD_BRIDGE_HOST_MAX];
-    uint8_t enabled;
-    uint8_t connected;
-    char last_error[FIELD_BRIDGE_HOST_MAX];
-    char last_event[FIELD_BRIDGE_HOST_MAX];
-} field_bridge_wifi_state_t;
-
 typedef enum {
     FIELD_BRIDGE_PROFILE_SMALL = 0,
     FIELD_BRIDGE_PROFILE_LARGE = 1,
@@ -86,11 +58,6 @@ int product_config_get_peer(int index, field_bridge_peer_t *out);
 int product_config_set_peer(int index, const field_bridge_peer_t *peer);
 int product_config_get_settings(field_bridge_settings_t *out);
 int product_config_set_settings(const field_bridge_settings_t *settings);
-int product_config_get_bridge_wifi(field_bridge_wifi_state_t *out);
-int product_config_set_bridge_wifi(const field_bridge_wifi_state_t *state);
-int product_config_add_recent_bridge_wifi(const field_bridge_wifi_entry_t *entry);
-int product_config_remove_recent_bridge_wifi(int index);
-int product_config_check_admin_password(const char *password);
 int product_config_reset_all(void);
 int product_config_apply_defaults(field_bridge_defaults_profile_t profile);
 

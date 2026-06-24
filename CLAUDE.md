@@ -49,7 +49,7 @@ This is a **Zephyr RTOS application** targeting ESP32. It is the product layer o
 1. `product_config_init()` — initializes settings/peer config and loads Linux file or Zephyr NVS persistence
 2. `product_runtime_init()` / `product_runtime_network_start()` — initializes product runtime status from saved network settings
 3. `bridge_control_init()` — applies enabled peers through `bridge_control_apply_peers()`
-4. `provisioning_http_start()` — starts the product-owned HTTP server for login, settings, status, peer config, broker control, and topic test
+4. `provisioning_http_start()` — starts the product-owned HTTP server for settings, status, peer config, broker control, and topic test
 5. `client_pool_init()` / `broker_init()` / `p2p_start()` / `broker_run()` — start the embedded broker from the dep when broker config is enabled
 
 `CONFIG_MQTT_STANDALONE=n` in `prj.conf` disables the broker's own `main()` so the product app owns the entry point.
@@ -58,7 +58,7 @@ This is a **Zephyr RTOS application** targeting ESP32. It is the product layer o
 - `product_config` — owns validated system/network/broker settings, peer table, reset path, and persistence
 - `product_runtime` — owns runtime status projection, broker desired state, and product-level publish-test records
 - `bridge_control` — validates enabled peer config and is the product integration point for broker/P2P peer application
-- `provisioning_http` — HTTP server and firmware-served HTML UI for login, System/Network/Broker settings, peer config, broker control, reset, and Topic Test
+- `provisioning_http` — HTTP server and firmware-served HTML UI for System/Network/Broker settings, peer config, broker control, reset, and Topic Test
 - `deps/mqtt_min_broker` — broker implementation; treat as read-only from this repo
 
 ## Dependency Rule
