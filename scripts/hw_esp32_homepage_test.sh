@@ -160,15 +160,20 @@ connect_esp32_ap() {
     fi
     PASSWD_FILE=$(mktemp)
     chmod 600 "$PASSWD_FILE"
-    printf '802-11-wireless-security.psk:%s\n' "$ESP32_AP_PASS" > "$PASSWD_FILE"
+    if [ -n "$ESP32_AP_PASS" ] && [ "$ESP32_AP_PASS" != "open" ]; then
+        printf '802-11-wireless-security.psk:%s\n' "$ESP32_AP_PASS" > "$PASSWD_FILE"
+    fi
     nmcli connection add type wifi ifname "$WIFI_IFACE" \
         con-name "$ESP32_CONN_NAME" ssid "$ESP32_AP_SSID" >/dev/null
     nmcli connection modify "$ESP32_CONN_NAME" \
         connection.autoconnect no \
-        802-11-wireless.mode infrastructure \
-        802-11-wireless-security.key-mgmt wpa-psk \
-        802-11-wireless-security.psk "$ESP32_AP_PASS" \
-        802-11-wireless-security.psk-flags 0
+        802-11-wireless.mode infrastructure
+    if [ -n "$ESP32_AP_PASS" ] && [ "$ESP32_AP_PASS" != "open" ]; then
+        nmcli connection modify "$ESP32_CONN_NAME" \
+            802-11-wireless-security.key-mgmt wpa-psk \
+            802-11-wireless-security.psk "$ESP32_AP_PASS" \
+            802-11-wireless-security.psk-flags 0
+    fi
 
     for i in $(seq 1 "$CONNECT_RETRIES"); do
         printf '\nConnect attempt %s/%s to %s\n' "$i" "$CONNECT_RETRIES" "$ESP32_AP_SSID"
@@ -178,12 +183,23 @@ connect_esp32_ap() {
         ESP32_BSSID=$(esp32_bssid)
         ensure_linux_ap
         if [ -n "$ESP32_BSSID" ]; then
-            if nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
-                ifname "$WIFI_IFACE" ap "$ESP32_BSSID" passwd-file "$PASSWD_FILE"; then
-                return 0
+            if [ -s "$PASSWD_FILE" ]; then
+                if nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
+                    ifname "$WIFI_IFACE" ap "$ESP32_BSSID" passwd-file "$PASSWD_FILE"; then
+                    return 0
+                fi
+            else
+                if nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
+                    ifname "$WIFI_IFACE" ap "$ESP32_BSSID"; then
+                    return 0
+                fi
             fi
-        elif nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
-            ifname "$WIFI_IFACE" passwd-file "$PASSWD_FILE"; then
+        elif { [ -s "$PASSWD_FILE" ] &&
+               nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
+                   ifname "$WIFI_IFACE" passwd-file "$PASSWD_FILE"; } ||
+             { [ ! -s "$PASSWD_FILE" ] &&
+               nmcli --wait 20 connection up "$ESP32_CONN_NAME" \
+                   ifname "$WIFI_IFACE"; }; then
             return 0
         fi
         sleep 2

@@ -53,7 +53,10 @@ items:
     radio/driver compatibility, or reset/flash validation. Later on 2026-06-24,
     reset via /dev/ttyUSB0 restored SoftAP advertising and the single-adapter
     homepage/API validation passed on wlx3c64cf742c7b. Keep dual-adapter testing
-    as stress/debug only.
+    as stress/debug only. Later WPA PSK attempts reached association/4-way handshake
+    then failed with beacon-loss/WRONG_KEY symptoms on Linux USB adapters. Keep the
+    development AP open (`ap_password=open`) so broker/web work is not blocked while
+    WPA compatibility is debugged separately.
 - id: hardware-ip-values
   area: hardware
   title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values

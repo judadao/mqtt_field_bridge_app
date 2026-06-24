@@ -19,7 +19,7 @@ static void settings_defaults(void)
             sizeof(settings.system.admin_password) - 1);
     strncpy(settings.network.ap_ssid, "ESP32-Min-Broker",
             sizeof(settings.network.ap_ssid) - 1);
-    strncpy(settings.network.ap_password, "12345678",
+    strncpy(settings.network.ap_password, "open",
             sizeof(settings.network.ap_password) - 1);
     strncpy(settings.network.device_ip, "192.168.4.1",
             sizeof(settings.network.device_ip) - 1);

@@ -6,6 +6,8 @@ ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 LOG_DIR=${LOG_DIR:-"$ROOT_DIR/tests/linux/out/hardware"}
 BAUD=${BAUD:-115200}
 LOG_SECONDS=${LOG_SECONDS:-45}
+VERIFY_REBOOT=${VERIFY_REBOOT:-1}
+REBOOT_LOG_SECONDS=${REBOOT_LOG_SECONDS:-18}
 SKIP_BUILD=${SKIP_BUILD:-0}
 SKIP_FLASH=${SKIP_FLASH:-0}
 BUILD_DIR=${BUILD_DIR:-"$ROOT_DIR/build_product"}
@@ -62,6 +64,7 @@ fi
 STAMP=$(date +%Y%m%d-%H%M%S)
 FLASH_LOG="$LOG_DIR/flash-$STAMP.log"
 UART_LOG="$LOG_DIR/uart-$STAMP.log"
+REBOOT_UART_LOG="$LOG_DIR/uart-reboot-$STAMP.log"
 
 printf 'ESP32 serial: %s\n' "$PORT"
 printf 'Flash log:    %s\n' "$FLASH_LOG"
@@ -101,3 +104,44 @@ with serial.Serial(port, baudrate=baud, timeout=0.25) as ser, open(log_path, "wb
 PY
 
 printf '\nCaptured UART log: %s\n' "$UART_LOG"
+
+if [ "$VERIFY_REBOOT" = 1 ]; then
+    printf '\nReboot verification log: %s\n' "$REBOOT_UART_LOG"
+    python3 - "$PORT" "$BAUD" "$REBOOT_LOG_SECONDS" "$REBOOT_UART_LOG" <<'PY'
+import serial
+import sys
+import time
+
+port = sys.argv[1]
+baud = int(sys.argv[2])
+seconds = float(sys.argv[3])
+log_path = sys.argv[4]
+deadline = time.monotonic() + seconds
+sent_reboot = False
+
+with serial.Serial(port, baudrate=baud, timeout=0.25) as ser, open(log_path, "wb") as out:
+    ser.dtr = False
+    ser.rts = False
+    ser.reset_input_buffer()
+    while time.monotonic() < deadline:
+        if not sent_reboot:
+            ser.write(b"reboot\n")
+            ser.flush()
+            sent_reboot = True
+            time.sleep(0.2)
+        chunk = ser.read(4096)
+        if not chunk:
+            continue
+        sys.stdout.buffer.write(chunk)
+        sys.stdout.buffer.flush()
+        out.write(chunk)
+        out.flush()
+PY
+    if ! rg --fixed-strings 'SoftAP enabled' "$REBOOT_UART_LOG" >/dev/null ||
+       ! rg --fixed-strings 'provisioning HTTP listening on port 8080' "$REBOOT_UART_LOG" >/dev/null ||
+       ! rg --fixed-strings 'mqtt_broker: Listening on port 1883' "$REBOOT_UART_LOG" >/dev/null; then
+        printf 'error: reboot verification did not see SoftAP, HTTP, and broker startup\n' >&2
+        exit 1
+    fi
+    printf '\nReboot verification passed: SoftAP, HTTP, and broker started.\n'
+fi

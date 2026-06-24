@@ -106,6 +106,11 @@ AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \
     ./scripts/hw_esp32_homepage_test.sh
 ```
 
+During active hardware development the ESP32 SoftAP is intentionally open
+(`ap_password=open`) to avoid blocking broker and web work on USB Wi-Fi WPA
+handshake instability. Re-enable WPA only after the association path is stable
+across the Linux test adapters and a second client device.
+
 The ESP32 Zephyr image serves a compact single-file web UI at `/` with
 `Content-Encoding: gzip` to avoid large-response stalls on the ESP32 Wi-Fi
 socket path. It includes browser controls for Login, Status, Config load/save,

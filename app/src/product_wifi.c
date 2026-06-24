@@ -58,7 +58,7 @@ int product_wifi_scan_json(char *buf, size_t buf_cap)
 
 #define WIFI_CONNECT_TIMEOUT_S 10
 #define WIFI_IP_TIMEOUT_S      15
-#define AP_DEFAULT_CHANNEL      1
+#define AP_DEFAULT_CHANNEL      6
 #define STA_RETRY_SECONDS       5
 #define WIFI_SCAN_TIMEOUT_S     8
 #define WIFI_SCAN_MAX_RESULTS  12
@@ -372,12 +372,17 @@ static int start_ap(const field_bridge_settings_t *settings)
     memset(&params, 0, sizeof(params));
     params.ssid = (const uint8_t *)settings->network.ap_ssid;
     params.ssid_length = (uint8_t)strlen(settings->network.ap_ssid);
-    params.psk = (const uint8_t *)settings->network.ap_password;
-    params.psk_length = (uint8_t)strlen(settings->network.ap_password);
     params.channel = AP_DEFAULT_CHANNEL;
     params.band = WIFI_FREQ_BAND_2_4_GHZ;
-    params.security = params.psk_length > 0 ?
-        WIFI_SECURITY_TYPE_PSK : WIFI_SECURITY_TYPE_NONE;
+    params.mfp = WIFI_MFP_DISABLE;
+    if (strcmp(settings->network.ap_password, "open") == 0) {
+        params.security = WIFI_SECURITY_TYPE_NONE;
+    } else {
+        params.psk = (const uint8_t *)settings->network.ap_password;
+        params.psk_length = (uint8_t)strlen(settings->network.ap_password);
+        params.security = params.psk_length > 0 ?
+            WIFI_SECURITY_TYPE_PSK : WIFI_SECURITY_TYPE_NONE;
+    }
 
     k_sem_reset(&ap_enabled_sem);
     LOG_INF("Starting SoftAP ssid=%s ip=%s",
