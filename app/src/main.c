@@ -17,6 +17,36 @@
 
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 
+#ifdef __ZEPHYR__
+#define BROKER_RUN_STACK_SIZE 2048
+K_THREAD_STACK_DEFINE(broker_run_stack, BROKER_RUN_STACK_SIZE);
+static struct k_thread broker_run_thread;
+
+static void broker_service_entry(void *p1, void *p2, void *p3)
+{
+    ARG_UNUSED(p1);
+    ARG_UNUSED(p2);
+    ARG_UNUSED(p3);
+
+    client_pool_init();
+    if (broker_init() != 0) {
+        LOG_ERR("broker_init failed");
+        product_runtime_broker_failed("broker_init failed");
+        return;
+    }
+    product_runtime_broker_started();
+
+#if defined(CONFIG_MQTT_P2P_DYNAMIC)
+    LOG_INF("p2p startup requested after broker_init success");
+    p2p_start();
+#else
+    LOG_INF("p2p disabled by build config");
+#endif
+
+    broker_run();
+}
+#endif
+
 int main(void)
 {
     LOG_INF("MQTT field bridge app starting");
@@ -67,6 +97,10 @@ int main(void)
     if (!settings.broker.broker_enabled) {
         LOG_INF("broker disabled by product config");
         product_runtime_set_broker_enabled(0);
+#ifdef __ZEPHYR__
+        k_thread_priority_set(k_current_get(), 7);
+        provisioning_http_run();
+#endif
         return 0;
     }
 
@@ -76,6 +110,23 @@ int main(void)
             settings.broker.p2p_port,
             settings.broker.bridge_enabled,
             settings.broker.mesh_enabled);
+    if (broker_set_bind_host(settings.broker.broker_ip) != 0) {
+        LOG_ERR("invalid broker bind ip: %s", settings.broker.broker_ip);
+        product_runtime_broker_failed("invalid broker bind ip");
+        return -1;
+    }
+
+#ifdef __ZEPHYR__
+    k_thread_create(&broker_run_thread,
+                    broker_run_stack,
+                    K_THREAD_STACK_SIZEOF(broker_run_stack),
+                    broker_service_entry,
+                    NULL, NULL, NULL,
+                    6, 0, K_NO_WAIT);
+    k_thread_name_set(&broker_run_thread, "mqtt_broker");
+    k_thread_priority_set(k_current_get(), 7);
+    provisioning_http_run();
+#else
     client_pool_init();
     if (broker_init() != 0) {
         LOG_ERR("broker_init failed");
@@ -83,7 +134,6 @@ int main(void)
         return -1;
     }
     product_runtime_broker_started();
-
 #if defined(CONFIG_MQTT_P2P_DYNAMIC)
     LOG_INF("p2p startup requested after broker_init success");
     p2p_start();
@@ -91,5 +141,6 @@ int main(void)
     LOG_INF("p2p disabled by build config");
 #endif
     broker_run();
+#endif
     return 0;
 }

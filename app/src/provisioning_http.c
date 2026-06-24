@@ -235,8 +235,15 @@ static char peers_json_buf[PEERS_JSON_BUF_SIZE];
 static char config_json_buf[CONFIG_JSON_BUF_SIZE];
 #ifdef __ZEPHYR__
 #define HTTP_SEND_CHUNK_SIZE 256
+static void http_yield(void)
+{
+    k_msleep(10);
+}
 #else
 #define HTTP_SEND_CHUNK_SIZE 512
+static void http_yield(void)
+{
+}
 #endif
 #define HTTP_COMBINED_RESPONSE_SIZE 2048
 static char combined_response_buf[HTTP_COMBINED_RESPONSE_SIZE];
@@ -451,6 +458,8 @@ static void send_response_type(int fd, int status, const char *content_type,
 
 static void send_json(int fd, int status, const char *body)
 {
+    LOG_INF("HTTP send JSON status=%d", status);
+    http_yield();
     send_response_type(fd, status, "application/json", body);
 }
 
@@ -785,16 +794,21 @@ static void handle_post_peer(int fd, int idx, const char *body)
 }
 
 #define HTTP_BUF_SIZE 2048
+static char http_request_buf[HTTP_BUF_SIZE];
 
 static void handle_client(int fd)
 {
-    char buf[HTTP_BUF_SIZE];
+    char *buf = http_request_buf;
     int total = 0;
     ssize_t n;
 
     /* Read until end-of-headers */
     while (total < HTTP_BUF_SIZE - 1) {
+        LOG_INF("HTTP waiting recv fd=%d", fd);
+        http_yield();
         n = PLAT_RECV(fd, buf + total, HTTP_BUF_SIZE - 1 - total);
+        LOG_INF("HTTP recv fd=%d n=%d errno=%d", fd, (int)n, errno);
+        http_yield();
         if (n <= 0) goto done;
         total += (int)n;
         buf[total] = '\0';
@@ -808,6 +822,7 @@ static void handle_client(int fd)
         goto done;
     }
     normalize_request_path(path, sizeof(path));
+    LOG_INF("HTTP request %s %s", method, path);
 
     const char *hdr_end = strstr(buf, "\r\n\r\n");
     if (!hdr_end) { send_json(fd, 400, "{\"error\":\"bad request\"}"); goto done; }
@@ -931,17 +946,12 @@ void provisioning_http_start(void)
     LOG_INF("provisioning HTTP listening on port %d", PROVISIONING_HTTP_PORT);
 }
 
-#else  /* __ZEPHYR__ */
-
-#define PROV_HTTP_STACK_SIZE 4096
-K_THREAD_STACK_DEFINE(prov_http_stack, PROV_HTTP_STACK_SIZE);
-static struct k_thread prov_http_thread;
-
-static void server_thread_entry(void *p1, void *p2, void *p3)
+void provisioning_http_run(void)
 {
-    ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
     server_loop();
 }
+
+#else  /* __ZEPHYR__ */
 
 void provisioning_http_start(void)
 {
@@ -968,14 +978,12 @@ void provisioning_http_start(void)
         return;
     }
 
-    k_thread_create(&prov_http_thread,
-                    prov_http_stack,
-                    K_THREAD_STACK_SIZEOF(prov_http_stack),
-                    server_thread_entry,
-                    NULL, NULL, NULL,
-                    7, 0, K_NO_WAIT);
-    k_thread_name_set(&prov_http_thread, "prov_http");
     LOG_INF("provisioning HTTP listening on port %d", PROVISIONING_HTTP_PORT);
+}
+
+void provisioning_http_run(void)
+{
+    server_loop();
 }
 
 #endif /* __ZEPHYR__ */

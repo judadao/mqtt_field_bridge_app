@@ -139,7 +139,7 @@ with serial.Serial(port, baudrate=baud, timeout=0.25) as ser, open(log_path, "wb
 PY
     if ! rg --fixed-strings 'Ethernet ready ip=' "$REBOOT_UART_LOG" >/dev/null ||
        ! rg --fixed-strings 'provisioning HTTP listening on port 8080' "$REBOOT_UART_LOG" >/dev/null ||
-       ! rg --fixed-strings 'mqtt_broker: Listening on port 1883' "$REBOOT_UART_LOG" >/dev/null; then
+       ! rg 'mqtt_broker: Listening on .*:1883|mqtt_broker: Listening on port 1883' "$REBOOT_UART_LOG" >/dev/null; then
         printf 'error: reboot verification did not see Ethernet, HTTP, and broker startup\n' >&2
         exit 1
     fi

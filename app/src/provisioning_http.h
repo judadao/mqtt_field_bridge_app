@@ -6,5 +6,6 @@
 #endif
 
 void provisioning_http_start(void);
+void provisioning_http_run(void);
 
 #endif /* PROVISIONING_HTTP_H */
