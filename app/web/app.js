@@ -261,6 +261,7 @@ for (const b of document.querySelectorAll('.tab')) b.onclick = () => showTab(b.d
 $('refresh').onclick = load;
 $('save-system').onclick = () => saveConfig('System');
 $('reset-config').onclick = resetConfig;
+$('reset-config-network').onclick = resetConfig;
 $('save-network').onclick = () => saveConfig('Network');
 $('save-broker').onclick = () => saveConfig('Broker');
 $('mesh_enabled').onchange = () => saveConfig('Bridge Routing');
