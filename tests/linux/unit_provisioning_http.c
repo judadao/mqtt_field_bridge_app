@@ -86,7 +86,7 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "Broker Peers") != NULL);
     CHECK(strstr(resp, "Broker Slots") != NULL);
     CHECK(strstr(resp, "id=\"bridge_peer_index\"") != NULL);
-    CHECK(strstr(resp, "--primary:#1976d2") != NULL);
+    CHECK(strstr(resp, "--button-bg:#1565c0") != NULL);
     CHECK(strstr(resp, "login-form") == NULL);
     CHECK(strstr(resp, "X-Auth-Token") == NULL);
     CHECK(strstr(resp, "Bridge WiFi") == NULL);
