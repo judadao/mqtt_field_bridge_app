@@ -198,8 +198,7 @@ async function main() {
     cwd: TEST_DIR,
     env: {
       ...process.env,
-      BRIDGE_PEERS_FILE: 'out/ui_peers.bin',
-      BRIDGE_SETTINGS_FILE: 'out/ui_settings.bin',
+      DEPHY_CONFIG_DIR: 'out/ui_config',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

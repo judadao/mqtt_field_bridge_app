@@ -191,6 +191,7 @@ static void test_settings_defaults(void)
     CHECK(strcmp(s.network.netmask, "255.255.0.0") == 0);
     CHECK(strcmp(s.network.dns, "192.168.127.5") == 0);
     CHECK(s.network.dhcp_enabled == 0);
+    CHECK(strcmp(s.broker.broker_ip, "192.168.127.15") == 0);
     CHECK(strcmp(s.broker.site_id, "field-a") == 0);
     CHECK(strcmp(s.broker.topic_prefix, "site/field-a") == 0);
     CHECK(s.broker.mqtt_port == 1883);
@@ -209,6 +210,7 @@ static void test_settings_set_and_get(void)
     strcpy(in.network.dns, "8.8.8.8");
     in.network.dhcp_enabled = 0;
     strcpy(in.broker.site_id, "site-b");
+    strcpy(in.broker.broker_ip, "192.168.10.20");
     strcpy(in.broker.topic_prefix, "site/site-b");
     in.broker.mqtt_port = 1884;
     in.broker.p2p_port = 4885;
@@ -227,6 +229,7 @@ static void test_settings_set_and_get(void)
     CHECK(strcmp(out.network.dns, "8.8.8.8") == 0);
     CHECK(out.network.dhcp_enabled == 0);
     CHECK(strcmp(out.broker.site_id, "site-b") == 0);
+    CHECK(strcmp(out.broker.broker_ip, "192.168.10.20") == 0);
     CHECK(out.broker.mqtt_port == 1884);
     CHECK(out.broker.bridge_enabled == 0);
 }
@@ -268,6 +271,10 @@ static void test_reject_invalid_settings(void)
 
     CHECK(product_config_get_settings(&s) == 0);
     s.broker.mqtt_port = 0;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.broker.broker_ip[0] = '\0';
     CHECK(product_config_set_settings(&s) == -1);
 
     CHECK(product_config_get_settings(&s) == 0);
@@ -326,24 +333,17 @@ static void test_apply_defaults_rejects_unknown_profile(void)
 /* Persistence tests use an isolated temp file and manage their own init. */
 #ifndef __ZEPHYR__
 #include <stdlib.h>
-#define PERSIST_FILE "/tmp/mqtt_bridge_test_peers.bin"
-#define SETTINGS_PERSIST_FILE "/tmp/mqtt_bridge_test_settings.bin"
+#define PERSIST_DIR "/tmp/mqtt_bridge_test_config"
 
 #define RUN_PERSIST(fn) do {                                                \
     fail_before = tests_failed;                                             \
     printf("  %-50s ", #fn);                                                \
-    unsetenv("BRIDGE_PEERS_FILE");                                          \
-    unsetenv("BRIDGE_SETTINGS_FILE");                                       \
-    remove(PERSIST_FILE);                                                   \
-    remove(SETTINGS_PERSIST_FILE);                                          \
-    setenv("BRIDGE_PEERS_FILE", PERSIST_FILE, 1);                          \
-    setenv("BRIDGE_SETTINGS_FILE", SETTINGS_PERSIST_FILE, 1);              \
+    system("rm -rf " PERSIST_DIR);                                          \
+    setenv("DEPHY_CONFIG_DIR", PERSIST_DIR, 1);                             \
     product_config_init();                                                  \
     fn();                                                                   \
-    remove(PERSIST_FILE);                                                   \
-    remove(SETTINGS_PERSIST_FILE);                                          \
-    unsetenv("BRIDGE_PEERS_FILE");                                          \
-    unsetenv("BRIDGE_SETTINGS_FILE");                                       \
+    system("rm -rf " PERSIST_DIR);                                          \
+    unsetenv("DEPHY_CONFIG_DIR");                                           \
     printf("%s\n", (tests_failed == fail_before) ? "ok" : "FAIL");         \
 } while (0)
 
@@ -399,6 +399,7 @@ static void test_settings_persist_survives_reinit(void)
     strcpy(in.network.netmask, "255.255.255.0");
     strcpy(in.network.dns, "10.10.10.53");
     in.network.dhcp_enabled = 0;
+    strcpy(in.broker.broker_ip, "10.10.10.20");
     strcpy(in.broker.site_id, "persist-site");
     strcpy(in.broker.topic_prefix, "site/persist-site");
     in.broker.mqtt_port = 2883;
@@ -416,6 +417,7 @@ static void test_settings_persist_survives_reinit(void)
     CHECK(strcmp(out.system.device_name, "persist-node") == 0);
     CHECK(strcmp(out.network.device_ip, "10.10.10.1") == 0);
     CHECK(strcmp(out.network.dns, "10.10.10.53") == 0);
+    CHECK(strcmp(out.broker.broker_ip, "10.10.10.20") == 0);
     CHECK(strcmp(out.broker.site_id, "persist-site") == 0);
     CHECK(out.broker.p2p_port == 5884);
     CHECK(out.broker.mesh_enabled == 0);
@@ -428,8 +430,8 @@ int main(void)
 {
 #ifndef __ZEPHYR__
     /* Isolate existing tests from any leftover persist file. */
-    setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
-    setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
+    system("rm -rf /tmp/unit_product_config");
+    setenv("DEPHY_CONFIG_DIR", "/tmp/unit_product_config", 1);
 #endif
     printf("=== unit_product_config ===\n");
 

@@ -25,10 +25,27 @@
     "dephy_eth": {
       "repo": "git@github.com:judadao/dephy_eth.git",
       "local": "../dephy_eth",
-      "version": "dephy-eth-v0.1.1",
+      "version": "dephy-eth-v0.1.2",
       "path": "deps/dephy_eth",
       "module_path": "deps/dephy_eth",
       "tag_pattern": "dephy-eth-v*"
+    },
+    "dephy_config": {
+      "repo": "git@github.com:judadao/dephy_config.git",
+      "local": "../dephy_config",
+      "version": "dephy-config-v0.1.0",
+      "path": "deps/dephy_config",
+      "module_path": "deps/dephy_config",
+      "tag_pattern": "dephy-config-v*"
+    },
+    "dephy_web": {
+      "repo": "git@github.com:judadao/dephy_web.git",
+      "local": "../dephy_web",
+      "version": "dephy-web-mqtt-field-bridge-v0.1.0",
+      "path": "deps/dephy_web",
+      "profile": "mqtt_field_bridge",
+      "branch": "product/mqtt_field_bridge",
+      "tag_pattern": "dephy-web-mqtt-field-bridge-v*"
     },
     "dephy_testkit": {
       "repo": "git@github.com:judadao/dephy_testkit.git",

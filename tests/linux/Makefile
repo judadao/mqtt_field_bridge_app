@@ -1,18 +1,20 @@
 ROOT    := ../..
 BROKER  := $(ROOT)/deps/mqtt_min_broker
 DEPHY_IO := $(ROOT)/deps/dephy_industrial_io
+DEPHY_CONFIG := $(ROOT)/deps/dephy_config
 APP_SRC := $(ROOT)/app/src
-WEB_DIR := $(ROOT)/app/web
+WEB_DIR := $(ROOT)/deps/dephy_web/products/mqtt_field_bridge/web
 WEB_SRC := $(WEB_DIR)/index.html $(WEB_DIR)/styles.css $(WEB_DIR)/app.js
 WEB_HDR := $(APP_SRC)/generated/provisioning_index.h
-WEB_EMBED := $(ROOT)/scripts/build_provisioning_web.js
+WEB_EMBED := $(ROOT)/deps/dephy_web/tools/embed_web.js
 
 CC     = gcc
 CFLAGS = -Wall -Wextra -std=c11 -g -D_POSIX_C_SOURCE=200809L \
          -I$(APP_SRC) \
          -Iinclude \
          -I$(BROKER)/include \
-         -I$(DEPHY_IO)/include
+         -I$(DEPHY_IO)/include \
+         -I$(DEPHY_CONFIG)/include
 OUTDIR = out
 
 .PHONY: all test unit-tests unit_product_config unit_product_runtime \
@@ -42,6 +44,7 @@ $(OUTDIR)/unit_product_config: unit_product_config.c \
 	$(CC) $(CFLAGS) \
 	    unit_product_config.c \
 	    $(APP_SRC)/product_config.c \
+	    $(DEPHY_CONFIG)/src/config_store.c \
 	    -o $@
 
 $(OUTDIR)/unit_bridge_control: unit_bridge_control.c \
@@ -54,6 +57,7 @@ $(OUTDIR)/unit_bridge_control: unit_bridge_control.c \
 	    unit_bridge_control.c \
 	    $(APP_SRC)/bridge_control.c \
 	    $(APP_SRC)/product_config.c \
+	    $(DEPHY_CONFIG)/src/config_store.c \
 	    -o $@
 
 $(OUTDIR)/unit_product_runtime: unit_product_runtime.c \
@@ -66,6 +70,7 @@ $(OUTDIR)/unit_product_runtime: unit_product_runtime.c \
 	    unit_product_runtime.c \
 	    $(APP_SRC)/product_runtime.c \
 	    $(APP_SRC)/product_config.c \
+	    $(DEPHY_CONFIG)/src/config_store.c \
 	    -o $@
 
 $(OUTDIR)/unit_product_topics: unit_product_topics.c \
@@ -90,6 +95,7 @@ $(OUTDIR)/unit_product_console: unit_product_console.c \
 	    unit_product_console.c \
 	    $(APP_SRC)/product_console.c \
 	    $(APP_SRC)/product_config.c \
+	    $(DEPHY_CONFIG)/src/config_store.c \
 	    $(APP_SRC)/product_runtime.c \
 	    -o $@
 
@@ -119,6 +125,7 @@ $(OUTDIR)/unit_provisioning_http: unit_provisioning_http.c \
 	    unit_provisioning_http.c \
 	    $(APP_SRC)/provisioning_http.c \
 	    $(APP_SRC)/product_config.c \
+	    $(DEPHY_CONFIG)/src/config_store.c \
 	    $(APP_SRC)/product_runtime.c \
 	    $(APP_SRC)/product_topics.c \
 	    $(APP_SRC)/bridge_control.c \
@@ -137,6 +144,7 @@ $(OUTDIR)/run_web_config_server: run_web_config_server.c \
 	    run_web_config_server.c \
 	    $(APP_SRC)/provisioning_http.c \
 	    $(APP_SRC)/product_config.c \
+	    $(DEPHY_CONFIG)/src/config_store.c \
 	    $(APP_SRC)/product_runtime.c \
 	    $(APP_SRC)/product_topics.c \
 	    $(APP_SRC)/bridge_control.c \

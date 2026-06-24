@@ -58,10 +58,8 @@ static int run_cmd(const char *cmd)
 
 static void before_each(void)
 {
-    unlink("/tmp/unit_console_peers.bin");
-    unlink("/tmp/unit_console_settings.bin");
-    setenv("BRIDGE_PEERS_FILE", "/tmp/unit_console_peers.bin", 1);
-    setenv("BRIDGE_SETTINGS_FILE", "/tmp/unit_console_settings.bin", 1);
+    system("rm -rf /tmp/unit_console_config");
+    setenv("DEPHY_CONFIG_DIR", "/tmp/unit_console_config", 1);
     out_buf[0] = '\0';
     reboot_called = 0;
     product_config_init();
@@ -82,10 +80,11 @@ static void test_broker_save_config(void)
 {
     field_bridge_settings_t settings;
 
-    CHECK(run_cmd("broker 1884 4885") == 0);
+    CHECK(run_cmd("broker 1884 4885 192.168.127.15") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
     CHECK(settings.broker.mqtt_port == 1884);
     CHECK(settings.broker.p2p_port == 4885);
+    CHECK(strcmp(settings.broker.broker_ip, "192.168.127.15") == 0);
 }
 
 static void test_peer_command_saves_peer(void)
@@ -106,6 +105,7 @@ static void test_scan_and_show(void)
     CHECK(run_cmd("show") == 0);
     CHECK(strstr(out_buf, "OK device=esp32-min-broker") != NULL);
     CHECK(strstr(out_buf, " ip=192.168.127.4 ") != NULL);
+    CHECK(strstr(out_buf, " broker_ip=192.168.127.15 ") != NULL);
     CHECK(run_cmd("info") == 0);
     CHECK(strstr(out_buf, "OK runtime") != NULL);
     CHECK(strstr(out_buf, "OK config") != NULL);

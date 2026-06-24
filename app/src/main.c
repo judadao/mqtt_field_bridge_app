@@ -33,9 +33,10 @@ int main(void)
         snprintf(configured_ip, sizeof(configured_ip), "%s",
                  settings.network.device_ip);
 
-        LOG_INF("network startup requested: device=%s ip=%s dhcp=%u transport=ethernet",
+        LOG_INF("network startup requested: device=%s ip=%s broker_ip=%s dhcp=%u transport=ethernet",
                 settings.system.device_name,
                 settings.network.device_ip,
+                settings.broker.broker_ip,
                 settings.network.dhcp_enabled);
         if (product_ethernet_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
             product_runtime_broker_failed("ethernet start failed");
@@ -69,7 +70,8 @@ int main(void)
         return 0;
     }
 
-    LOG_INF("broker startup requested: mqtt=%u p2p=%u bridge=%u mesh=%u",
+    LOG_INF("broker startup requested: ip=%s mqtt=%u p2p=%u bridge=%u mesh=%u",
+            settings.broker.broker_ip,
             settings.broker.mqtt_port,
             settings.broker.p2p_port,
             settings.broker.bridge_enabled,

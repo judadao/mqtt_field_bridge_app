@@ -114,6 +114,7 @@ static void test_config_no_auth(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.127.4\"") != NULL);
+    CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.15\"") != NULL);
     CHECK(strstr(resp, "\"gateway\":\"192.168.127.5\"") != NULL);
     CHECK(strstr(resp, "\"netmask\":\"255.255.0.0\"") != NULL);
     CHECK(strstr(resp, "\"dns\":\"192.168.127.5\"") != NULL);
@@ -128,6 +129,7 @@ static void test_post_config_valid(void)
         "{\"device_name\":\"node-a\",\"device_ip\":\"192.168.9.10\","
         "\"gateway\":\"192.168.9.1\",\"netmask\":\"255.255.255.0\","
         "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,\"site_id\":\"field-b\","
+        "\"broker_ip\":\"192.168.9.20\","
         "\"topic_prefix\":\"site/field-b\",\"mqtt_port\":1884,\"p2p_port\":4885,"
         "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":1}";
     char req[2048];
@@ -144,6 +146,7 @@ static void test_post_config_valid(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "\"device_name\":\"node-a\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.9.10\"") != NULL);
+    CHECK(strstr(resp, "\"broker_ip\":\"192.168.9.20\"") != NULL);
     CHECK(strstr(resp, "\"dhcp_enabled\":0") != NULL);
 
     n = http_req("GET /status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
@@ -237,6 +240,17 @@ static void test_config_reset_valid(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.127.4\"") != NULL);
+    CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.15\"") != NULL);
+}
+
+static void test_reboot_valid(void)
+{
+    char resp[1024];
+    int n = http_req("POST /reboot HTTP/1.0\r\nContent-Length: 0\r\n\r\n",
+                     resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "rebooting") != NULL);
 }
 
 static void test_unknown_route(void)
@@ -251,8 +265,8 @@ int main(void)
 {
     printf("=== unit_provisioning_http ===\n");
 
-    setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
-    setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
+    system("rm -rf /tmp/unit_provisioning_http_config");
+    setenv("DEPHY_CONFIG_DIR", "/tmp/unit_provisioning_http_config", 1);
     product_config_init();
     product_runtime_init();
     field_bridge_settings_t settings;
@@ -272,6 +286,7 @@ int main(void)
     RUN(test_broker_control_and_publish);
     RUN(test_removed_routes);
     RUN(test_config_reset_valid);
+    RUN(test_reboot_valid);
     RUN(test_unknown_route);
 
     printf("\n%d/%d tests passed", tests_passed, tests_run);

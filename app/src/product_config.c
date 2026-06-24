@@ -2,6 +2,8 @@
 
 #include <zephyr/logging/log.h>
 
+#include <dephy_config/config_store.h>
+
 #include "product_config.h"
 
 LOG_MODULE_REGISTER(product_config, LOG_LEVEL_INF);
@@ -23,6 +25,8 @@ static void settings_defaults(void)
     strncpy(settings.network.dns, "192.168.127.5",
             sizeof(settings.network.dns) - 1);
     settings.network.dhcp_enabled = 0;
+    strncpy(settings.broker.broker_ip, "192.168.127.15",
+            sizeof(settings.broker.broker_ip) - 1);
     strncpy(settings.broker.site_id, "field-a",
             sizeof(settings.broker.site_id) - 1);
     strncpy(settings.broker.topic_prefix, "site/field-a",
@@ -89,7 +93,8 @@ static int validate_settings(const field_bridge_settings_t *cfg)
         !valid_bool(cfg->network.dhcp_enabled)) {
         return -1;
     }
-    if (!valid_nonempty(cfg->broker.site_id) ||
+    if (!valid_nonempty(cfg->broker.broker_ip) ||
+        !valid_nonempty(cfg->broker.site_id) ||
         !valid_nonempty(cfg->broker.topic_prefix) ||
         !valid_port(cfg->broker.mqtt_port) ||
         !valid_port(cfg->broker.p2p_port) ||
@@ -101,140 +106,36 @@ static int validate_settings(const field_bridge_settings_t *cfg)
     return 0;
 }
 
-#ifndef __ZEPHYR__
-#include <stdio.h>
-#include <stdlib.h>
-
-static const char *peers_file_path(void)
-{
-    const char *p = getenv("BRIDGE_PEERS_FILE");
-    return p ? p : "/tmp/mqtt_bridge_peers.bin";
-}
-
-static const char *settings_file_path(void)
-{
-    const char *p = getenv("BRIDGE_SETTINGS_FILE");
-    return p ? p : "/tmp/mqtt_bridge_settings.bin";
-}
+#define PEER_KEY_BASE 1
+#define SETTINGS_KEY  100
 
 static void persist_load(void)
 {
-    FILE *f = fopen(peers_file_path(), "rb");
-    if (f) {
-        size_t n = fread(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
-        if (n != (size_t)FIELD_BRIDGE_PEER_MAX) {
-            memset(&peers[n], 0,
-                   (FIELD_BRIDGE_PEER_MAX - (int)n) * sizeof(field_bridge_peer_t));
-        }
-        fclose(f);
+    if (dephy_config_store_init() != 0) {
+        return;
     }
-
-    f = fopen(settings_file_path(), "rb");
-    if (f) {
-        size_t n = fread(&settings, sizeof(settings), 1, f);
-        if (n != 1 || validate_settings(&settings) != 0) {
-            settings_defaults();
-        }
-        fclose(f);
-    }
-
-}
-
-static int persist_save(int idx)
-{
-    (void)idx;
-    FILE *f = fopen(peers_file_path(), "wb");
-    if (!f) return 0;
-    (void)fwrite(peers, sizeof(field_bridge_peer_t), FIELD_BRIDGE_PEER_MAX, f);
-    fclose(f);
-    return 0;
-}
-
-static int persist_save_settings(void)
-{
-    FILE *f = fopen(settings_file_path(), "wb");
-    if (!f) return 0;
-    (void)fwrite(&settings, sizeof(settings), 1, f);
-    fclose(f);
-    return 0;
-}
-
-#else  /* __ZEPHYR__ */
-
-#include <zephyr/fs/nvs.h>
-#include <zephyr/storage/flash_map.h>
-
-#define NVS_SECTOR_SIZE  DT_PROP(DT_CHOSEN(zephyr_flash), erase_block_size)
-#define NVS_SECTOR_COUNT 2
-#define NVS_PARTITION    storage_partition
-#define PEER_KEY_BASE    1
-#define SETTINGS_KEY     100
-
-static struct nvs_fs nvs;
-static int nvs_ready;
-static K_MUTEX_DEFINE(nvs_init_lock);
-
-static int nvs_init_once(void)
-{
-    k_mutex_lock(&nvs_init_lock, K_FOREVER);
-    if (nvs_ready) {
-        k_mutex_unlock(&nvs_init_lock);
-        return 0;
-    }
-    nvs.flash_device = FIXED_PARTITION_DEVICE(NVS_PARTITION);
-    if (!device_is_ready(nvs.flash_device)) {
-        k_mutex_unlock(&nvs_init_lock);
-        return -ENODEV;
-    }
-    nvs.sector_size  = NVS_SECTOR_SIZE;
-    nvs.sector_count = NVS_SECTOR_COUNT;
-    nvs.offset       = FIXED_PARTITION_OFFSET(NVS_PARTITION);
-    int rc = nvs_mount(&nvs);
-    if (rc == 0) nvs_ready = 1;
-    k_mutex_unlock(&nvs_init_lock);
-    return rc;
-}
-
-static void persist_load(void)
-{
-    if (nvs_init_once() < 0) return;
     for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
-        ssize_t n = nvs_read(&nvs, (uint16_t)(PEER_KEY_BASE + i),
-                             &peers[i], sizeof(peers[i]));
-        if (n != (ssize_t)sizeof(peers[i])) {
+        if (dephy_config_store_load((dephy_config_key_t)(PEER_KEY_BASE + i),
+                                    &peers[i], sizeof(peers[i])) != 0) {
             memset(&peers[i], 0, sizeof(peers[i]));
         }
     }
-    ssize_t n = nvs_read(&nvs, SETTINGS_KEY, &settings, sizeof(settings));
-    if (n != (ssize_t)sizeof(settings) || validate_settings(&settings) != 0) {
+    if (dephy_config_store_load(SETTINGS_KEY, &settings, sizeof(settings)) != 0 ||
+        validate_settings(&settings) != 0) {
         settings_defaults();
     }
 }
 
 static int persist_save(int idx)
 {
-    if (nvs_init_once() < 0) return -ENODEV;
-    ssize_t rc = nvs_write(&nvs, (uint16_t)(PEER_KEY_BASE + idx),
-                           &peers[idx], sizeof(peers[idx]));
-    if (rc < 0) {
-        LOG_ERR("nvs_write peer %d failed: %d", idx, (int)rc);
-        return (int)rc;
-    }
-    return 0;
+    return dephy_config_store_save((dephy_config_key_t)(PEER_KEY_BASE + idx),
+                                   &peers[idx], sizeof(peers[idx]));
 }
 
 static int persist_save_settings(void)
 {
-    if (nvs_init_once() < 0) return -ENODEV;
-    ssize_t rc = nvs_write(&nvs, SETTINGS_KEY, &settings, sizeof(settings));
-    if (rc < 0) {
-        LOG_ERR("nvs_write settings failed: %d", (int)rc);
-        return (int)rc;
-    }
-    return 0;
+    return dephy_config_store_save(SETTINGS_KEY, &settings, sizeof(settings));
 }
-
-#endif /* __ZEPHYR__ */
 
 void product_config_init(void)
 {

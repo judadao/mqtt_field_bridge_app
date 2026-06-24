@@ -30,6 +30,8 @@ int product_ethernet_start(const field_bridge_settings_t *settings,
     memset(&eth_settings, 0, sizeof(eth_settings));
     copy_field(eth_settings.device_ip, sizeof(eth_settings.device_ip),
                settings->network.device_ip);
+    copy_field(eth_settings.service_ip, sizeof(eth_settings.service_ip),
+               settings->broker.broker_ip);
     copy_field(eth_settings.gateway, sizeof(eth_settings.gateway),
                settings->network.gateway);
     copy_field(eth_settings.netmask, sizeof(eth_settings.netmask),
@@ -40,4 +42,3 @@ int product_ethernet_start(const field_bridge_settings_t *settings,
 
     return dephy_eth_start(&eth_settings, ip_addr, ip_addr_cap);
 }
-

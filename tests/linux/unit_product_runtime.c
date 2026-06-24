@@ -221,8 +221,8 @@ static void test_peer_status_hostname_unknown(void)
 int main(void)
 {
     printf("=== unit_product_runtime ===\n");
-    setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
-    setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
+    system("rm -rf /tmp/unit_product_runtime_config");
+    setenv("DEPHY_CONFIG_DIR", "/tmp/unit_product_runtime_config", 1);
 
     RUN(test_defaults);
     RUN(test_network_start_static_default);

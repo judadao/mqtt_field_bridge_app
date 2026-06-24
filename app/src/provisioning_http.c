@@ -13,6 +13,9 @@
 #include "bridge_control.h"
 #ifndef __ZEPHYR__
 #include "generated/provisioning_index.h"
+#else
+#include <zephyr/kernel.h>
+#include <zephyr/sys/reboot.h>
 #endif
 
 LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
@@ -104,6 +107,11 @@ static int json_decode_settings(const char *json, field_bridge_settings_t *out)
     if (json_uint8_field(json, "dhcp_enabled", &out->network.dhcp_enabled) != 0) return -1;
     if (json_str_field(json, "site_id", out->broker.site_id,
                        sizeof(out->broker.site_id)) != 0) return -1;
+    if (json_str_field(json, "broker_ip", out->broker.broker_ip,
+                       sizeof(out->broker.broker_ip)) != 0) {
+        snprintf(out->broker.broker_ip, sizeof(out->broker.broker_ip),
+                 "%s", out->network.device_ip);
+    }
     if (json_str_field(json, "topic_prefix", out->broker.topic_prefix,
                        sizeof(out->broker.topic_prefix)) != 0) return -1;
     if (json_uint16_field(json, "mqtt_port", &out->broker.mqtt_port) != 0) return -1;
@@ -234,6 +242,14 @@ static char config_json_buf[CONFIG_JSON_BUF_SIZE];
 static char combined_response_buf[HTTP_COMBINED_RESPONSE_SIZE];
 
 #ifdef __ZEPHYR__
+static void reboot_work_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    sys_reboot(SYS_REBOOT_COLD);
+}
+
+K_WORK_DELAYABLE_DEFINE(reboot_work, reboot_work_handler);
+
 static const char index_lite_html[] =
 "<!doctype html><html><head><meta name=viewport content=\"width=device-width,initial-scale=1\">"
 "<title>Field Bridge Settings</title><style>"
@@ -251,19 +267,20 @@ static const char index_lite_html[] =
 "<body><header><h1>Field Bridge Settings</h1><div class=sub>Ethernet broker bridge</div></header><main>"
 "<section class=card><div class=row><button class=alt onclick=S()>Refresh</button><span id=s class=pill>booting</span></div></section>"
 "<section class=card><table><tbody id=t><tr><th>Status</th><td>Loading</td></tr></tbody></table></section>"
-"<section class=card><h2>Network</h2><div class=grid><label>DHCP Enabled<input id=dhcp_enabled type=checkbox></label><label>Ethernet IP<input id=device_ip></label><label>Gateway<input id=gateway></label><label>Netmask<input id=netmask></label><label>DNS<input id=dns></label></div><p class=row><button onclick=saveConfig()>Save Network</button><button class=alt onclick=resetConfig()>Reset Config</button></p></section>"
-"<section class=card><h2>Broker</h2><div class=grid><label>Broker Enabled<input id=broker_enabled type=checkbox></label><label>Bridge Enabled<input id=bridge_enabled type=checkbox></label><label>Site ID<input id=site_id></label><label>Topic Prefix<input id=topic_prefix></label><label>MQTT Port<input id=mqtt_port type=number></label><label>P2P Port<input id=p2p_port type=number></label></div><p><button onclick=saveConfig()>Save Broker</button></p></section>"
+"<section class=card><h2>Network</h2><div class=grid><label>DHCP Enabled<input id=dhcp_enabled type=checkbox></label><label>Ethernet IP<input id=device_ip></label><label>Gateway<input id=gateway></label><label>Netmask<input id=netmask></label><label>DNS<input id=dns></label></div><p class=row><button onclick=saveNetwork()>Save Network</button><button class=alt onclick=resetConfig()>Reset Config</button></p></section>"
+"<section class=card><h2>Broker</h2><div class=grid><label>Broker Enabled<input id=broker_enabled type=checkbox></label><label>Bridge Enabled<input id=bridge_enabled type=checkbox></label><label>Broker IP<input id=broker_ip></label><label>Site ID<input id=site_id></label><label>Topic Prefix<input id=topic_prefix></label><label>MQTT Port<input id=mqtt_port type=number></label><label>P2P Port<input id=p2p_port type=number></label></div><p><button onclick=saveConfig()>Save Broker</button></p></section>"
 "<section class=card><h2>Bridge Peer</h2><div class=grid><label>Broker Slot<select id=peer_slot onchange=loadPeer()></select></label><label>Enabled<input id=peer_enabled type=checkbox></label><label>Name<input id=peer_name></label><label>Host / IP<input id=peer_host></label><label>MQTT Port<input id=peer_mqtt type=number></label><label>P2P Port<input id=peer_p2p type=number></label></div><p class=row><button onclick=savePeer()>Save Peer</button><button class=alt onclick=loadPeers()>Reload Peers</button></p></section>"
 "<script>let E=id=>document.getElementById(id),cfg={},peers=[];"
 "async function J(u,m,b){let o={method:m||'GET',headers:{}};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}let r=await fetch(u,o),x=await r.text();if(!r.ok)throw x;return x?JSON.parse(x):{}}"
 "function O(k){E('s').textContent=k||'OK';E('s').className='pill '+(k=='ERR'?'err':'ok')}"
 "function P(p){p.then(()=>O('OK')).catch(()=>O('ERR'))}"
 "function T(r){E('t').innerHTML=['network_state','ip_addr','broker_state','p2p_role','connected_peers','remote_subscriptions','last_error'].map(k=>'<tr><th>'+k+'</th><td>'+(r[k]||'-')+'</td></tr>').join('')}"
-"function put(c){cfg=c;['device_ip','gateway','netmask','dns','site_id','topic_prefix'].forEach(k=>E(k).value=c[k]||'');['dhcp_enabled','broker_enabled','bridge_enabled'].forEach(k=>E(k).checked=!!c[k]);E('mqtt_port').value=c.mqtt_port||1883;E('p2p_port').value=c.p2p_port||4884}"
-"function getCfg(){return{device_name:cfg.device_name||'esp32-min-broker',device_ip:E('device_ip').value,gateway:E('gateway').value,netmask:E('netmask').value,dns:E('dns').value,dhcp_enabled:E('dhcp_enabled').checked?1:0,site_id:E('site_id').value,topic_prefix:E('topic_prefix').value,mqtt_port:+E('mqtt_port').value,p2p_port:+E('p2p_port').value,broker_enabled:E('broker_enabled').checked?1:0,bridge_enabled:E('bridge_enabled').checked?1:0,mesh_enabled:E('bridge_enabled').checked?1:0}}"
+"function put(c){cfg=c;['device_ip','gateway','netmask','dns','broker_ip','site_id','topic_prefix'].forEach(k=>E(k).value=c[k]||'');['dhcp_enabled','broker_enabled','bridge_enabled'].forEach(k=>E(k).checked=!!c[k]);E('mqtt_port').value=c.mqtt_port||1883;E('p2p_port').value=c.p2p_port||4884}"
+"function getCfg(){return{device_name:cfg.device_name||'esp32-min-broker',device_ip:E('device_ip').value,gateway:E('gateway').value,netmask:E('netmask').value,dns:E('dns').value,dhcp_enabled:E('dhcp_enabled').checked?1:0,broker_ip:E('broker_ip').value||E('device_ip').value,site_id:E('site_id').value,topic_prefix:E('topic_prefix').value,mqtt_port:+E('mqtt_port').value,p2p_port:+E('p2p_port').value,broker_enabled:E('broker_enabled').checked?1:0,bridge_enabled:E('bridge_enabled').checked?1:0,mesh_enabled:E('bridge_enabled').checked?1:0}}"
 "function S(){P(J('/status').then(r=>(T(r),r)))}"
 "function C(){return J('/config').then(c=>(put(c),c))}"
 "function saveConfig(){P(J('/config','POST',getCfg()).then(x=>C().then(()=>x)))}"
+"function saveNetwork(){P(J('/config','POST',getCfg()).then(x=>J('/reboot','POST').then(()=>x)))}"
 "function resetConfig(){P(J('/config/reset','POST').then(x=>C().then(()=>S()).then(()=>loadPeers()).then(()=>x)))}"
 "function norm(p){return{name:p&&p.name||'',host:p&&p.host||'',mqtt_port:p&&p.mqtt_port||1883,p2p_port:p&&p.p2p_port||4884,enabled:p&&p.enabled?1:0}}"
 "function drawSlots(){let s=E('peer_slot');s.innerHTML=peers.map((p,i)=>'<option value='+i+'>Broker '+i+(p.enabled?' - '+(p.name||p.host):' - empty')+'</option>').join('');loadPeer()}"
@@ -560,8 +577,15 @@ static void handle_get_config(int fd)
     pos += written;
     if (append_json_str(buf, cap, &pos, s.network.dns) != 0) goto overflow;
     written = snprintf(buf + pos, (size_t)(cap - pos),
-                       ",\"dhcp_enabled\":%u,\"site_id\":",
+                       ",\"dhcp_enabled\":%u,",
                        s.network.dhcp_enabled);
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    written = snprintf(buf + pos, (size_t)(cap - pos), "\"broker_ip\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, s.broker.broker_ip) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"site_id\":");
     if (written < 0 || written >= cap - pos) goto overflow;
     pos += written;
     if (append_json_str(buf, cap, &pos, s.broker.site_id) != 0) goto overflow;
@@ -613,6 +637,14 @@ static void handle_config_reset(int fd)
         product_runtime_network_start(&settings);
     }
     send_json(fd, 200, "{\"status\":\"reset\"}");
+}
+
+static void handle_reboot(int fd)
+{
+    send_json(fd, 200, "{\"status\":\"rebooting\"}");
+#ifdef __ZEPHYR__
+    k_work_schedule(&reboot_work, K_MSEC(250));
+#endif
 }
 
 static void handle_broker_control(int fd, const char *body)
@@ -804,6 +836,8 @@ static void handle_client(int fd)
         handle_post_config(fd, body_start);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/config/reset") == 0) {
         handle_config_reset(fd);
+    } else if (strcmp(method, "POST") == 0 && strcmp(path, "/reboot") == 0) {
+        handle_reboot(fd);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/broker/control") == 0) {
         handle_broker_control(fd, body_start);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/publish-test") == 0) {

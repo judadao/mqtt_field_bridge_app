@@ -51,6 +51,10 @@ int p2p_static_seed_add(uint32_t addr, uint16_t p2p_port)
 #define RUN(fn) do {                                                        \
     fail_before = tests_failed;                                             \
     printf("  %-55s ", #fn);                                                \
+    system("rm -rf /tmp/unit_bridge_control_config");                       \
+    seed_clear_count = 0;                                                    \
+    seed_add_count = 0;                                                      \
+    last_seed_port = 0;                                                      \
     product_config_init();                                                  \
     fn();                                                                   \
     printf("%s\n", (tests_failed == fail_before) ? "ok" : "FAIL");         \
@@ -162,8 +166,8 @@ int main(void)
     printf("=== unit_bridge_control ===\n");
 #ifndef __ZEPHYR__
     /* Isolate tests from any leftover persist file. */
-    setenv("BRIDGE_PEERS_FILE", "/dev/null", 1);
-    setenv("BRIDGE_SETTINGS_FILE", "/dev/null", 1);
+    system("rm -rf /tmp/unit_bridge_control_config");
+    setenv("DEPHY_CONFIG_DIR", "/tmp/unit_bridge_control_config", 1);
 #endif
     RUN(test_apply_all_disabled);
     RUN(test_apply_one_enabled);

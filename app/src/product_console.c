@@ -55,7 +55,7 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx,
                   "  dhcp                     enable DHCP, reboot to apply\n");
     pc_write(write_fn, ctx,
-                  "  broker <mqtt> <p2p>       save local broker ports\n");
+                  "  broker <mqtt> <p2p> [ip]  save local broker ports/ip\n");
     pc_write(write_fn, ctx,
                   "  peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
     pc_write(write_fn, ctx,
@@ -91,13 +91,14 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
         return -1;
     }
     pc_write(write_fn, ctx,
-                  "OK device=%s ip=%s gw=%s mask=%s dns=%s dhcp=%u mqtt=%u p2p=%u bridge=%u mesh=%u\n",
+                  "OK device=%s ip=%s gw=%s mask=%s dns=%s dhcp=%u broker_ip=%s mqtt=%u p2p=%u bridge=%u mesh=%u\n",
                   settings.system.device_name,
                   settings.network.device_ip,
                   settings.network.gateway,
                   settings.network.netmask,
                   settings.network.dns,
                   settings.network.dhcp_enabled,
+                  settings.broker.broker_ip,
                   settings.broker.mqtt_port,
                   settings.broker.p2p_port,
                   settings.broker.bridge_enabled,
@@ -126,13 +127,14 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
                   status.remote_subscriptions,
                   status.last_error[0] ? status.last_error : "-");
     pc_write(write_fn, ctx,
-                  "OK config device=%s dhcp=%u ip=%s gw=%s mask=%s dns=%s mqtt=%u p2p=%u broker=%u bridge=%u mesh=%u\n",
+                  "OK config device=%s dhcp=%u ip=%s gw=%s mask=%s dns=%s broker_ip=%s mqtt=%u p2p=%u broker=%u bridge=%u mesh=%u\n",
                   settings.system.device_name,
                   settings.network.dhcp_enabled,
                   settings.network.device_ip,
                   settings.network.gateway,
                   settings.network.netmask,
                   settings.network.dns,
+                  settings.broker.broker_ip,
                   settings.broker.mqtt_port,
                   settings.broker.p2p_port,
                   settings.broker.broker_enabled,
@@ -206,14 +208,18 @@ static int cmd_broker(char **save, product_console_write_fn write_fn, void *ctx)
 {
     char *mqtt = next_token(save);
     char *p2p = next_token(save);
+    char *ip = next_token(save);
     field_bridge_settings_t settings;
 
     if (!mqtt || !p2p || product_config_get_settings(&settings) != 0) {
-        pc_write(write_fn, ctx, "ERR usage: broker <mqtt> <p2p>\n");
+        pc_write(write_fn, ctx, "ERR usage: broker <mqtt> <p2p> [ip]\n");
         return -1;
     }
     settings.broker.mqtt_port = (uint16_t)atoi(mqtt);
     settings.broker.p2p_port = (uint16_t)atoi(p2p);
+    if (ip) {
+        copy_arg(settings.broker.broker_ip, sizeof(settings.broker.broker_ip), ip);
+    }
     if (product_config_set_settings(&settings) != 0) {
         pc_write(write_fn, ctx, "ERR save failed\n");
         return -1;

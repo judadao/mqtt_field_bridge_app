@@ -38,8 +38,7 @@ int main(void)
 {
     field_bridge_settings_t settings;
 
-    setenv("BRIDGE_PEERS_FILE", "out/web_peers.bin", 0);
-    setenv("BRIDGE_SETTINGS_FILE", "out/web_settings.bin", 0);
+    setenv("DEPHY_CONFIG_DIR", "out/web_config", 0);
 
     product_config_init();
     product_runtime_init();
@@ -59,6 +58,8 @@ int main(void)
                env_or_default("WEB_TEST_DNS", settings.network.dns));
     settings.network.dhcp_enabled =
         (uint8_t)atoi(env_or_default("WEB_TEST_DHCP_ENABLED", "0"));
+    copy_field(settings.broker.broker_ip, sizeof(settings.broker.broker_ip),
+               env_or_default("WEB_TEST_BROKER_IP", settings.broker.broker_ip));
 
     if (product_config_set_settings(&settings) != 0 ||
         product_config_get_settings(&settings) != 0) {
@@ -74,12 +75,13 @@ int main(void)
 
     printf("Provisioning web server listening on http://127.0.0.1:%d/\n",
            PROVISIONING_HTTP_PORT);
-    printf("Network config: ip=%s gateway=%s netmask=%s dns=%s dhcp=%u\n",
+    printf("Network config: ip=%s gateway=%s netmask=%s dns=%s dhcp=%u broker_ip=%s\n",
            settings.network.device_ip,
            settings.network.gateway,
            settings.network.netmask,
            settings.network.dns,
-           settings.network.dhcp_enabled);
+           settings.network.dhcp_enabled,
+           settings.broker.broker_ip);
     fflush(stdout);
 
     while (keep_running) {

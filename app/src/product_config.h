@@ -32,6 +32,7 @@ typedef struct {
 } field_bridge_network_settings_t;
 
 typedef struct {
+    char broker_ip[FIELD_BRIDGE_HOST_MAX];
     char site_id[FIELD_BRIDGE_SITE_MAX];
     char topic_prefix[FIELD_BRIDGE_TOPIC_MAX];
     uint16_t mqtt_port;
