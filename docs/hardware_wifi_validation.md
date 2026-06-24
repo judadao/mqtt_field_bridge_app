@@ -28,24 +28,16 @@ SERIAL_PORT=/dev/ttyUSB0 LOG_SECONDS=90 ./scripts/hw_esp32_flash_monitor.sh
 SKIP_BUILD=1 SKIP_FLASH=1 ./scripts/hw_esp32_flash_monitor.sh
 ```
 
-## ESP32 AP And Linux Hotspot Test
+## Single-Wi-Fi ESP32 AP Homepage Test
 
-Use this quick homepage check when the Linux host is currently running its own
-AP but you need to verify the ESP32 provisioning UI directly. The script saves
-the current Wi-Fi connection, disconnects it, scans for `ESP32-Min-Broker`,
-connects to the ESP32 SoftAP, validates `/status`, `/`, login, `/config`, and
-`/wifi/scan`, then restores the previous Wi-Fi connection by default.
+Use this as the default development check for the ESP32 provisioning UI. The
+Linux host uses one Wi-Fi adapter, disconnects it from any current Wi-Fi/AP
+profile, scans for `ESP32-Min-Broker`, connects to the ESP32 SoftAP, validates
+`/status`, `/`, login, `/config`, and `/wifi/scan`, then restores the previous
+Wi-Fi connection by default.
 
 ```sh
 ./scripts/hw_esp32_homepage_test.sh
-```
-
-For the two-adapter bench setup, keep the Linux AP on one adapter and connect
-to the ESP32 AP with the other:
-
-```sh
-AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \
-    ./scripts/hw_esp32_homepage_test.sh
 ```
 
 Defaults:
@@ -53,15 +45,25 @@ Defaults:
 - ESP32 AP: `ESP32-Min-Broker` / `12345678`
 - ESP32 HTTP: `http://192.168.4.1:8080`
 - ESP32 NetworkManager profile: `ESP32-Min-Broker-test`
-- Previous Wi-Fi connection is restored on exit. If a separate `AP_WIFI_IFACE`
-  is supplied, the script leaves that adapter on `Linux-Bridge-Test-ap`.
+- Previous Wi-Fi connection is restored on exit.
 
 Useful overrides:
 
 ```sh
+WIFI_IFACE=wlx3c64cf742c7b ./scripts/hw_esp32_homepage_test.sh
+RESTORE_WIFI=0 WIFI_IFACE=wlx3c64cf742c7b ./scripts/hw_esp32_homepage_test.sh
 RESTORE_WIFI=0 ./scripts/hw_esp32_homepage_test.sh
 SCAN_RETRIES=12 WAIT_SECONDS=90 ./scripts/hw_esp32_homepage_test.sh
 ITERATIONS=3 ./scripts/hw_esp32_homepage_test.sh
+```
+
+The two-adapter bench mode is still available for stress/debug runs, but do not
+use it as the default pass/fail path because NetworkManager, `wpa_supplicant`,
+and Realtek USB Wi-Fi drivers can interfere with concurrent AP and STA scans:
+
+```sh
+AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \
+    ./scripts/hw_esp32_homepage_test.sh
 ```
 
 The ESP32 Zephyr image serves a compact single-file web UI at `/` to avoid
@@ -112,7 +114,7 @@ By default this starts both:
 - Linux broker: auto-selected `10.77.0.1`-`10.99.0.1` subnet, port `1883`
   MQTT and `4884` P2P
 
-For the two-adapter bench setup:
+For the two-adapter bench setup, which is an advanced stress/debug path:
 
 ```sh
 AP_WIFI_IFACE=wlx3c64cf742c7b ESP32_WIFI_IFACE=wlxd84489239707 \

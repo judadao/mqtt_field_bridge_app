@@ -50,7 +50,10 @@ items:
     at BSSID E0:5A:1B:5A:B4:1D but NetworkManager/wpa_supplicant timed out during
     authentication and reported ssid-not-found. The failure reproduced even after
     deactivating the Linux-Bridge-Test AP, so continue from ESP32 SoftAP logs,
-    radio/driver compatibility, or reset/flash validation.
+    radio/driver compatibility, or reset/flash validation. Later on 2026-06-24,
+    reset via /dev/ttyUSB0 restored SoftAP advertising and the single-adapter
+    homepage/API validation passed on wlx3c64cf742c7b. Keep dual-adapter testing
+    as stress/debug only.
 - id: hardware-ip-values
   area: hardware
   title: Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values

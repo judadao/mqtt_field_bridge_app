@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Connect one Wi-Fi adapter to the ESP32 SoftAP and verify the provisioning web.
-# If AP_WIFI_IFACE is set, that separate adapter is left untouched for Linux AP.
+# Single-adapter mode is the default; set AP_WIFI_IFACE for the advanced
+# two-adapter bench setup.
 set -euo pipefail
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -41,25 +42,16 @@ need jq
 need nmcli
 need rg
 
-if [ -z "$AP_WIFI_IFACE" ]; then
-    AP_WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status |
-        awk -F: '$2 == "wifi" && $3 == "connected" &&
-                 ($4 ~ /Hotspot|Linux-Bridge-Test/) { print $1; exit }')
-    if [ -z "$AP_WIFI_IFACE" ]; then
-        AP_WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device status |
-            awk -F: '$2 == "wifi" { print $1; exit }')
-    fi
-fi
-
 if [ -z "$WIFI_IFACE" ]; then
     if [ -n "$ESP32_WIFI_IFACE" ]; then
         WIFI_IFACE=$ESP32_WIFI_IFACE
-    else
+    elif [ -n "$AP_WIFI_IFACE" ]; then
         WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device status |
             awk -F: -v ap="$AP_WIFI_IFACE" '$2 == "wifi" && $1 != ap { print $1; exit }')
-        if [ -z "$WIFI_IFACE" ]; then
-            WIFI_IFACE=$AP_WIFI_IFACE
-        fi
+        [ -n "$WIFI_IFACE" ] || WIFI_IFACE=$AP_WIFI_IFACE
+    else
+        WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device status |
+            awk -F: '$2 == "wifi" { print $1; exit }')
     fi
 fi
 [ -n "$WIFI_IFACE" ] || {
