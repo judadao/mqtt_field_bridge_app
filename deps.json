@@ -22,6 +22,14 @@
       "path": "deps/dephy_industrial_io",
       "module_path": "deps/dephy_industrial_io"
     },
+    "dephy_eth": {
+      "repo": "git@github.com:judadao/dephy_eth.git",
+      "local": "../dephy_eth",
+      "version": "dephy-eth-v0.1.1",
+      "path": "deps/dephy_eth",
+      "module_path": "deps/dephy_eth",
+      "tag_pattern": "dephy-eth-v*"
+    },
     "dephy_testkit": {
       "repo": "git@github.com:judadao/dephy_testkit.git",
       "local": "../dephy_testkit",
