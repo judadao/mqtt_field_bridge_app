@@ -53,6 +53,7 @@ change.
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
 | `test_3node_scenario.sh` | integration | Node1→Node2 routing, Node3 routing, Node1 local-only when Node2 offline, Node2 restart recovery |
 | `test_esp32_linux_chain_bridge.sh` | hardware/integration | Linux broker1-5 chain bridged to ESP32 through broker5; verifies publish ESP32→broker1 and broker1→ESP32 |
+| `test_esp32_linux_esp32_bridge.sh` | hardware/integration | Two W5500 ESP32 brokers bridged through one Linux middle broker; verifies publish ESP A→ESP B and ESP B→ESP A |
 | `test_esp32_network_bind.sh` | hardware/network | Validates ESP32 management IP, broker IP, ARP/ping, HTTP status, and MQTT bind isolation |
 | `test_chain_scale.sh` | scale | 10-node chain or ring; first-node publish reaches last-node subscriber |
 | `stress_reconnect.sh` | stress | 5 kill+restart cycles by default; B1 must not hang |
@@ -80,8 +81,12 @@ change.
 | `ESP32_HOST` | `192.168.127.4` | ESP32/Linux chain bridge hardware test |
 | `ESP32_DEVICE_IP` | `192.168.127.4` | ESP32 management IP for network bind test |
 | `ESP32_BROKER_IP` | `192.168.127.15` | ESP32 broker IP for network bind test |
+| `ESP_A_HTTP` / `ESP_A_BROKER` | `192.168.127.4` / `192.168.127.15` | First ESP32 for the ESP-Linux-ESP bridge test |
+| `ESP_B_HTTP` / `ESP_B_BROKER` | `192.168.127.6` / `192.168.127.16` | Second ESP32 for the ESP-Linux-ESP bridge test |
 | `IFACE` | route-derived | Host network interface for ARP/tcpdump validation |
 | `LINUX_PEER_HOST` | `192.168.127.5` | IP address the ESP32 uses to reach Linux broker5 |
+| `LINUX_HOST` | `192.168.127.5` | Linux middle broker IP visible from ESP32 bridge peers |
+| `BRIDGE_MODE` | `star` | `star` makes both ESP32 boards seed Linux; `chain` makes Linux seed ESP B |
 
 `web-network-test` sources `tests/linux/local_web_network.env` when present.
 That file is ignored so site-specific IP settings stay local.

@@ -165,6 +165,18 @@ items:
     P2P TCP connection is full duplex; bidirectional MQTT publish/subscribe passed.
     mqtt_min_broker mqtt-v0.1.20 fixes Zephyr P2P node IDs by deriving them from
     hardware ID.
+- id: hardware-esp32-linux-esp32-bridge
+  area: hardware
+  title: Validate two W5500 ESP32 brokers bridged through one Linux broker.
+  status: done
+  notes: Use ESP A management 192.168.127.4 / broker 192.168.127.15, Linux host
+    192.168.127.5 as the middle broker, and ESP B management 192.168.127.6 /
+    broker 192.168.127.16. Verify bidirectional MQTT delivery across the two-hop
+    bridge path ESP A <-> Linux <-> ESP B. Passed on 2026-06-25 with BRIDGE_MODE=star,
+    where both ESP32 boards seed only the Linux middle broker; bidirectional MQTT
+    publish/subscribe passed 10/10. BRIDGE_MODE=chain, where Linux actively seeds
+    ESP B, reproduced an ESP reachability failure and remains a P2P stability
+    investigation mode rather than the default validation path.
 - id: hardware-wifi-six-node-linux-ap-bridge
   area: hardware
   title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional
