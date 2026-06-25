@@ -6,6 +6,9 @@
 #include "product_config.h"
 #include "product_console.h"
 #include "product_runtime.h"
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+#include "product_wifi.h"
+#endif
 
 #ifdef __ZEPHYR__
 #include <zephyr/console/console.h>
@@ -47,15 +50,25 @@ static char *next_token(char **save)
 static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     pc_write(write_fn, ctx,
-                  "commands: help status info show ip dhcp broker peer defaults reset reboot\n");
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+                  "commands: help status info show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
+#else
+                  "commands: help status info show ip dhcp broker broker-state peer defaults reset reboot\n");
+#endif
     pc_write(write_fn, ctx,
                   "  info                     show runtime and saved network/broker config\n");
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    pc_write(write_fn, ctx,
+                  "  wifi <ssid> <pass|->     save WiFi AP, reboot to connect\n");
+#endif
     pc_write(write_fn, ctx,
                   "  ip <addr> [gw] [mask]    save static network IP, reboot to apply\n");
     pc_write(write_fn, ctx,
                   "  dhcp                     enable DHCP, reboot to apply\n");
     pc_write(write_fn, ctx,
                   "  broker <mqtt> <p2p> [ip]  save local broker ports/ip\n");
+    pc_write(write_fn, ctx,
+                  "  broker-state <0|1>     disable/enable broker on next boot\n");
     pc_write(write_fn, ctx,
                   "  peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
     pc_write(write_fn, ctx,
@@ -160,17 +173,35 @@ static int cmd_ip(char **save, product_console_write_fn write_fn, void *ctx)
         copy_arg(settings.network.gateway, sizeof(settings.network.gateway), gw);
         copy_arg(settings.network.dns, sizeof(settings.network.dns), gw);
     } else if (!settings.network.gateway[0]) {
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        copy_arg(settings.network.gateway, sizeof(settings.network.gateway),
+                 CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
+        copy_arg(settings.network.dns, sizeof(settings.network.dns),
+                 CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
+#else
         copy_arg(settings.network.gateway, sizeof(settings.network.gateway), "192.168.127.5");
         copy_arg(settings.network.dns, sizeof(settings.network.dns), "192.168.127.5");
+#endif
     }
     if (mask) {
         copy_arg(settings.network.netmask, sizeof(settings.network.netmask), mask);
     } else if (!settings.network.netmask[0]) {
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        copy_arg(settings.network.netmask, sizeof(settings.network.netmask),
+                 CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK);
+#else
         copy_arg(settings.network.netmask, sizeof(settings.network.netmask), "255.255.0.0");
+#endif
     }
     if (!settings.network.dns[0]) {
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        copy_arg(settings.network.dns, sizeof(settings.network.dns),
+                 settings.network.gateway[0] ?
+                 settings.network.gateway : CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
+#else
         copy_arg(settings.network.dns, sizeof(settings.network.dns),
                  settings.network.gateway[0] ? settings.network.gateway : "192.168.127.5");
+#endif
     }
     settings.network.dhcp_enabled = 0;
 
@@ -204,6 +235,46 @@ static int cmd_dhcp(product_console_write_fn write_fn, void *ctx)
     return 0;
 }
 
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+static int cmd_wifi(char **save, product_console_write_fn write_fn, void *ctx)
+{
+    char *ssid = next_token(save);
+    char *pass = next_token(save);
+    field_bridge_settings_t settings;
+
+    if (!ssid || !pass || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx,
+                 "ERR usage: wifi <ssid> <pass|->\n");
+        return -1;
+    }
+    if (strcmp(settings.network.device_ip, "0.0.0.0") == 0 ||
+        settings.network.device_ip[0] == '\0') {
+        pc_write(write_fn, ctx, "ERR set static IP first: ip <addr> [gw] [mask]\n");
+        return -1;
+    }
+
+    copy_arg(settings.network.wifi_ssid, sizeof(settings.network.wifi_ssid),
+             ssid);
+    copy_arg(settings.network.wifi_password, sizeof(settings.network.wifi_password),
+             strcmp(pass, "-") == 0 ? "" : pass);
+    copy_arg(settings.broker.broker_ip, sizeof(settings.broker.broker_ip),
+             settings.network.device_ip);
+    settings.network.dhcp_enabled = 0;
+
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save wifi failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx,
+             "OK saved wifi ssid=%s ip=%s gw=%s mask=%s; reboot to apply\n",
+             settings.network.wifi_ssid,
+             settings.network.device_ip,
+             settings.network.gateway,
+             settings.network.netmask);
+    return 0;
+}
+#endif
+
 static int cmd_broker(char **save, product_console_write_fn write_fn, void *ctx)
 {
     char *mqtt = next_token(save);
@@ -225,6 +296,34 @@ static int cmd_broker(char **save, product_console_write_fn write_fn, void *ctx)
         return -1;
     }
     pc_write(write_fn, ctx, "OK saved broker config; reboot to apply\n");
+    return 0;
+}
+
+static int cmd_broker_state(char **save, product_console_write_fn write_fn,
+                            void *ctx)
+{
+    char *enabled = next_token(save);
+    field_bridge_settings_t settings;
+    int value;
+
+    if (!enabled || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: broker-state <0|1>\n");
+        return -1;
+    }
+
+    value = atoi(enabled);
+    if (value != 0 && value != 1) {
+        pc_write(write_fn, ctx, "ERR broker-state must be 0 or 1\n");
+        return -1;
+    }
+
+    settings.broker.broker_enabled = (uint8_t)value;
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx, "OK saved broker-state=%d; reboot to apply\n",
+             value);
     return 0;
 }
 
@@ -323,8 +422,16 @@ int product_console_handle_line(char *line,
     if (strcmp(cmd, "dhcp") == 0) {
         return cmd_dhcp(write_fn, write_ctx);
     }
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    if (strcmp(cmd, "wifi") == 0) {
+        return cmd_wifi(&save, write_fn, write_ctx);
+    }
+#endif
     if (strcmp(cmd, "broker") == 0) {
         return cmd_broker(&save, write_fn, write_ctx);
+    }
+    if (strcmp(cmd, "broker-state") == 0) {
+        return cmd_broker_state(&save, write_fn, write_ctx);
     }
     if (strcmp(cmd, "peer") == 0) {
         return cmd_peer(&save, write_fn, write_ctx);

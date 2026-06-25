@@ -36,11 +36,16 @@ target_sources(app PRIVATE
   src/product_runtime.c
   src/product_topics.c
   src/product_console.c
-  src/product_ethernet.c
   src/product_status_io.c
   src/bridge_control.c
   src/provisioning_http.c
 )
+
+if(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+  target_sources(app PRIVATE src/product_wifi.c)
+else()
+  target_sources(app PRIVATE src/product_ethernet.c)
+endif()
 
 target_include_directories(app PRIVATE src)
 add_dependencies(app provisioning_web_asset)

@@ -1,0 +1,43 @@
+source "Kconfig.zephyr"
+
+config FIELD_BRIDGE_WIFI_TEST_PROFILE
+	bool "Field bridge WiFi Linux AP hardware test profile"
+	default n
+	help
+	  Use dephy_wifi instead of the Ethernet/W5500 network path.
+	  This is for hardware validation on ESP32 boards without W5500 modules.
+
+config FIELD_BRIDGE_WIFI_STA_SSID
+	string "Field bridge WiFi STA SSID"
+	default ""
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE
+
+config FIELD_BRIDGE_WIFI_STA_PASSWORD
+	string "Field bridge WiFi STA password"
+	default ""
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE
+
+config FIELD_BRIDGE_WIFI_AP_SSID
+	string "Field bridge WiFi SoftAP SSID"
+	default ""
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE
+
+config FIELD_BRIDGE_WIFI_AP_PASSWORD
+	string "Field bridge WiFi SoftAP password"
+	default "open"
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE
+
+config FIELD_BRIDGE_WIFI_STATIC_PREFIX
+	string "Field bridge WiFi static IPv4 prefix"
+	default "10.88.0"
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE
+
+config FIELD_BRIDGE_WIFI_STATIC_GATEWAY
+	string "Field bridge WiFi static IPv4 gateway"
+	default "10.88.0.1"
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE
+
+config FIELD_BRIDGE_WIFI_STATIC_NETMASK
+	string "Field bridge WiFi static IPv4 netmask"
+	default "255.255.255.0"
+	depends on FIELD_BRIDGE_WIFI_TEST_PROFILE

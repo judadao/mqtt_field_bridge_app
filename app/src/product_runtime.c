@@ -111,12 +111,18 @@ int product_runtime_get_status(field_bridge_runtime_status_t *out)
     }
 
 #if defined(PRODUCT_RUNTIME_HAS_P2P)
-    p2p_peer_snapshot_t peers[P2P_PEER_MAX];
-    runtime_status.connected_peers =
-        (uint8_t)p2p_peer_snapshot(peers, P2P_PEER_MAX);
-    p2p_router_stats_t stats;
-    if (p2p_router_stats(&stats) == 0) {
-        runtime_status.remote_subscriptions = stats.remote_subs;
+    if (strcmp(runtime_status.broker_state, "running") == 0 ||
+        strcmp(runtime_status.broker_state, "requested") == 0) {
+        p2p_peer_snapshot_t peers[P2P_PEER_MAX];
+        runtime_status.connected_peers =
+            (uint8_t)p2p_peer_snapshot(peers, P2P_PEER_MAX);
+        p2p_router_stats_t stats;
+        if (p2p_router_stats(&stats) == 0) {
+            runtime_status.remote_subscriptions = stats.remote_subs;
+        }
+    } else {
+        runtime_status.connected_peers = 0;
+        runtime_status.remote_subscriptions = 0;
     }
 #else
     runtime_status.connected_peers = 0;

@@ -16,6 +16,25 @@ static void settings_defaults(void)
     memset(&settings, 0, sizeof(settings));
     strncpy(settings.system.device_name, "esp32-min-broker",
             sizeof(settings.system.device_name) - 1);
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    strncpy(settings.network.wifi_ssid, CONFIG_FIELD_BRIDGE_WIFI_STA_SSID,
+            sizeof(settings.network.wifi_ssid) - 1);
+    strncpy(settings.network.wifi_password, CONFIG_FIELD_BRIDGE_WIFI_STA_PASSWORD,
+            sizeof(settings.network.wifi_password) - 1);
+    strncpy(settings.network.device_ip, "0.0.0.0",
+            sizeof(settings.network.device_ip) - 1);
+    strncpy(settings.network.gateway, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
+            sizeof(settings.network.gateway) - 1);
+    strncpy(settings.network.netmask, CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK,
+            sizeof(settings.network.netmask) - 1);
+    strncpy(settings.network.dns, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
+            sizeof(settings.network.dns) - 1);
+    settings.network.dhcp_enabled = 0;
+    strncpy(settings.broker.broker_ip, "0.0.0.0",
+            sizeof(settings.broker.broker_ip) - 1);
+#else
+    settings.network.wifi_ssid[0] = '\0';
+    settings.network.wifi_password[0] = '\0';
     strncpy(settings.network.device_ip, "192.168.127.4",
             sizeof(settings.network.device_ip) - 1);
     strncpy(settings.network.gateway, "192.168.127.5",
@@ -27,6 +46,7 @@ static void settings_defaults(void)
     settings.network.dhcp_enabled = 0;
     strncpy(settings.broker.broker_ip, "192.168.127.15",
             sizeof(settings.broker.broker_ip) - 1);
+#endif
     strncpy(settings.broker.site_id, "field-a",
             sizeof(settings.broker.site_id) - 1);
     strncpy(settings.broker.topic_prefix, "site/field-a",

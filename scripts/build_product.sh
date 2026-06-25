@@ -18,6 +18,14 @@ else
     EXTRA_CONF_FILES=
 fi
 
+if [ -n "${EXTRA_CONF_FILES_APPEND:-}" ]; then
+    if [ -n "$EXTRA_CONF_FILES" ]; then
+        EXTRA_CONF_FILES="$EXTRA_CONF_FILES;$EXTRA_CONF_FILES_APPEND"
+    else
+        EXTRA_CONF_FILES="$EXTRA_CONF_FILES_APPEND"
+    fi
+fi
+
 if [ -z "$BOARD" ]; then
     BOARD=esp32_devkitc/esp32/procpu
 fi
@@ -50,7 +58,10 @@ if [ -n "$EXTRA_CONF_FILES" ]; then
     OLD_IFS=$IFS
     IFS=';'
     for conf_path in $EXTRA_CONF_FILES; do
-        conf_abs="$ROOT_DIR/$conf_path"
+        case "$conf_path" in
+            /*) conf_abs="$conf_path" ;;
+            *) conf_abs="$ROOT_DIR/$conf_path" ;;
+        esac
         if [ ! -f "$conf_abs" ]; then
             printf 'error: extra Zephyr conf file not found: %s\n' "$conf_path" >&2
             exit 1

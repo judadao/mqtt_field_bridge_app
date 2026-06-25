@@ -12,7 +12,11 @@
 #include "bridge_control.h"
 #include "product_console.h"
 #include "product_config.h"
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+#include "product_wifi.h"
+#else
 #include "product_ethernet.h"
+#endif
 #include "product_runtime.h"
 #include "product_status_io.h"
 #include "provisioning_http.h"
@@ -20,7 +24,7 @@
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 
 #ifdef __ZEPHYR__
-#define BROKER_RUN_STACK_SIZE 2048
+#define BROKER_RUN_STACK_SIZE 3072
 K_THREAD_STACK_DEFINE(broker_run_stack, BROKER_RUN_STACK_SIZE);
 static struct k_thread broker_run_thread;
 
@@ -86,6 +90,7 @@ int main(void)
     product_config_init();
     product_runtime_init();
     product_status_io_init(NULL, NULL, status_config_reset_press, NULL);
+    product_console_start();
 
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
@@ -93,22 +98,57 @@ int main(void)
         char configured_ip[FIELD_BRIDGE_HOST_MAX];
         uint8_t requested_dhcp = settings.network.dhcp_enabled;
 
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        if (settings.network.wifi_ssid[0] == '\0') {
+            LOG_INF("wifi not configured; waiting for UART provisioning");
+            product_runtime_broker_failed("wifi not configured");
+            product_status_io_set_running(0);
+#ifdef __ZEPHYR__
+            while (1) {
+                k_sleep(K_SECONDS(60));
+            }
+#else
+            return 0;
+#endif
+        }
+#endif
+
         snprintf(configured_ip, sizeof(configured_ip), "%s",
                  settings.network.device_ip);
 
-        LOG_INF("network startup requested: device=%s ip=%s broker_ip=%s dhcp=%u transport=ethernet",
+        LOG_INF("network startup requested: device=%s ip=%s broker_ip=%s dhcp=%u transport=%s",
                 settings.system.device_name,
                 settings.network.device_ip,
                 settings.broker.broker_ip,
-                settings.network.dhcp_enabled);
+                settings.network.dhcp_enabled,
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+                "wifi"
+#else
+                "ethernet"
+#endif
+                );
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        if (product_wifi_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
+            product_runtime_broker_failed("wifi start failed");
+            product_status_io_set_error();
+            return -1;
+        }
+#else
         if (product_ethernet_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
             product_runtime_broker_failed("ethernet start failed");
             product_status_io_set_error();
             return -1;
         }
+#endif
         if (ip_addr[0]) {
             snprintf(settings.network.device_ip, sizeof(settings.network.device_ip),
                      "%s", ip_addr);
+            if (settings.network.dhcp_enabled ||
+                settings.broker.broker_ip[0] == '\0' ||
+                strcmp(settings.broker.broker_ip, "0.0.0.0") == 0) {
+                snprintf(settings.broker.broker_ip, sizeof(settings.broker.broker_ip),
+                         "%s", ip_addr);
+            }
         }
         if (requested_dhcp && configured_ip[0] &&
             strcmp(ip_addr, configured_ip) == 0) {
@@ -120,11 +160,13 @@ int main(void)
             product_status_io_set_error();
             return -1;
         }
+#if !defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
         if (!settings.broker.broker_enabled) {
             settings.broker.broker_enabled = 1;
             (void)product_config_set_settings(&settings);
             LOG_INF("broker_enabled was disabled; enabling for power-on startup");
         }
+#endif
     } else {
         product_runtime_broker_failed("settings unavailable");
         product_status_io_set_error();
@@ -133,7 +175,17 @@ int main(void)
 
     bridge_control_init();
     provisioning_http_start();
-    product_console_start();
+
+    if (!settings.broker.broker_enabled) {
+        LOG_INF("broker disabled by product config");
+        product_runtime_set_broker_enabled(0);
+        product_status_io_set_running(0);
+#ifdef __ZEPHYR__
+        k_thread_priority_set(k_current_get(), 7);
+        provisioning_http_run();
+#endif
+        return 0;
+    }
 
     LOG_INF("broker startup requested: ip=%s mqtt=%u p2p=%u bridge=%u mesh=%u",
             settings.broker.broker_ip,

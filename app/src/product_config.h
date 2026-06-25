@@ -24,6 +24,8 @@ typedef struct {
 } field_bridge_system_settings_t;
 
 typedef struct {
+    char wifi_ssid[FIELD_BRIDGE_HOST_MAX];
+    char wifi_password[FIELD_BRIDGE_HOST_MAX];
     char device_ip[FIELD_BRIDGE_HOST_MAX];
     char gateway[FIELD_BRIDGE_HOST_MAX];
     char netmask[FIELD_BRIDGE_HOST_MAX];

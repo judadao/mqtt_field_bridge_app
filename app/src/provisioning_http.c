@@ -11,6 +11,9 @@
 #include "product_runtime.h"
 #include "product_topics.h"
 #include "bridge_control.h"
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+#include "product_wifi.h"
+#endif
 #ifndef __ZEPHYR__
 #include "generated/provisioning_index.h"
 #else
@@ -105,9 +108,12 @@ static int json_decode_peer(const char *json, field_bridge_peer_t *out)
 
 static int json_decode_settings(const char *json, field_bridge_settings_t *out)
 {
-    memset(out, 0, sizeof(*out));
     if (json_str_field(json, "device_name", out->system.device_name,
                        sizeof(out->system.device_name)) != 0) return -1;
+    json_str_field(json, "wifi_ssid", out->network.wifi_ssid,
+                   sizeof(out->network.wifi_ssid));
+    json_str_field(json, "wifi_password", out->network.wifi_password,
+                   sizeof(out->network.wifi_password));
     if (json_str_field(json, "device_ip", out->network.device_ip,
                        sizeof(out->network.device_ip)) != 0) return -1;
     if (json_str_field(json, "gateway", out->network.gateway,
@@ -256,20 +262,20 @@ static int extract_content_length(const char *headers)
 #else
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
-#define PLAT_SEND(fd, buf, len) zsock_send((fd), (buf), (size_t)(len), 0)
+#define PLAT_SEND(fd, buf, len) zsock_send((fd), (buf), (size_t)(len), ZSOCK_MSG_DONTWAIT)
 #define PLAT_RECV(fd, buf, len) zsock_recv((fd), (buf), (size_t)(len), 0)
-#define PLAT_CLOSE(fd)          zsock_close(fd)
+#define PLAT_CLOSE(fd)          close_client_socket(fd)
 #endif
 
-#define PEERS_JSON_BUF_SIZE 4096
+#define PEERS_JSON_BUF_SIZE 2048
 static char peers_json_buf[PEERS_JSON_BUF_SIZE];
 #define CONFIG_JSON_BUF_SIZE 2048
 static char config_json_buf[CONFIG_JSON_BUF_SIZE];
 #ifdef __ZEPHYR__
-#define HTTP_SEND_CHUNK_SIZE 256
+#define HTTP_SEND_CHUNK_SIZE 512
 static void http_yield(void)
 {
-    k_msleep(10);
+    k_yield();
 }
 #else
 #define HTTP_SEND_CHUNK_SIZE 512
@@ -277,8 +283,15 @@ static void http_yield(void)
 {
 }
 #endif
-#define HTTP_COMBINED_RESPONSE_SIZE 2048
+#define HTTP_COMBINED_RESPONSE_SIZE 1024
 static char combined_response_buf[HTTP_COMBINED_RESPONSE_SIZE];
+
+#ifdef __ZEPHYR__
+static void close_client_socket(int fd)
+{
+    (void)zsock_close(fd);
+}
+#endif
 
 #ifdef __ZEPHYR__
 static void reboot_work_handler(struct k_work *work)
@@ -412,6 +425,9 @@ static const int index_lite_gz_len = (int)sizeof(index_lite_gz) - 1;
 static int send_all_bytes(int fd, const char *buf, int len)
 {
     int sent = 0;
+#ifdef __ZEPHYR__
+    int would_block_count = 0;
+#endif
 
     while (sent < len) {
         int chunk = len - sent;
@@ -422,13 +438,21 @@ static int send_all_bytes(int fd, const char *buf, int len)
         }
         n = PLAT_SEND(fd, buf + sent, chunk);
         if (n <= 0) {
+#ifdef __ZEPHYR__
+            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) &&
+                would_block_count++ < 20) {
+                k_sleep(K_MSEC(5));
+                continue;
+            }
+#endif
             LOG_WRN("HTTP send failed after %d/%d bytes: %d", sent, len, errno);
             return -1;
         }
-        sent += (int)n;
 #ifdef __ZEPHYR__
-        k_sleep(K_MSEC(10));
+        would_block_count = 0;
 #endif
+        sent += (int)n;
+        http_yield();
     }
     return 0;
 }
@@ -495,7 +519,7 @@ static void send_response_type(int fd, int status, const char *content_type,
 
 static void send_json(int fd, int status, const char *body)
 {
-    LOG_INF("HTTP send JSON status=%d", status);
+    LOG_DBG("HTTP send JSON status=%d", status);
     http_yield();
     send_response_type(fd, status, "application/json", body);
 }
@@ -606,6 +630,10 @@ static void handle_get_config(int fd)
     if (written < 0 || written >= cap - pos) goto overflow;
     pos += written;
     if (append_json_str(buf, cap, &pos, s.system.device_name) != 0) goto overflow;
+    written = snprintf(buf + pos, (size_t)(cap - pos), ",\"wifi_ssid\":");
+    if (written < 0 || written >= cap - pos) goto overflow;
+    pos += written;
+    if (append_json_str(buf, cap, &pos, s.network.wifi_ssid) != 0) goto overflow;
     written = snprintf(buf + pos, (size_t)(cap - pos), ",\"device_ip\":");
     if (written < 0 || written >= cap - pos) goto overflow;
     pos += written;
@@ -660,12 +688,15 @@ static void handle_post_config(int fd, const char *body)
     field_bridge_settings_t old_settings;
     int reboot_required;
 
+    if (product_config_get_settings(&old_settings) != 0) {
+        memset(&old_settings, 0, sizeof(old_settings));
+    }
+    settings = old_settings;
     if (json_decode_settings(body, &settings) != 0) {
         send_json(fd, 400, "{\"error\":\"invalid config JSON\"}");
         return;
     }
-    reboot_required = product_config_get_settings(&old_settings) != 0 ||
-                      settings_reboot_required(&old_settings, &settings);
+    reboot_required = settings_reboot_required(&old_settings, &settings);
     if (product_config_set_settings(&settings) != 0) {
         send_json(fd, 500, "{\"error\":\"persist failed\"}");
         return;
@@ -677,6 +708,58 @@ static void handle_post_config(int fd, const char *body)
     send_json(fd, 200, reboot_required ?
               "{\"status\":\"ok\",\"reboot_required\":true}" :
               "{\"status\":\"ok\",\"reboot_required\":false}");
+}
+
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+static int json_decode_wifi_connect(const char *json, field_bridge_settings_t *settings)
+{
+    if (!json || !settings) {
+        return -1;
+    }
+    if (json_str_field(json, "wifi_ssid", settings->network.wifi_ssid,
+                       sizeof(settings->network.wifi_ssid)) != 0) return -1;
+    json_str_field(json, "wifi_password", settings->network.wifi_password,
+                   sizeof(settings->network.wifi_password));
+    json_str_field(json, "device_ip", settings->network.device_ip,
+                   sizeof(settings->network.device_ip));
+    json_str_field(json, "gateway", settings->network.gateway,
+                   sizeof(settings->network.gateway));
+    json_str_field(json, "netmask", settings->network.netmask,
+                   sizeof(settings->network.netmask));
+    json_str_field(json, "dns", settings->network.dns,
+                   sizeof(settings->network.dns));
+    json_uint8_field(json, "dhcp_enabled", &settings->network.dhcp_enabled);
+    return settings->network.wifi_ssid[0] ? 0 : -1;
+}
+#endif
+
+static void handle_wifi_connect(int fd, const char *body)
+{
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    field_bridge_settings_t settings;
+    char ip_addr[FIELD_BRIDGE_HOST_MAX];
+
+    if (product_config_get_settings(&settings) != 0) {
+        send_json(fd, 500, "{\"error\":\"config unavailable\"}");
+        return;
+    }
+    if (json_decode_wifi_connect(body, &settings) != 0) {
+        send_json(fd, 400, "{\"error\":\"invalid wifi connect JSON\"}");
+        return;
+    }
+    if (product_config_set_settings(&settings) != 0) {
+        send_json(fd, 500, "{\"error\":\"persist failed\"}");
+        return;
+    }
+    if (product_wifi_apply_settings(&settings, ip_addr, sizeof(ip_addr)) != 0) {
+        send_json(fd, 500, "{\"error\":\"wifi connect failed\"}");
+        return;
+    }
+    send_json(fd, 200, "{\"status\":\"connecting\",\"reboot_required\":true}");
+#else
+    (void)body;
+    send_json(fd, 501, "{\"error\":\"wifi connect unavailable\"}");
+#endif
 }
 
 static void handle_config_reset(int fd)
@@ -849,10 +932,10 @@ static void handle_client(int fd)
 
     /* Read until end-of-headers */
     while (total < HTTP_BUF_SIZE - 1) {
-        LOG_INF("HTTP waiting recv fd=%d", fd);
+        LOG_DBG("HTTP waiting recv fd=%d", fd);
         http_yield();
         n = PLAT_RECV(fd, buf + total, HTTP_BUF_SIZE - 1 - total);
-        LOG_INF("HTTP recv fd=%d n=%d errno=%d", fd, (int)n, errno);
+        LOG_DBG("HTTP recv fd=%d n=%d errno=%d", fd, (int)n, errno);
         http_yield();
         if (n <= 0) goto done;
         total += (int)n;
@@ -867,7 +950,7 @@ static void handle_client(int fd)
         goto done;
     }
     normalize_request_path(path, sizeof(path));
-    LOG_INF("HTTP request %s %s", method, path);
+    LOG_DBG("HTTP request %s %s", method, path);
 
     const char *hdr_end = strstr(buf, "\r\n\r\n");
     if (!hdr_end) { send_json(fd, 400, "{\"error\":\"bad request\"}"); goto done; }
@@ -898,6 +981,8 @@ static void handle_client(int fd)
         handle_config_reset(fd);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/reboot") == 0) {
         handle_reboot(fd);
+    } else if (strcmp(method, "POST") == 0 && strcmp(path, "/wifi/connect") == 0) {
+        handle_wifi_connect(fd, body_start);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/broker/control") == 0) {
         handle_broker_control(fd, body_start);
     } else if (strcmp(method, "POST") == 0 && strcmp(path, "/publish-test") == 0) {
@@ -924,9 +1009,11 @@ static void configure_client_socket(int fd)
     (void)setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     (void)setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 #else
-    struct timeval tv = { .tv_sec = 10, .tv_usec = 0 };
+    struct timeval tv = { .tv_sec = 3, .tv_usec = 0 };
+    int one = 1;
     (void)zsock_setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     (void)zsock_setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    (void)zsock_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 #endif
 }
 
