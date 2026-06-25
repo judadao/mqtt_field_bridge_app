@@ -209,6 +209,20 @@ items:
     ESP A /dev/ttyUSB0 at management 192.168.127.4 and broker 192.168.127.15,
     and ESP B /dev/ttyUSB1 at management 192.168.127.6 and broker 192.168.127.16;
     test_dual_esp32_admission_fallback.sh reported 14/14 passing.
+- id: hardware-status-led-button-controls
+  area: hardware
+  title: Add status LEDs, software power button, and software config reset button
+    for W5500 ESP32 boards.
+  status: done
+  notes: Use GPIO2 as the green running/activity LED, GPIO4 as the red stopped/error
+    LED, GPIO0/IO0 as a long-press software power toggle, and GPIO15 as a long-press
+    software config reset button. Green stays solid while the broker is running
+    and blinks faster after MQTT publish activity; red is on when the broker is
+    disabled or startup fails. Long-press power toggles broker_enabled and reboots.
+    Long-press reset restores default config and reboots. Built and flashed on
+    2026-06-25 to /dev/ttyUSB0 and /dev/ttyUSB1; both passed Ethernet, HTTP, and
+    broker reboot verification, and the dual-W5500 admission fallback test still
+    reported 14/14 passing.
 - id: hardware-wifi-six-node-linux-ap-bridge
   area: hardware
   title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional

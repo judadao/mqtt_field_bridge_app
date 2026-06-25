@@ -3,6 +3,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/reboot.h>
 
 #include "broker.h"
 #include "client.h"
@@ -13,6 +14,7 @@
 #include "product_config.h"
 #include "product_ethernet.h"
 #include "product_runtime.h"
+#include "product_status_io.h"
 #include "provisioning_http.h"
 
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
@@ -21,6 +23,54 @@ LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 #define BROKER_RUN_STACK_SIZE 2048
 K_THREAD_STACK_DEFINE(broker_run_stack, BROKER_RUN_STACK_SIZE);
 static struct k_thread broker_run_thread;
+
+static void reboot_later(struct k_work *work);
+K_WORK_DELAYABLE_DEFINE(status_button_reboot_work, reboot_later);
+
+static void reboot_later(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    sys_reboot(SYS_REBOOT_COLD);
+}
+
+static void broker_activity(void *ctx)
+{
+    ARG_UNUSED(ctx);
+    product_status_io_record_activity();
+}
+
+static void status_button_long_press(void *ctx)
+{
+    field_bridge_settings_t settings;
+
+    ARG_UNUSED(ctx);
+    if (product_config_get_settings(&settings) != 0) {
+        return;
+    }
+    settings.broker.broker_enabled = settings.broker.broker_enabled ? 0 : 1;
+    if (product_config_set_settings(&settings) != 0) {
+        return;
+    }
+    product_status_io_set_running(settings.broker.broker_enabled);
+    product_runtime_set_broker_enabled(settings.broker.broker_enabled);
+    LOG_INF("power button long press: broker_enabled=%u, rebooting",
+            settings.broker.broker_enabled);
+    k_work_schedule(&status_button_reboot_work, K_MSEC(500));
+}
+
+static void status_reset_long_press(void *ctx)
+{
+    ARG_UNUSED(ctx);
+
+    if (product_config_reset_all() != 0) {
+        LOG_ERR("reset button long press: config reset failed");
+        return;
+    }
+    product_status_io_set_running(0);
+    product_runtime_set_broker_enabled(0);
+    LOG_INF("reset button long press: defaults restored, rebooting");
+    k_work_schedule(&status_button_reboot_work, K_MSEC(500));
+}
 
 static void broker_service_entry(void *p1, void *p2, void *p3)
 {
@@ -53,6 +103,8 @@ int main(void)
 
     product_config_init();
     product_runtime_init();
+    product_status_io_init(status_button_long_press, NULL,
+                           status_reset_long_press, NULL);
 
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
@@ -83,10 +135,12 @@ int main(void)
         product_runtime_network_start(&settings);
         if (!product_runtime_network_ready()) {
             product_runtime_broker_failed("network not ready");
+            product_status_io_set_running(0);
             return -1;
         }
     } else {
         product_runtime_broker_failed("settings unavailable");
+        product_status_io_set_running(0);
         return -1;
     }
 
@@ -97,6 +151,7 @@ int main(void)
     if (!settings.broker.broker_enabled) {
         LOG_INF("broker disabled by product config");
         product_runtime_set_broker_enabled(0);
+        product_status_io_set_running(0);
 #ifdef __ZEPHYR__
         k_thread_priority_set(k_current_get(), 7);
         provisioning_http_run();
@@ -113,8 +168,11 @@ int main(void)
     if (broker_set_bind_host(settings.broker.broker_ip) != 0) {
         LOG_ERR("invalid broker bind ip: %s", settings.broker.broker_ip);
         product_runtime_broker_failed("invalid broker bind ip");
+        product_status_io_set_running(0);
         return -1;
     }
+    broker_set_activity_callback(broker_activity, NULL);
+    product_status_io_set_running(1);
 
 #ifdef __ZEPHYR__
     k_thread_create(&broker_run_thread,

@@ -12,6 +12,43 @@
 	};
 };
 
+/ {
+	aliases {
+		status-green-led = &status_green_led;
+		status-red-led = &status_red_led;
+		power-button = &power_button;
+		reset-button = &reset_button;
+	};
+
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		status_green_led: status_green_led {
+			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+			label = "Status green LED";
+		};
+
+		status_red_led: status_red_led {
+			gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
+			label = "Status red LED";
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		power_button: power_button {
+			gpios = <&gpio0 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Power button";
+		};
+
+		reset_button: reset_button {
+			gpios = <&gpio0 15 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Reset button";
+		};
+	};
+};
+
 &spi3 {
 	status = "okay";
 	pinctrl-0 = <&spim3_w5500>;

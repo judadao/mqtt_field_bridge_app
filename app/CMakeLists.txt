@@ -37,6 +37,7 @@ target_sources(app PRIVATE
   src/product_topics.c
   src/product_console.c
   src/product_ethernet.c
+  src/product_status_io.c
   src/bridge_control.c
   src/provisioning_http.c
 )
