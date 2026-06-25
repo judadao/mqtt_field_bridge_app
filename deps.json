@@ -9,7 +9,7 @@
     "dephy": {
       "repo": "git@github.com:judadao/dephy.git",
       "local": "../dephy",
-      "version": "dephy-v0.1.8",
+      "version": "dephy-v0.1.9",
       "path": "deps/dephy",
       "profile": "esp32",
       "module_path": "deps/dephy/boards/esp32",
@@ -25,7 +25,7 @@
     "dephy_eth": {
       "repo": "git@github.com:judadao/dephy_eth.git",
       "local": "../dephy_eth",
-      "version": "dephy-eth-v0.1.3",
+      "version": "dephy-eth-v0.1.4",
       "path": "deps/dephy_eth",
       "module_path": "deps/dephy_eth",
       "tag_pattern": "dephy-eth-v*"

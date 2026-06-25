@@ -155,3 +155,29 @@ items:
   notes: Added run_linux_web.sh as the root Linux web entry point, updated README
     so the first path is git clone, cd, run one shell script, then open the printed
     local URL. The script auto-selects local sibling deps or pinned downloads.
+- id: hardware-dual-w5500-bridge-validation
+  area: hardware
+  title: Validate two W5500-equipped ESP32 boards as Ethernet MQTT broker bridge peers.
+  status: in_progress
+  notes: Identify which two of /dev/ttyUSB0-/dev/ttyUSB5 have W5500 modules, flash
+    the Ethernet profile, assign separate management and broker IPs, configure each
+    ESP32 as the other's bridge peer, and verify MQTT publish/subscribe in both
+    directions over Ethernet.
+- id: hardware-wifi-six-node-linux-ap-bridge
+  area: hardware
+  title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional
+    MQTT bridge routing.
+  status: in_progress
+  notes: Add or restore a WiFi-enabled product test profile using dephy_wifi without
+    regressing the Ethernet product profile. Start a Linux AP, connect all six ESP32
+    boards as STA clients, configure a bridge topology within the two-peer stability
+    limit, and verify bidirectional MQTT delivery across the ESP32 broker bridge.
+- id: hardware-bridge-test-automation
+  area: validation
+  title: Add repeatable scripts and dephy_testkit triggers for Ethernet dual-W5500 and
+    Linux-AP WiFi six-node bridge tests.
+  status: in_progress
+  notes: Existing Linux chain and network-bind scripts cover single ESP32 Ethernet
+    scenarios. Extend hardware automation to discover UART/IP mappings, configure
+    peer slots, start and stop Linux AP/broker fixtures, and record pass/fail logs
+    for both requested hardware scenarios.
