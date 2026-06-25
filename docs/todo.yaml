@@ -177,6 +177,27 @@ items:
     publish/subscribe passed 10/10. BRIDGE_MODE=chain, where Linux actively seeds
     ESP B, reproduced an ESP reachability failure and remains a P2P stability
     investigation mode rather than the default validation path.
+- id: product-mode-a-admission-load-balance
+  area: architecture
+  title: Implement Mode A broker admission fallback for bridge load balancing.
+  status: done
+  notes: Add broker-side local client admission limit so an overloaded bridge node
+    rejects new MQTT CONNECT with CONNACK server-unavailable instead of handling
+    the session locally. Validate fallback with W5500 ESP32 and Linux brokers so
+    publish/subscribe still works through bridge routing while new clients move
+    to the less-loaded broker. Implemented through mqtt_min_broker mqtt-v0.1.21
+    and enabled in the product with CONFIG_MQTT_ADMISSION_MAX_CLIENTS=2.
+- id: hardware-mode-a-w5500-linux-validation
+  area: hardware
+  title: Validate Mode A admission fallback with W5500 ESP32 and Linux node.
+  status: done
+  notes: Use one W5500 ESP32 plus one Linux broker in a bridge topology. Fill the
+    ESP32 local admission limit, verify the next client is rejected by ESP32 and
+    connects to Linux, then verify MQTT delivery through the bridge in both
+    directions. Passed on 2026-06-25 with /dev/ttyUSB0 ESP32 at management
+    192.168.127.4 / broker 192.168.127.15 and Linux fallback broker at
+    192.168.127.5:21884; test_esp32_linux_admission_fallback.sh reported
+    10/10 passing.
 - id: hardware-wifi-six-node-linux-ap-bridge
   area: hardware
   title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional
