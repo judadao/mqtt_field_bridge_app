@@ -10,38 +10,41 @@ LOG_MODULE_REGISTER(product_status_io, LOG_LEVEL_INF);
 #define GREEN_LED_NODE DT_ALIAS(status_green_led)
 #define RED_LED_NODE DT_ALIAS(status_red_led)
 #define BUTTON_NODE DT_ALIAS(power_button)
-#define RESET_BUTTON_NODE DT_ALIAS(reset_button)
 
 #define STATUS_PERIOD_MS 100
+#define BOOT_BLINK_MS 500
 #define ACTIVITY_WINDOW_MS 3000
 #define ACTIVITY_BLINK_MIN_MS 80
 #define ACTIVITY_BLINK_MAX_MS 600
 #define LONG_PRESS_MS 1800
+#define CONFIG_RESET_PRESS_MS 10000
+
+enum status_io_state {
+    STATUS_IO_BOOTING = 0,
+    STATUS_IO_STOPPED,
+    STATUS_IO_RUNNING,
+};
 
 static const struct gpio_dt_spec green_led = GPIO_DT_SPEC_GET_OR(GREEN_LED_NODE, gpios, {0});
 static const struct gpio_dt_spec red_led = GPIO_DT_SPEC_GET_OR(RED_LED_NODE, gpios, {0});
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(BUTTON_NODE, gpios, {0});
-static const struct gpio_dt_spec reset_button = GPIO_DT_SPEC_GET_OR(RESET_BUTTON_NODE, gpios, {0});
 
 static struct gpio_callback button_cb;
-static struct gpio_callback reset_button_cb;
 static struct k_work_delayable status_work;
 static struct k_work_delayable button_work;
-static struct k_work_delayable reset_button_work;
 static product_status_button_fn button_long_press_fn;
 static void *button_ctx;
-static product_status_button_fn reset_long_press_fn;
-static void *reset_ctx;
+static product_status_button_fn config_reset_fn;
+static void *config_reset_ctx;
 static uint8_t io_ready;
-static uint8_t running;
 static uint8_t activity_led_on;
 static uint8_t long_press_reported;
-static uint8_t reset_long_press_reported;
+static uint8_t config_reset_reported;
+static enum status_io_state status_state = STATUS_IO_BOOTING;
 static uint32_t activity_count;
 static int64_t activity_window_start_ms;
 static int64_t last_toggle_ms;
 static int64_t button_pressed_ms;
-static int64_t reset_button_pressed_ms;
 
 static void set_led(const struct gpio_dt_spec *led, int value)
 {
@@ -91,7 +94,14 @@ static void status_work_handler(struct k_work *work)
         return;
     }
 
-    if (!running) {
+    if (status_state == STATUS_IO_BOOTING) {
+        if (now - last_toggle_ms >= BOOT_BLINK_MS) {
+            activity_led_on = !activity_led_on;
+            set_led(&red_led, activity_led_on);
+            set_led(&green_led, 0);
+            last_toggle_ms = now;
+        }
+    } else if (status_state == STATUS_IO_STOPPED) {
         set_led(&green_led, 0);
         set_led(&red_led, 1);
         activity_led_on = 0;
@@ -128,49 +138,32 @@ static void button_work_handler(struct k_work *work)
         if (button_pressed_ms == 0) {
             button_pressed_ms = now;
             long_press_reported = 0;
+            config_reset_reported = 0;
         }
-        if (!long_press_reported && now - button_pressed_ms >= LONG_PRESS_MS) {
+        if (status_state == STATUS_IO_RUNNING &&
+            !config_reset_reported &&
+            now - button_pressed_ms >= CONFIG_RESET_PRESS_MS) {
+            config_reset_reported = 1;
+            long_press_reported = 1;
+            LOG_INF("power button held for config reset");
+            if (config_reset_fn) {
+                config_reset_fn(config_reset_ctx);
+            }
+        }
+        k_work_schedule(&button_work, K_MSEC(100));
+    } else {
+        if (!config_reset_reported &&
+            !long_press_reported &&
+            button_pressed_ms != 0 &&
+            now - button_pressed_ms >= LONG_PRESS_MS) {
             long_press_reported = 1;
             if (button_long_press_fn) {
                 button_long_press_fn(button_ctx);
             }
         }
-        k_work_schedule(&button_work, K_MSEC(100));
-    } else {
         button_pressed_ms = 0;
         long_press_reported = 0;
-    }
-}
-
-static void reset_button_work_handler(struct k_work *work)
-{
-    int value;
-    int64_t now;
-
-    ARG_UNUSED(work);
-
-    if (!io_ready || !reset_button.port) {
-        return;
-    }
-
-    value = gpio_pin_get_dt(&reset_button);
-    now = k_uptime_get();
-    if (value > 0) {
-        if (reset_button_pressed_ms == 0) {
-            reset_button_pressed_ms = now;
-            reset_long_press_reported = 0;
-        }
-        if (!reset_long_press_reported &&
-            now - reset_button_pressed_ms >= LONG_PRESS_MS) {
-            reset_long_press_reported = 1;
-            if (reset_long_press_fn) {
-                reset_long_press_fn(reset_ctx);
-            }
-        }
-        k_work_schedule(&reset_button_work, K_MSEC(100));
-    } else {
-        reset_button_pressed_ms = 0;
-        reset_long_press_reported = 0;
+        config_reset_reported = 0;
     }
 }
 
@@ -181,15 +174,6 @@ static void button_isr(const struct device *dev, struct gpio_callback *cb, uint3
     ARG_UNUSED(pins);
 
     k_work_schedule(&button_work, K_NO_WAIT);
-}
-
-static void reset_button_isr(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
-{
-    ARG_UNUSED(dev);
-    ARG_UNUSED(cb);
-    ARG_UNUSED(pins);
-
-    k_work_schedule(&reset_button_work, K_NO_WAIT);
 }
 
 static void configure_button(const struct gpio_dt_spec *spec,
@@ -222,16 +206,18 @@ static void configure_button(const struct gpio_dt_spec *spec,
 
 int product_status_io_init(product_status_button_fn power_long_press_fn,
                            void *power_ctx,
-                           product_status_button_fn reset_long_press_cb,
-                           void *reset_button_ctx)
+                           product_status_button_fn config_reset_cb,
+                           void *reset_ctx)
 {
     int rc;
 
     button_long_press_fn = power_long_press_fn;
     button_ctx = power_ctx;
-    reset_long_press_fn = reset_long_press_cb;
-    reset_ctx = reset_button_ctx;
+    config_reset_fn = config_reset_cb;
+    config_reset_ctx = reset_ctx;
     activity_window_start_ms = k_uptime_get();
+    last_toggle_ms = activity_window_start_ms;
+    status_state = STATUS_IO_BOOTING;
 
     if (green_led.port) {
         if (!gpio_is_ready_dt(&green_led)) {
@@ -257,19 +243,36 @@ int product_status_io_init(product_status_button_fn power_long_press_fn,
 
     k_work_init_delayable(&status_work, status_work_handler);
     k_work_init_delayable(&button_work, button_work_handler);
-    k_work_init_delayable(&reset_button_work, reset_button_work_handler);
 
     configure_button(&button, &button_cb, button_isr, "power button");
-    configure_button(&reset_button, &reset_button_cb, reset_button_isr, "reset button");
 
     io_ready = 1;
+    set_led(&green_led, 0);
+    set_led(&red_led, 1);
+    LOG_INF("status IO ready: booting, green=GPIO%u red=GPIO%u power=GPIO%u",
+            green_led.pin, red_led.pin, button.pin);
     k_work_schedule(&status_work, K_NO_WAIT);
     return 0;
 }
 
 void product_status_io_set_running(uint8_t is_running)
 {
-    running = is_running ? 1 : 0;
+    status_state = is_running ? STATUS_IO_RUNNING : STATUS_IO_STOPPED;
+    activity_count = 0;
+    activity_led_on = is_running ? 1 : 0;
+    last_toggle_ms = k_uptime_get();
+    if (is_running) {
+        set_led(&red_led, 0);
+        set_led(&green_led, 1);
+        LOG_INF("status IO state: running");
+    } else {
+        set_led(&green_led, 0);
+        set_led(&red_led, 1);
+        LOG_INF("status IO state: stopped");
+    }
+    if (io_ready) {
+        k_work_schedule(&status_work, K_NO_WAIT);
+    }
 }
 
 void product_status_io_record_activity(void)
@@ -277,6 +280,9 @@ void product_status_io_record_activity(void)
     int64_t now = k_uptime_get();
 
     if (!io_ready) {
+        return;
+    }
+    if (status_state != STATUS_IO_RUNNING) {
         return;
     }
     if (now - activity_window_start_ms > ACTIVITY_WINDOW_MS) {

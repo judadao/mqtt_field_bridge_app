@@ -58,17 +58,17 @@ static void status_button_long_press(void *ctx)
     k_work_schedule(&status_button_reboot_work, K_MSEC(500));
 }
 
-static void status_reset_long_press(void *ctx)
+static void status_config_reset_press(void *ctx)
 {
     ARG_UNUSED(ctx);
 
     if (product_config_reset_all() != 0) {
-        LOG_ERR("reset button long press: config reset failed");
+        LOG_ERR("power button config reset: config reset failed");
         return;
     }
     product_status_io_set_running(0);
     product_runtime_set_broker_enabled(0);
-    LOG_INF("reset button long press: defaults restored, rebooting");
+    LOG_INF("power button config reset: defaults restored, rebooting");
     k_work_schedule(&status_button_reboot_work, K_MSEC(500));
 }
 
@@ -104,7 +104,7 @@ int main(void)
     product_config_init();
     product_runtime_init();
     product_status_io_init(status_button_long_press, NULL,
-                           status_reset_long_press, NULL);
+                           status_config_reset_press, NULL);
 
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
