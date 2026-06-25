@@ -214,11 +214,12 @@ items:
   title: Add status LEDs and single-button software power/config-reset controls
     for W5500 ESP32 boards.
   status: done
-  notes: Use GPIO2 as the blue running/boot/activity LED, GPIO4 as the red stopped/error
-    LED, and GPIO0/IO0 as the software power/config key. EN stays a hardware-only
-    reset pin. Blue blinks quickly while booting and stays solid while the broker
-    is running. Red and blue blink together after MQTT publish activity; red blinks
-    on startup errors and stays solid when the broker is disabled. Releasing IO0
+  notes: Use GPIO2 as the software-controlled blue status LED and GPIO0/IO0 as
+    the software power/config key. EN stays a hardware-only reset pin. The board
+    red LED is treated as a hardware power indicator and is not controlled by
+    firmware. Blue stays solid while the broker is running, blinks quickly while
+    booting or on startup errors, and stays off when the broker is disabled.
+    Releasing IO0
     after at least 1.8 seconds
     toggles broker_enabled and reboots. Holding IO0 for at least 10 seconds while
     the broker is running restores default config and reboots. Built and flashed

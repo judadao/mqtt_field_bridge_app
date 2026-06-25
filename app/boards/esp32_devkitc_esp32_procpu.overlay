@@ -15,7 +15,6 @@
 / {
 	aliases {
 		status-blue-led = &status_blue_led;
-		status-red-led = &status_red_led;
 		power-button = &power_button;
 	};
 
@@ -27,10 +26,6 @@
 			label = "Status blue LED";
 		};
 
-		status_red_led: status_red_led {
-			gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
-			label = "Status red LED";
-		};
 	};
 
 	gpio-keys {
