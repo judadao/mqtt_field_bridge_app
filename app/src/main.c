@@ -39,25 +39,6 @@ static void broker_activity(void *ctx)
     product_status_io_record_activity();
 }
 
-static void status_button_long_press(void *ctx)
-{
-    field_bridge_settings_t settings;
-
-    ARG_UNUSED(ctx);
-    if (product_config_get_settings(&settings) != 0) {
-        return;
-    }
-    settings.broker.broker_enabled = settings.broker.broker_enabled ? 0 : 1;
-    if (product_config_set_settings(&settings) != 0) {
-        return;
-    }
-    product_status_io_set_running(settings.broker.broker_enabled);
-    product_runtime_set_broker_enabled(settings.broker.broker_enabled);
-    LOG_INF("power button long press: broker_enabled=%u, rebooting",
-            settings.broker.broker_enabled);
-    k_work_schedule(&status_button_reboot_work, K_MSEC(500));
-}
-
 static void status_config_reset_press(void *ctx)
 {
     ARG_UNUSED(ctx);
@@ -104,8 +85,7 @@ int main(void)
 
     product_config_init();
     product_runtime_init();
-    product_status_io_init(status_button_long_press, NULL,
-                           status_config_reset_press, NULL);
+    product_status_io_init(NULL, NULL, status_config_reset_press, NULL);
 
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
@@ -140,6 +120,11 @@ int main(void)
             product_status_io_set_error();
             return -1;
         }
+        if (!settings.broker.broker_enabled) {
+            settings.broker.broker_enabled = 1;
+            (void)product_config_set_settings(&settings);
+            LOG_INF("broker_enabled was disabled; enabling for power-on startup");
+        }
     } else {
         product_runtime_broker_failed("settings unavailable");
         product_status_io_set_error();
@@ -149,17 +134,6 @@ int main(void)
     bridge_control_init();
     provisioning_http_start();
     product_console_start();
-
-    if (!settings.broker.broker_enabled) {
-        LOG_INF("broker disabled by product config");
-        product_runtime_set_broker_enabled(0);
-        product_status_io_set_running(0);
-#ifdef __ZEPHYR__
-        k_thread_priority_set(k_current_get(), 7);
-        provisioning_http_run();
-#endif
-        return 0;
-    }
 
     LOG_INF("broker startup requested: ip=%s mqtt=%u p2p=%u bridge=%u mesh=%u",
             settings.broker.broker_ip,

@@ -13,7 +13,7 @@ LOG_MODULE_REGISTER(product_status_io, LOG_LEVEL_INF);
 #define STATUS_PERIOD_MS 100
 #define BOOT_BLINK_MS 150
 #define ERROR_BLINK_MS 150
-#define LONG_PRESS_MS 1800
+#define RUN_BLINK_MS 2000
 #define CONFIG_RESET_PRESS_MS 10000
 
 enum status_io_state {
@@ -29,13 +29,10 @@ static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(BUTTON_NODE, gpios
 static struct gpio_callback button_cb;
 static struct k_work_delayable status_work;
 static struct k_work_delayable button_work;
-static product_status_button_fn button_long_press_fn;
-static void *button_ctx;
 static product_status_button_fn config_reset_fn;
 static void *config_reset_ctx;
 static uint8_t io_ready;
 static uint8_t activity_led_on;
-static uint8_t long_press_reported;
 static uint8_t config_reset_reported;
 static enum status_io_state status_state = STATUS_IO_BOOTING;
 static int64_t last_toggle_ms;
@@ -74,8 +71,11 @@ static void status_work_handler(struct k_work *work)
             last_toggle_ms = now;
         }
     } else {
-        activity_led_on = 1;
-        set_led(&blue_led, 1);
+        if (now - last_toggle_ms >= RUN_BLINK_MS) {
+            activity_led_on = !activity_led_on;
+            set_led(&blue_led, activity_led_on);
+            last_toggle_ms = now;
+        }
     }
 
     k_work_schedule(&status_work, K_MSEC(STATUS_PERIOD_MS));
@@ -97,14 +97,12 @@ static void button_work_handler(struct k_work *work)
     if (value > 0) {
         if (button_pressed_ms == 0) {
             button_pressed_ms = now;
-            long_press_reported = 0;
             config_reset_reported = 0;
         }
         if (status_state == STATUS_IO_RUNNING &&
             !config_reset_reported &&
             now - button_pressed_ms >= CONFIG_RESET_PRESS_MS) {
             config_reset_reported = 1;
-            long_press_reported = 1;
             LOG_INF("power button held for config reset");
             if (config_reset_fn) {
                 config_reset_fn(config_reset_ctx);
@@ -112,17 +110,7 @@ static void button_work_handler(struct k_work *work)
         }
         k_work_schedule(&button_work, K_MSEC(100));
     } else {
-        if (!config_reset_reported &&
-            !long_press_reported &&
-            button_pressed_ms != 0 &&
-            now - button_pressed_ms >= LONG_PRESS_MS) {
-            long_press_reported = 1;
-            if (button_long_press_fn) {
-                button_long_press_fn(button_ctx);
-            }
-        }
         button_pressed_ms = 0;
-        long_press_reported = 0;
         config_reset_reported = 0;
     }
 }
@@ -171,8 +159,8 @@ int product_status_io_init(product_status_button_fn power_long_press_fn,
 {
     int rc;
 
-    button_long_press_fn = power_long_press_fn;
-    button_ctx = power_ctx;
+    ARG_UNUSED(power_long_press_fn);
+    ARG_UNUSED(power_ctx);
     config_reset_fn = config_reset_cb;
     config_reset_ctx = reset_ctx;
     last_toggle_ms = k_uptime_get();
@@ -209,7 +197,7 @@ void product_status_io_set_running(uint8_t is_running)
     last_toggle_ms = k_uptime_get();
     if (is_running) {
         set_led(&blue_led, 1);
-        LOG_INF("status IO state: running");
+        LOG_INF("status IO state: running slow blink");
     } else {
         set_led(&blue_led, 0);
         LOG_INF("status IO state: stopped");
@@ -233,5 +221,5 @@ void product_status_io_set_error(void)
 
 void product_status_io_record_activity(void)
 {
-    /* Activity no longer changes the LED; running remains solid blue. */
+    /* Activity no longer changes the LED; running uses a fixed slow blink. */
 }

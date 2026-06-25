@@ -217,15 +217,14 @@ items:
   notes: Use GPIO2 as the software-controlled blue status LED and GPIO0/IO0 as
     the software power/config key. EN stays a hardware-only reset pin. The board
     red LED is treated as a hardware power indicator and is not controlled by
-    firmware. Blue stays solid while the broker is running, blinks quickly while
-    booting or on startup errors, and stays off when the broker is disabled.
-    Releasing IO0
-    after at least 1.8 seconds
-    toggles broker_enabled and reboots. Holding IO0 for at least 10 seconds while
-    the broker is running restores default config and reboots. Built and flashed
-    on 2026-06-25 to /dev/ttyUSB0 and /dev/ttyUSB1; both passed Ethernet, HTTP,
-    and broker reboot verification, and the dual-W5500 admission fallback test
-    still reported 14/14 passing.
+    firmware. Blue blinks slowly every 2 seconds while the broker is running,
+    blinks quickly while booting or on startup errors, and stays off when the
+    broker is disabled. IO0 no longer toggles software power; plugging in power
+    always starts the broker and clears any persisted broker_enabled=0 state.
+    Holding IO0 for at least 10 seconds while the broker is running restores
+    default config and reboots. Built and flashed on 2026-06-25 to /dev/ttyUSB0
+    and /dev/ttyUSB1; both passed Ethernet, HTTP, and broker reboot verification,
+    and the dual-W5500 admission fallback test still reported 14/14 passing.
 - id: hardware-wifi-six-node-linux-ap-bridge
   area: hardware
   title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional
