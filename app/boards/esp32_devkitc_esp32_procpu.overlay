@@ -23,7 +23,7 @@
 		compatible = "gpio-leds";
 
 		status_blue_led: status_blue_led {
-			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
 			label = "Status blue LED";
 		};
 
