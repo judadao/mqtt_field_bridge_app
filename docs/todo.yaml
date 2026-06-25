@@ -158,11 +158,13 @@ items:
 - id: hardware-dual-w5500-bridge-validation
   area: hardware
   title: Validate two W5500-equipped ESP32 boards as Ethernet MQTT broker bridge peers.
-  status: in_progress
-  notes: Identify which two of /dev/ttyUSB0-/dev/ttyUSB5 have W5500 modules, flash
-    the Ethernet profile, assign separate management and broker IPs, configure each
-    ESP32 as the other's bridge peer, and verify MQTT publish/subscribe in both
-    directions over Ethernet.
+  status: done
+  notes: Passed on 2026-06-25 with /dev/ttyUSB0 at management 192.168.127.4 and
+    broker 192.168.127.15, and /dev/ttyUSB1 at management 192.168.127.6 and broker
+    192.168.127.16. The test uses one static seed from ESP A to ESP B because one
+    P2P TCP connection is full duplex; bidirectional MQTT publish/subscribe passed.
+    mqtt_min_broker mqtt-v0.1.20 fixes Zephyr P2P node IDs by deriving them from
+    hardware ID.
 - id: hardware-wifi-six-node-linux-ap-bridge
   area: hardware
   title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional
@@ -177,7 +179,6 @@ items:
   title: Add repeatable scripts and dephy_testkit triggers for Ethernet dual-W5500 and
     Linux-AP WiFi six-node bridge tests.
   status: in_progress
-  notes: Existing Linux chain and network-bind scripts cover single ESP32 Ethernet
-    scenarios. Extend hardware automation to discover UART/IP mappings, configure
-    peer slots, start and stop Linux AP/broker fixtures, and record pass/fail logs
-    for both requested hardware scenarios.
+  notes: Added Ethernet dual-W5500 bridge hardware coverage through
+    tests/linux/test_dual_esp32_w5500_bridge.sh. Linux-AP WiFi six-node bridge
+    automation remains open.
