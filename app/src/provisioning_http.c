@@ -304,7 +304,7 @@ static const char index_lite_html[] =
 "async function J(u,m,b){let o={method:m||'GET',headers:{}};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}let r=await fetch(u,o),x=await r.text();if(!r.ok)throw x;return x?JSON.parse(x):{}}"
 "function show(v){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('hide',x.id!=v));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.v==v))}"
 "function closePop(){E('pop').classList.add('hide')}"
-"function O(k,c,p){clearTimeout(pt);c=c||(k=='ERR'?'err':'ok');let e=c=='err';E('s').textContent=k||'OK';E('s').className='pill '+c;E('o').textContent=k||'OK';E('o').className='op '+c;E('pop_ok').classList.toggle('hide',!e);if(p){E('pop').classList.remove('hide');if(!e)pt=setTimeout(closePop,2000)}}"
+"function O(k,c,p){clearTimeout(pt);c=c||(k=='ERR'?'err':'ok');let e=c=='err';E('s').textContent=k||'OK';E('s').className='pill '+c;E('o').textContent=k||'OK';E('o').className='op '+c;E('pop_ok').classList.toggle('hide',!e);if(p){E('pop').classList.remove('hide');if(!e)pt=setTimeout(closePop,1000)}}"
 "function P(p,msg,pop){p.then(()=>O(msg||'OK','ok',pop)).catch(e=>O('Save failed','err',pop))}"
 "function T(r){E('t').innerHTML=['network_state','ip_addr','broker_state','p2p_role','connected_peers','remote_subscriptions','last_error'].map(k=>'<tr><th>'+k+'</th><td>'+(r[k]||'-')+'</td></tr>').join('')}"
 "function put(c){cfg=c;['device_ip','gateway','netmask','dns','broker_ip','site_id','topic_prefix'].forEach(k=>E(k).value=c[k]||'');['dhcp_enabled','broker_enabled','bridge_enabled'].forEach(k=>E(k).checked=!!c[k]);E('mqtt_port').value=c.mqtt_port||1883;E('p2p_port').value=c.p2p_port||4884}"

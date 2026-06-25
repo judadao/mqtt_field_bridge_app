@@ -266,7 +266,7 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-close").classList.contains("hide")');
     await waitEval(cdp, sessionId, 'document.getElementById("status").textContent.includes("Rebooting")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 1500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"device_name":"node-ui"/.test(r.postData) &&
@@ -293,7 +293,7 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-close").classList.contains("hide")');
     await waitEval(cdp, sessionId, '!document.getElementById("operation-dialog").classList.contains("hide")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 1500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"broker_ip":"192.168.9.20"/.test(r.postData) &&
@@ -349,7 +349,7 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-close").classList.contains("hide")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 1500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/peers/1` &&
           /"host":"192.168.127.10"/.test(r.postData) &&
