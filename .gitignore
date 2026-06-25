@@ -1,6 +1,7 @@
 build/
 build_product/
 build_product_eth/
+build_wifi_bridge_product/
 build_out/
 deps/
 tests/linux/out/

@@ -30,9 +30,6 @@ find_serial_port() {
 
 PORT=$(find_serial_port)
 COMMAND=${*:-}
-if [ "${READ_SECONDS}" = "3" ] && [ "$COMMAND" = "scan" ]; then
-    READ_SECONDS=14
-fi
 stty -F "$PORT" "$BAUD" raw -echo -hupcl >/dev/null 2>&1 || true
 
 python3 - "$PORT" "$BAUD" "$READ_SECONDS" "$COMMAND" <<'PY'
@@ -81,7 +78,7 @@ try:
         pump_serial(ser, time.monotonic() + read_seconds)
     else:
         print(f"ESP32 console on {port} @ {baud}. Type commands; Ctrl-C exits.")
-        print("Try: help, status, show, scan, wifi <ssid> <pass>, clear-wifi, reboot")
+        print("Try: help, status, show, ip <addr> <gw>, wifi <ssid> <pass|->, reboot")
         while True:
             pump_serial(ser, time.monotonic() + 0.05)
             readable, _, _ = select.select([sys.stdin], [], [], 0.05)

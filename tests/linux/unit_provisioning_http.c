@@ -82,7 +82,9 @@ static void test_get_index_html(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
-    CHECK(strstr(resp, "Ethernet IP") != NULL);
+    CHECK(strstr(resp, "Device IP") != NULL);
+    CHECK(strstr(resp, "WiFi Scan") == NULL);
+    CHECK(strstr(resp, "WiFi Connect") != NULL);
     CHECK(strstr(resp, "Operation Result") != NULL);
     CHECK(strstr(resp, "id=\"operation-result\"") != NULL);
     CHECK(strstr(resp, "Broker Peers") != NULL);
@@ -123,7 +125,8 @@ static void test_config_no_auth(void)
     CHECK(strstr(resp, "\"dns\":\"192.168.127.5\"") != NULL);
     CHECK(strstr(resp, "\"admin_password\"") == NULL);
     CHECK(strstr(resp, "\"ap_ssid\"") == NULL);
-    CHECK(strstr(resp, "\"wifi_ssid\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_ssid\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_password\"") == NULL);
 }
 
 static void test_post_config_valid(void)

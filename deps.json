@@ -3,7 +3,7 @@
     "mqtt_min_broker": {
       "repo": "git@github.com:judadao/zephy_min_mqtt_broker.git",
       "local": "../mqtt_min_broker",
-      "version": "mqtt-v0.1.22",
+      "version": "mqtt-v0.1.23",
       "path": "deps/mqtt_min_broker"
     },
     "dephy": {
@@ -30,6 +30,14 @@
       "module_path": "deps/dephy_eth",
       "tag_pattern": "dephy-eth-v*"
     },
+    "dephy_wifi": {
+      "repo": "git@github.com:judadao/dephy_wifi.git",
+      "local": "../dephy_wifi",
+      "version": "dephy-wifi-v0.1.1",
+      "path": "deps/dephy_wifi",
+      "module_path": "deps/dephy_wifi",
+      "tag_pattern": "dephy-wifi-v*"
+    },
     "dephy_config": {
       "repo": "git@github.com:judadao/dephy_config.git",
       "local": "../dephy_config",
@@ -41,7 +49,7 @@
     "dephy_web": {
       "repo": "git@github.com:judadao/dephy_web.git",
       "local": "../dephy_web",
-      "version": "dephy-web-mqtt-field-bridge-v0.1.8",
+      "version": "dephy-web-mqtt-field-bridge-v0.1.9",
       "path": "deps/dephy_web",
       "profile": "mqtt_field_bridge",
       "branch": "product/mqtt_field_bridge",
