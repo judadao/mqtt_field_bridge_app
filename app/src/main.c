@@ -82,6 +82,7 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
     if (broker_init() != 0) {
         LOG_ERR("broker_init failed");
         product_runtime_broker_failed("broker_init failed");
+        product_status_io_set_error();
         return;
     }
     product_runtime_broker_started();
@@ -122,6 +123,7 @@ int main(void)
                 settings.network.dhcp_enabled);
         if (product_ethernet_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
             product_runtime_broker_failed("ethernet start failed");
+            product_status_io_set_error();
             return -1;
         }
         if (ip_addr[0]) {
@@ -135,12 +137,12 @@ int main(void)
         product_runtime_network_start(&settings);
         if (!product_runtime_network_ready()) {
             product_runtime_broker_failed("network not ready");
-            product_status_io_set_running(0);
+            product_status_io_set_error();
             return -1;
         }
     } else {
         product_runtime_broker_failed("settings unavailable");
-        product_status_io_set_running(0);
+        product_status_io_set_error();
         return -1;
     }
 
@@ -168,7 +170,7 @@ int main(void)
     if (broker_set_bind_host(settings.broker.broker_ip) != 0) {
         LOG_ERR("invalid broker bind ip: %s", settings.broker.broker_ip);
         product_runtime_broker_failed("invalid broker bind ip");
-        product_status_io_set_running(0);
+        product_status_io_set_error();
         return -1;
     }
     broker_set_activity_callback(broker_activity, NULL);
@@ -189,6 +191,7 @@ int main(void)
     if (broker_init() != 0) {
         LOG_ERR("broker_init failed");
         product_runtime_broker_failed("broker_init failed");
+        product_status_io_set_error();
         return -1;
     }
     product_runtime_broker_started();

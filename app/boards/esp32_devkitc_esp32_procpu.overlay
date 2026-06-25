@@ -14,7 +14,7 @@
 
 / {
 	aliases {
-		status-green-led = &status_green_led;
+		status-blue-led = &status_blue_led;
 		status-red-led = &status_red_led;
 		power-button = &power_button;
 	};
@@ -22,9 +22,9 @@
 	gpio-leds {
 		compatible = "gpio-leds";
 
-		status_green_led: status_green_led {
+		status_blue_led: status_blue_led {
 			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
-			label = "Status green LED";
+			label = "Status blue LED";
 		};
 
 		status_red_led: status_red_led {

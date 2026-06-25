@@ -7,12 +7,13 @@
 
 LOG_MODULE_REGISTER(product_status_io, LOG_LEVEL_INF);
 
-#define GREEN_LED_NODE DT_ALIAS(status_green_led)
+#define BLUE_LED_NODE DT_ALIAS(status_blue_led)
 #define RED_LED_NODE DT_ALIAS(status_red_led)
 #define BUTTON_NODE DT_ALIAS(power_button)
 
 #define STATUS_PERIOD_MS 100
-#define BOOT_BLINK_MS 500
+#define BOOT_BLINK_MS 150
+#define ERROR_BLINK_MS 500
 #define ACTIVITY_WINDOW_MS 3000
 #define ACTIVITY_BLINK_MIN_MS 80
 #define ACTIVITY_BLINK_MAX_MS 600
@@ -23,9 +24,10 @@ enum status_io_state {
     STATUS_IO_BOOTING = 0,
     STATUS_IO_STOPPED,
     STATUS_IO_RUNNING,
+    STATUS_IO_ERROR,
 };
 
-static const struct gpio_dt_spec green_led = GPIO_DT_SPEC_GET_OR(GREEN_LED_NODE, gpios, {0});
+static const struct gpio_dt_spec blue_led = GPIO_DT_SPEC_GET_OR(BLUE_LED_NODE, gpios, {0});
 static const struct gpio_dt_spec red_led = GPIO_DT_SPEC_GET_OR(RED_LED_NODE, gpios, {0});
 static const struct gpio_dt_spec button = GPIO_DT_SPEC_GET_OR(BUTTON_NODE, gpios, {0});
 
@@ -97,23 +99,31 @@ static void status_work_handler(struct k_work *work)
     if (status_state == STATUS_IO_BOOTING) {
         if (now - last_toggle_ms >= BOOT_BLINK_MS) {
             activity_led_on = !activity_led_on;
-            set_led(&red_led, activity_led_on);
-            set_led(&green_led, 0);
+            set_led(&blue_led, activity_led_on);
+            set_led(&red_led, 0);
             last_toggle_ms = now;
         }
     } else if (status_state == STATUS_IO_STOPPED) {
-        set_led(&green_led, 0);
+        set_led(&blue_led, 0);
         set_led(&red_led, 1);
         activity_led_on = 0;
+    } else if (status_state == STATUS_IO_ERROR) {
+        if (now - last_toggle_ms >= ERROR_BLINK_MS) {
+            activity_led_on = !activity_led_on;
+            set_led(&red_led, activity_led_on);
+            set_led(&blue_led, 0);
+            last_toggle_ms = now;
+        }
     } else {
-        set_led(&red_led, 0);
         if (activity_count == 0 || now - activity_window_start_ms > ACTIVITY_WINDOW_MS) {
             activity_count = 0;
             activity_led_on = 1;
-            set_led(&green_led, 1);
+            set_led(&blue_led, 1);
+            set_led(&red_led, 0);
         } else if (now - last_toggle_ms >= blink_interval_ms(now)) {
             activity_led_on = !activity_led_on;
-            set_led(&green_led, activity_led_on);
+            set_led(&blue_led, activity_led_on);
+            set_led(&red_led, activity_led_on);
             last_toggle_ms = now;
         }
     }
@@ -219,13 +229,13 @@ int product_status_io_init(product_status_button_fn power_long_press_fn,
     last_toggle_ms = activity_window_start_ms;
     status_state = STATUS_IO_BOOTING;
 
-    if (green_led.port) {
-        if (!gpio_is_ready_dt(&green_led)) {
-            LOG_WRN("green LED GPIO not ready");
+    if (blue_led.port) {
+        if (!gpio_is_ready_dt(&blue_led)) {
+            LOG_WRN("blue LED GPIO not ready");
         } else {
-            rc = gpio_pin_configure_dt(&green_led, GPIO_OUTPUT_INACTIVE);
+            rc = gpio_pin_configure_dt(&blue_led, GPIO_OUTPUT_INACTIVE);
             if (rc != 0) {
-                LOG_WRN("green LED configure failed: %d", rc);
+                LOG_WRN("blue LED configure failed: %d", rc);
             }
         }
     }
@@ -247,10 +257,10 @@ int product_status_io_init(product_status_button_fn power_long_press_fn,
     configure_button(&button, &button_cb, button_isr, "power button");
 
     io_ready = 1;
-    set_led(&green_led, 0);
-    set_led(&red_led, 1);
-    LOG_INF("status IO ready: booting, green=GPIO%u red=GPIO%u power=GPIO%u",
-            green_led.pin, red_led.pin, button.pin);
+    set_led(&blue_led, 1);
+    set_led(&red_led, 0);
+    LOG_INF("status IO ready: booting, blue=GPIO%u red=GPIO%u power=GPIO%u",
+            blue_led.pin, red_led.pin, button.pin);
     k_work_schedule(&status_work, K_NO_WAIT);
     return 0;
 }
@@ -263,13 +273,27 @@ void product_status_io_set_running(uint8_t is_running)
     last_toggle_ms = k_uptime_get();
     if (is_running) {
         set_led(&red_led, 0);
-        set_led(&green_led, 1);
+        set_led(&blue_led, 1);
         LOG_INF("status IO state: running");
     } else {
-        set_led(&green_led, 0);
+        set_led(&blue_led, 0);
         set_led(&red_led, 1);
         LOG_INF("status IO state: stopped");
     }
+    if (io_ready) {
+        k_work_schedule(&status_work, K_NO_WAIT);
+    }
+}
+
+void product_status_io_set_error(void)
+{
+    status_state = STATUS_IO_ERROR;
+    activity_count = 0;
+    activity_led_on = 1;
+    last_toggle_ms = k_uptime_get();
+    set_led(&blue_led, 0);
+    set_led(&red_led, 1);
+    LOG_INF("status IO state: error");
     if (io_ready) {
         k_work_schedule(&status_work, K_NO_WAIT);
     }
