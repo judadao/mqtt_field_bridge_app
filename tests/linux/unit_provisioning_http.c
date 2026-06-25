@@ -83,6 +83,8 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
     CHECK(strstr(resp, "Ethernet IP") != NULL);
+    CHECK(strstr(resp, "Operation Result") != NULL);
+    CHECK(strstr(resp, "id=\"operation-result\"") != NULL);
     CHECK(strstr(resp, "Broker Peers") != NULL);
     CHECK(strstr(resp, "Broker Slots") != NULL);
     CHECK(strstr(resp, "id=\"bridge_peer_index\"") != NULL);

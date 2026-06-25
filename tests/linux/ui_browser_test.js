@@ -250,6 +250,7 @@ async function main() {
       document.getElementById('save-system').click();
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("System saved")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("System saved")');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"device_name":"node-ui"/.test(r.postData)),
@@ -266,6 +267,7 @@ async function main() {
       document.getElementById('save-network').click();
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Network saved, rebooting")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Network saved, rebooting")');
     await waitEval(cdp, sessionId, 'document.getElementById("status").textContent.includes("Rebooting")');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
@@ -289,6 +291,7 @@ async function main() {
       document.getElementById('save-broker').click();
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker saved, rebooting")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Broker saved, rebooting")');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"broker_ip":"192.168.9.20"/.test(r.postData) &&
@@ -324,6 +327,7 @@ async function main() {
       document.querySelector('[data-i="1"] button').click();
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker 1 saved")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Broker 1 saved")');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/peers/1` &&
           /"host":"192.168.127.10"/.test(r.postData) &&
