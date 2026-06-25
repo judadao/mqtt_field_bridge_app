@@ -79,13 +79,25 @@ static int json_uint8_field(const char *json, const char *key, uint8_t *out)
     return 0;
 }
 
+static uint16_t derive_peer_p2p_port(uint16_t mqtt_port)
+{
+    const uint16_t offset = 3001;
+
+    if (mqtt_port > 0 && mqtt_port <= (uint16_t)(65535U - offset)) {
+        return (uint16_t)(mqtt_port + offset);
+    }
+    return 4884;
+}
+
 static int json_decode_peer(const char *json, field_bridge_peer_t *out)
 {
     memset(out, 0, sizeof(*out));
     json_str_field(json, "name", out->name, sizeof(out->name));  /* optional */
     if (json_str_field(json, "host", out->host, sizeof(out->host)) != 0) return -1;
     if (json_uint16_field(json, "mqtt_port", &out->mqtt_port) != 0) return -1;
-    if (json_uint16_field(json, "p2p_port",  &out->p2p_port)  != 0) return -1;
+    if (json_uint16_field(json, "p2p_port", &out->p2p_port) != 0) {
+        out->p2p_port = derive_peer_p2p_port(out->mqtt_port);
+    }
     if (json_uint8_field(json, "enabled", &out->enabled) != 0) return -1;
     if (out->enabled > 1) return -1;
     return 0;
@@ -299,7 +311,7 @@ static const char index_lite_html[] =
 "<h2>Settings</h2><nav class=tabs><button class='tab on' data-v=n onclick=show('n')>Network</button><button class=tab data-v=b onclick=show('b')>Broker</button><button class=tab data-v=p onclick=show('p')>Bridge Peer</button></nav>"
 "<section id=n class='card view'><h2>Network</h2><div class=grid><label>DHCP Enabled<input id=dhcp_enabled type=checkbox></label><label>Ethernet IP<input id=device_ip></label><label>Gateway<input id=gateway></label><label>Netmask<input id=netmask></label><label>DNS<input id=dns></label></div><p class=row><button onclick=saveNetwork()>Save Network</button><button class=alt onclick=resetConfig()>Reset Config</button></p></section>"
 "<section id=b class='card view hide'><h2>Broker</h2><div class=grid><label>Broker Enabled<input id=broker_enabled type=checkbox></label><label>Bridge Enabled<input id=bridge_enabled type=checkbox></label><label>Broker IP<input id=broker_ip></label><label>Site ID<input id=site_id></label><label>Topic Prefix<input id=topic_prefix></label><label>MQTT Port<input id=mqtt_port type=number></label><label>P2P Port<input id=p2p_port type=number></label></div><p><button onclick=saveConfig()>Save Broker</button></p></section>"
-"<section id=p class='card view hide'><h2>Bridge Peer</h2><div class=grid><label>Broker Slot<select id=peer_slot onchange=loadPeer()></select></label><label>Enabled<input id=peer_enabled type=checkbox></label><label>Name<input id=peer_name></label><label>Host / IP<input id=peer_host></label><label>MQTT Port<input id=peer_mqtt type=number></label><label>P2P Port<input id=peer_p2p type=number></label></div><p class=row><button onclick=savePeer()>Save Peer</button><button class=alt onclick=loadPeers()>Reload Peers</button></p></section>"
+"<section id=p class='card view hide'><h2>Bridge Peers</h2><div id=peer_list></div><p class=row><button class=alt onclick=loadPeers()>Reload Peers</button></p></section>"
 "<script>let E=id=>document.getElementById(id),cfg={},peers=[],pt=0;"
 "async function J(u,m,b){let o={method:m||'GET',headers:{}};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}let r=await fetch(u,o),x=await r.text();if(!r.ok)throw x;return x?JSON.parse(x):{}}"
 "function show(v){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('hide',x.id!=v));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.v==v))}"
@@ -315,11 +327,10 @@ static const char index_lite_html[] =
 "function saveConfig(){O('Saving broker','muted');P(J('/config','POST',getCfg()).then(rebooting),'Save success',1)}"
 "function saveNetwork(){O('Saving network','muted');P(J('/config','POST',getCfg()).then(rebooting),'Save success',1)}"
 "function resetConfig(){O('Resetting','muted');P(J('/config/reset','POST').then(rebooting),'Save success',1)}"
-"function norm(p){return{name:p&&p.name||'',host:p&&p.host||'',mqtt_port:p&&p.mqtt_port||1883,p2p_port:p&&p.p2p_port||4884,enabled:p&&p.enabled?1:0}}"
-"function drawSlots(){let s=E('peer_slot');s.innerHTML=peers.map((p,i)=>'<option value='+i+'>Broker '+i+(p.enabled?' - '+(p.name||p.host):' - empty')+'</option>').join('');loadPeer()}"
-"function loadPeer(){let p=norm(peers[+E('peer_slot').value]);E('peer_name').value=p.name;E('peer_host').value=p.host;E('peer_mqtt').value=p.mqtt_port;E('peer_p2p').value=p.p2p_port;E('peer_enabled').checked=!!p.enabled}"
+"function norm(p){return{name:p&&p.name||'',host:p&&p.host||'',mqtt_port:p&&p.mqtt_port||1883,enabled:p&&p.enabled?1:0}}"
+"function drawSlots(){E('peer_list').innerHTML=peers.map((p,i)=>'<div class=card><h2>Broker '+i+'</h2><div class=grid><label>Enabled<input id=peer_enabled_'+i+' type=checkbox '+(p.enabled?'checked':'')+'></label><label>Name<input id=peer_name_'+i+' value=\"'+p.name+'\"></label><label>Host / IP<input id=peer_host_'+i+' value=\"'+p.host+'\"></label><label>MQTT Port<input id=peer_mqtt_'+i+' type=number value=\"'+p.mqtt_port+'\"></label></div><p><button onclick=savePeer('+i+')>Save Broker '+i+'</button></p></div>').join('')}"
 "function loadPeers(){P(J('/peers').then(p=>(peers=p.map(norm),drawSlots(),p)))}"
-"function savePeer(){let i=+E('peer_slot').value,p={name:E('peer_name').value,host:E('peer_host').value,mqtt_port:+E('peer_mqtt').value,p2p_port:+E('peer_p2p').value,enabled:E('peer_enabled').checked?1:0};O('Saving peer','muted');P(J('/peers/'+i,'POST',p).then(x=>J('/peers').then(p=>(peers=p.map(norm),drawSlots(),E('peer_slot').value=i,loadPeer(),x))),'Save success',1)}"
+"function savePeer(i){let p={name:E('peer_name_'+i).value,host:E('peer_host_'+i).value,mqtt_port:+E('peer_mqtt_'+i).value,enabled:E('peer_enabled_'+i).checked?1:0};O('Saving peer','muted');P(J('/peers/'+i,'POST',p).then(x=>J('/peers').then(p=>(peers=p.map(norm),drawSlots(),x))),'Save success',1)}"
 "S();C().then(loadPeers).catch(e=>O('Load failed','err'));setInterval(S,3000)</script></main></body></html>";
 
 static const unsigned char index_lite_gz[] =

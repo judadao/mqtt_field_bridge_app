@@ -41,7 +41,7 @@
     "dephy_web": {
       "repo": "git@github.com:judadao/dephy_web.git",
       "local": "../dephy_web",
-      "version": "dephy-web-mqtt-field-bridge-v0.1.7",
+      "version": "dephy-web-mqtt-field-bridge-v0.1.8",
       "path": "deps/dephy_web",
       "profile": "mqtt_field_bridge",
       "branch": "product/mqtt_field_bridge",

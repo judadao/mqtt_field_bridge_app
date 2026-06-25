@@ -328,18 +328,15 @@ async function main() {
     `);
     await waitEval(cdp, sessionId, 'document.querySelector("#broker #mesh_enabled") === null');
     await waitEval(cdp, sessionId, 'document.querySelector("#peers #mesh_enabled") !== null');
-    await waitEval(cdp, sessionId, 'document.getElementById("bridge_peer_index").value === "0"');
+    await waitEval(cdp, sessionId, 'document.getElementById("bridge_peer_index") === null');
+    await waitEval(cdp, sessionId, 'document.querySelector("[id^=\\"peer_p2p_\\"]") === null');
     await waitEval(cdp, sessionId, 'document.getElementById("scan-bridge-wifi") === null');
     await waitEval(cdp, sessionId, 'document.body.textContent.includes("Broker Slots")');
     await waitEval(cdp, sessionId, '!document.body.textContent.includes("Bridge WiFi")');
     await evalPage(cdp, sessionId, `
-      const peerSelect = document.getElementById('bridge_peer_index');
-      peerSelect.value = '1';
-      peerSelect.dispatchEvent(new Event('change', { bubbles: true }));
       document.getElementById('peer_name_1').value = 'broker-a';
       document.getElementById('peer_host_1').value = '192.168.127.10';
       document.getElementById('peer_mqtt_1').value = '1884';
-      document.getElementById('peer_p2p_1').value = '4885';
       document.getElementById('peer_enabled_1').checked = true;
     `);
     requests.length = 0;
@@ -353,8 +350,9 @@ async function main() {
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/peers/1` &&
           /"host":"192.168.127.10"/.test(r.postData) &&
-          /"p2p_port":4885/.test(r.postData)),
-          'broker slot save should POST selected peer body');
+          /"mqtt_port":1884/.test(r.postData) &&
+          !/"p2p_port"/.test(r.postData)),
+          'broker slot save should POST selected peer body with MQTT port only');
     await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("broker-a")');
     await waitEval(cdp, sessionId, 'document.querySelector("[data-i=\\"1\\"]").textContent.includes("192.168.127.10")');
     await waitEval(cdp, sessionId, 'document.getElementById("add-peer") === null');

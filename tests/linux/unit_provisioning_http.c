@@ -87,7 +87,8 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "id=\"operation-result\"") != NULL);
     CHECK(strstr(resp, "Broker Peers") != NULL);
     CHECK(strstr(resp, "Broker Slots") != NULL);
-    CHECK(strstr(resp, "id=\"bridge_peer_index\"") != NULL);
+    CHECK(strstr(resp, "id=\"bridge_peer_index\"") == NULL);
+    CHECK(strstr(resp, "peer_p2p") == NULL);
     CHECK(strstr(resp, "--button-bg:#1565c0") != NULL);
     CHECK(strstr(resp, "login-form") == NULL);
     CHECK(strstr(resp, "X-Auth-Token") == NULL);
@@ -191,7 +192,7 @@ static void test_peer_crud_no_auth(void)
 {
     const char *body =
         "{\"name\":\"broker-a\",\"host\":\"192.168.9.20\","
-        "\"mqtt_port\":1883,\"p2p_port\":4884,\"enabled\":1}";
+        "\"mqtt_port\":1883,\"enabled\":1}";
     char req[1024];
     char resp[4096];
 
@@ -206,6 +207,8 @@ static void test_peer_crud_no_auth(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "\"name\":\"broker-a\"") != NULL);
     CHECK(strstr(resp, "\"host\":\"192.168.9.20\"") != NULL);
+    CHECK(strstr(resp, "\"mqtt_port\":1883") != NULL);
+    CHECK(strstr(resp, "\"p2p_port\":4884") != NULL);
 
     n = http_req("GET /peer-status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
