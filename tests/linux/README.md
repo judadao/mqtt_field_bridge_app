@@ -55,6 +55,7 @@ change.
 | `test_esp32_linux_chain_bridge.sh` | hardware/integration | Linux broker1-5 chain bridged to ESP32 through broker5; verifies publish ESP32→broker1 and broker1→ESP32 |
 | `test_esp32_linux_esp32_bridge.sh` | hardware/integration | Two W5500 ESP32 brokers bridged through one Linux middle broker; verifies publish ESP A→ESP B and ESP B→ESP A |
 | `test_esp32_linux_admission_fallback.sh` | hardware/integration | Mode A admission fallback: ESP32 rejects overflow local client, client falls back to Linux, and bridge delivery remains intact |
+| `test_dual_esp32_admission_fallback.sh` | hardware/integration | Mode A admission fallback from one W5500 ESP32 broker to another W5500 ESP32 broker |
 | `test_esp32_network_bind.sh` | hardware/network | Validates ESP32 management IP, broker IP, ARP/ping, HTTP status, and MQTT bind isolation |
 | `test_chain_scale.sh` | scale | 10-node chain or ring; first-node publish reaches last-node subscriber |
 | `stress_reconnect.sh` | stress | 5 kill+restart cycles by default; B1 must not hang |

@@ -198,6 +198,17 @@ items:
     192.168.127.4 / broker 192.168.127.15 and Linux fallback broker at
     192.168.127.5:21884; test_esp32_linux_admission_fallback.sh reported
     10/10 passing.
+- id: hardware-mode-a-dual-w5500-fallback
+  area: hardware
+  title: Validate Mode A admission fallback from one W5500 ESP32 broker to another.
+  status: done
+  notes: Flash both W5500-equipped ESP32 boards with mqtt-v0.1.21 admission firmware.
+    Fill ESP B's local admission slots, verify the overflow client is rejected
+    by ESP B and falls back to ESP A, then verify MQTT delivery from ESP A to
+    ESP B's existing clients through the bridge. Passed on 2026-06-25 with
+    ESP A /dev/ttyUSB0 at management 192.168.127.4 and broker 192.168.127.15,
+    and ESP B /dev/ttyUSB1 at management 192.168.127.6 and broker 192.168.127.16;
+    test_dual_esp32_admission_fallback.sh reported 14/14 passing.
 - id: hardware-wifi-six-node-linux-ap-bridge
   area: hardware
   title: Validate six ESP32 brokers on a Linux AP with WiFi module enabled and bidirectional
