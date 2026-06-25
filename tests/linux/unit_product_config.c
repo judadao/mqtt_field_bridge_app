@@ -33,10 +33,11 @@ static int fail_before;
 } while (0)
 
 #define RUN(fn) do {                                                    \
+    fail_before = tests_failed;                                         \
     printf("  %-50s ", #fn);                                            \
     product_config_init();                                              \
     fn();                                                               \
-    printf("%s\n", tests_failed == 0 ? "ok" : "FAIL");                 \
+    printf("%s\n", tests_failed == fail_before ? "ok" : "FAIL");       \
 } while (0)
 
 /* ── tests ─────────────────────────────────────────────────────────────── */
@@ -170,12 +171,13 @@ static void test_disable_peer(void)
     field_bridge_peer_t in = { .name = "n3", .host = "10.0.0.3",
                                 .mqtt_port = 1883, .p2p_port = 4884,
                                 .enabled = 1 };
-    product_config_set_peer(2, &in);
+    int slot = FIELD_BRIDGE_PEER_MAX - 1;
+    product_config_set_peer(slot, &in);
     in.enabled = 0;
-    product_config_set_peer(2, &in);
+    product_config_set_peer(slot, &in);
 
     field_bridge_peer_t out;
-    product_config_get_peer(2, &out);
+    product_config_get_peer(slot, &out);
     CHECK(out.enabled == 0);
     /* Other fields should still be intact. */
     CHECK(strcmp(out.host, "10.0.0.3") == 0);
