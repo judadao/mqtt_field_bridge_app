@@ -21,7 +21,7 @@ OUTDIR = out
         unit_product_topics unit_bridge_control \
         unit_product_console \
         unit_product_io_bridge \
-        unit_provisioning_http web-network-test ui-browser-test run-web-server run_web_config_server integration-tests hardware-esp32-chain-bridge-test hardware-esp32-network-bind-test stress scale-tests \
+        unit_provisioning_http web-network-test ui-browser-test run-web-server run_web_config_server integration-tests hardware-esp32-chain-bridge-test hardware-esp32-network-bind-test hardware-esp32-config-save-reboot-test stress scale-tests \
         scale-ring-tests clean broker-p2p
 
 all: unit-tests
@@ -231,6 +231,9 @@ hardware-esp32-chain-bridge-test: broker-p2p
 
 hardware-esp32-network-bind-test: broker-p2p
 	@bash test_esp32_network_bind.sh
+
+hardware-esp32-config-save-reboot-test: broker-p2p
+	@bash test_esp32_config_save_reboot.sh
 
 # ── scale tests ─────────────────────────────────────────────────────────────
 scale-tests: broker-p2p

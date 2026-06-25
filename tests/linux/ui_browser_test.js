@@ -188,6 +188,7 @@ async function main() {
   for (const file of ['ui_peers.bin', 'ui_settings.bin']) {
     try { fs.unlinkSync(path.join(OUT_DIR, file)); } catch (_) {}
   }
+  try { fs.rmSync(path.join(OUT_DIR, 'ui_config'), { recursive: true, force: true }); } catch (_) {}
 
   const build = spawnSync('make', ['-C', TEST_DIR, 'out/run_web_config_server'], {
     stdio: 'inherit',
@@ -241,6 +242,64 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("app") !== null');
     await waitEval(cdp, sessionId, 'document.getElementById("network-state").textContent.includes("static")');
     await waitEval(cdp, sessionId, 'document.getElementById("ip-state").textContent.includes("192.168.127.4")');
+
+    requests.length = 0;
+    await evalPage(cdp, sessionId, `
+      document.querySelector('[data-tab="system"]').click();
+      document.getElementById('device_name').value = 'node-ui';
+      document.getElementById('save-system').click();
+    `);
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("System saved")');
+    check(requests.some(r => r.method === 'POST' &&
+          r.url === `${BASE}/config` &&
+          /"device_name":"node-ui"/.test(r.postData)),
+          'system save should POST device_name and show saved');
+
+    requests.length = 0;
+    await evalPage(cdp, sessionId, `
+      document.querySelector('[data-tab="network"]').click();
+      document.getElementById('dhcp_enabled').checked = false;
+      document.getElementById('device_ip').value = '192.168.9.10';
+      document.getElementById('gateway').value = '192.168.9.1';
+      document.getElementById('netmask').value = '255.255.255.0';
+      document.getElementById('dns').value = '1.1.1.1';
+      document.getElementById('save-network').click();
+    `);
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Network saved, rebooting")');
+    await waitEval(cdp, sessionId, 'document.getElementById("status").textContent.includes("Rebooting")');
+    check(requests.some(r => r.method === 'POST' &&
+          r.url === `${BASE}/config` &&
+          /"device_ip":"192.168.9.10"/.test(r.postData) &&
+          /"gateway":"192.168.9.1"/.test(r.postData) &&
+          /"netmask":"255.255.255.0"/.test(r.postData) &&
+          /"dns":"1.1.1.1"/.test(r.postData)),
+          'network save should POST editable network fields');
+    check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/reboot`),
+          'network save should request reboot');
+
+    requests.length = 0;
+    await evalPage(cdp, sessionId, `
+      document.querySelector('[data-tab="broker"]').click();
+      document.getElementById('broker_enabled').checked = true;
+      document.getElementById('broker_ip').value = '192.168.9.20';
+      document.getElementById('site_id').value = 'field-b';
+      document.getElementById('topic_prefix').value = 'site/field-b';
+      document.getElementById('cfg_mqtt_port').value = '1884';
+      document.getElementById('cfg_p2p_port').value = '4885';
+      document.getElementById('save-broker').click();
+    `);
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker saved, rebooting")');
+    check(requests.some(r => r.method === 'POST' &&
+          r.url === `${BASE}/config` &&
+          /"broker_ip":"192.168.9.20"/.test(r.postData) &&
+          /"site_id":"field-b"/.test(r.postData) &&
+          r.postData.includes('"topic_prefix":"site/field-b"') &&
+          /"mqtt_port":1884/.test(r.postData) &&
+          /"p2p_port":4885/.test(r.postData)),
+          'broker save should POST editable broker fields');
+    check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/reboot`),
+          'broker save should request reboot');
+
     await evalPage(cdp, sessionId, `
       document.querySelector('[data-tab="peers"]').click();
     `);

@@ -142,6 +142,26 @@ static int json_decode_publish_test(const char *json, field_bridge_publish_test_
     return 0;
 }
 
+static int settings_reboot_required(const field_bridge_settings_t *old_settings,
+                                    const field_bridge_settings_t *new_settings)
+{
+    if (!old_settings || !new_settings) {
+        return 1;
+    }
+    if (memcmp(&old_settings->network, &new_settings->network,
+               sizeof(old_settings->network)) != 0) {
+        return 1;
+    }
+    if (strcmp(old_settings->broker.broker_ip,
+               new_settings->broker.broker_ip) != 0 ||
+        old_settings->broker.mqtt_port != new_settings->broker.mqtt_port ||
+        old_settings->broker.p2p_port != new_settings->broker.p2p_port ||
+        old_settings->broker.broker_enabled != new_settings->broker.broker_enabled) {
+        return 1;
+    }
+    return 0;
+}
+
 /* ── HTTP helpers ────────────────────────────────────────────────────────── */
 
 static int parse_request_line(const char *buf,
@@ -279,16 +299,17 @@ static const char index_lite_html[] =
 "<section class=card><h2>Bridge Peer</h2><div class=grid><label>Broker Slot<select id=peer_slot onchange=loadPeer()></select></label><label>Enabled<input id=peer_enabled type=checkbox></label><label>Name<input id=peer_name></label><label>Host / IP<input id=peer_host></label><label>MQTT Port<input id=peer_mqtt type=number></label><label>P2P Port<input id=peer_p2p type=number></label></div><p class=row><button onclick=savePeer()>Save Peer</button><button class=alt onclick=loadPeers()>Reload Peers</button></p></section>"
 "<script>let E=id=>document.getElementById(id),cfg={},peers=[];"
 "async function J(u,m,b){let o={method:m||'GET',headers:{}};if(b){o.headers['Content-Type']='application/json';o.body=JSON.stringify(b)}let r=await fetch(u,o),x=await r.text();if(!r.ok)throw x;return x?JSON.parse(x):{}}"
-"function O(k){E('s').textContent=k||'OK';E('s').className='pill '+(k=='ERR'?'err':'ok')}"
-"function P(p){p.then(()=>O('OK')).catch(()=>O('ERR'))}"
+"function O(k,c){E('s').textContent=k||'OK';E('s').className='pill '+(c||(k=='ERR'?'err':'ok'))}"
+"function P(p,msg){p.then(()=>O(msg||'OK','ok')).catch(e=>O('ERR '+(e&&e.message?e.message:''),'err'))}"
 "function T(r){E('t').innerHTML=['network_state','ip_addr','broker_state','p2p_role','connected_peers','remote_subscriptions','last_error'].map(k=>'<tr><th>'+k+'</th><td>'+(r[k]||'-')+'</td></tr>').join('')}"
 "function put(c){cfg=c;['device_ip','gateway','netmask','dns','broker_ip','site_id','topic_prefix'].forEach(k=>E(k).value=c[k]||'');['dhcp_enabled','broker_enabled','bridge_enabled'].forEach(k=>E(k).checked=!!c[k]);E('mqtt_port').value=c.mqtt_port||1883;E('p2p_port').value=c.p2p_port||4884}"
 "function getCfg(){return{device_name:cfg.device_name||'esp32-min-broker',device_ip:E('device_ip').value,gateway:E('gateway').value,netmask:E('netmask').value,dns:E('dns').value,dhcp_enabled:E('dhcp_enabled').checked?1:0,broker_ip:E('broker_ip').value||E('device_ip').value,site_id:E('site_id').value,topic_prefix:E('topic_prefix').value,mqtt_port:+E('mqtt_port').value,p2p_port:+E('p2p_port').value,broker_enabled:E('broker_enabled').checked?1:0,bridge_enabled:E('bridge_enabled').checked?1:0,mesh_enabled:E('bridge_enabled').checked?1:0}}"
 "function S(){P(J('/status').then(r=>(T(r),r)))}"
 "function C(){return J('/config').then(c=>(put(c),c))}"
-"function saveConfig(){P(J('/config','POST',getCfg()).then(x=>C().then(()=>x)))}"
-"function saveNetwork(){P(J('/config','POST',getCfg()).then(x=>J('/reboot','POST').then(()=>x)))}"
-"function resetConfig(){P(J('/config/reset','POST').then(x=>C().then(()=>S()).then(()=>loadPeers()).then(()=>x)))}"
+"function rebooting(x){O('Saved; rebooting','ok');return J('/reboot','POST').then(()=>x)}"
+"function saveConfig(){O('Saving broker','muted');P(J('/config','POST',getCfg()).then(rebooting),'Rebooting')}"
+"function saveNetwork(){O('Saving network','muted');P(J('/config','POST',getCfg()).then(rebooting),'Rebooting')}"
+"function resetConfig(){O('Resetting','muted');P(J('/config/reset','POST').then(rebooting),'Rebooting')}"
 "function norm(p){return{name:p&&p.name||'',host:p&&p.host||'',mqtt_port:p&&p.mqtt_port||1883,p2p_port:p&&p.p2p_port||4884,enabled:p&&p.enabled?1:0}}"
 "function drawSlots(){let s=E('peer_slot');s.innerHTML=peers.map((p,i)=>'<option value='+i+'>Broker '+i+(p.enabled?' - '+(p.name||p.host):' - empty')+'</option>').join('');loadPeer()}"
 "function loadPeer(){let p=norm(peers[+E('peer_slot').value]);E('peer_name').value=p.name;E('peer_host').value=p.host;E('peer_mqtt').value=p.mqtt_port;E('peer_p2p').value=p.p2p_port;E('peer_enabled').checked=!!p.enabled}"
@@ -620,18 +641,26 @@ overflow:
 static void handle_post_config(int fd, const char *body)
 {
     field_bridge_settings_t settings;
+    field_bridge_settings_t old_settings;
+    int reboot_required;
 
     if (json_decode_settings(body, &settings) != 0) {
         send_json(fd, 400, "{\"error\":\"invalid config JSON\"}");
         return;
     }
+    reboot_required = product_config_get_settings(&old_settings) != 0 ||
+                      settings_reboot_required(&old_settings, &settings);
     if (product_config_set_settings(&settings) != 0) {
         send_json(fd, 500, "{\"error\":\"persist failed\"}");
         return;
     }
+#ifndef __ZEPHYR__
     product_runtime_network_start(&settings);
+#endif
     bridge_control_apply_peers();
-    send_json(fd, 200, "{\"status\":\"ok\"}");
+    send_json(fd, 200, reboot_required ?
+              "{\"status\":\"ok\",\"reboot_required\":true}" :
+              "{\"status\":\"ok\",\"reboot_required\":false}");
 }
 
 static void handle_config_reset(int fd)

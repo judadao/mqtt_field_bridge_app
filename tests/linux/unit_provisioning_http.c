@@ -141,18 +141,38 @@ static void test_post_config_valid(void)
     int n = http_req(req, resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
+    CHECK(strstr(resp, "\"reboot_required\":true") != NULL);
 
     n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "\"device_name\":\"node-a\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.9.10\"") != NULL);
+    CHECK(strstr(resp, "\"gateway\":\"192.168.9.1\"") != NULL);
+    CHECK(strstr(resp, "\"netmask\":\"255.255.255.0\"") != NULL);
+    CHECK(strstr(resp, "\"dns\":\"1.1.1.1\"") != NULL);
+    CHECK(strstr(resp, "\"site_id\":\"field-b\"") != NULL);
+    CHECK(strstr(resp, "\"topic_prefix\":\"site/field-b\"") != NULL);
     CHECK(strstr(resp, "\"broker_ip\":\"192.168.9.20\"") != NULL);
+    CHECK(strstr(resp, "\"mqtt_port\":1884") != NULL);
+    CHECK(strstr(resp, "\"p2p_port\":4885") != NULL);
+    CHECK(strstr(resp, "\"broker_enabled\":1") != NULL);
+    CHECK(strstr(resp, "\"bridge_enabled\":1") != NULL);
+    CHECK(strstr(resp, "\"mesh_enabled\":1") != NULL);
     CHECK(strstr(resp, "\"dhcp_enabled\":0") != NULL);
 
     n = http_req("GET /status HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "\"network_state\":\"static\"") != NULL);
     CHECK(strstr(resp, "\"test_topic\":\"site/field-b/test\"") != NULL);
+
+    snprintf(req, sizeof(req),
+             "POST /config HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",
+             (int)strlen(body), body);
+    n = http_req(req, resp, sizeof(resp));
+    CHECK(n > 0);
+    CHECK(strstr(resp, "200 OK") != NULL);
+    CHECK(strstr(resp, "\"reboot_required\":false") != NULL);
 }
 
 static void test_post_config_invalid(void)
