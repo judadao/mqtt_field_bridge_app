@@ -264,6 +264,7 @@ async function main() {
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-close").classList.contains("hide")');
     await waitEval(cdp, sessionId, 'document.getElementById("status").textContent.includes("Rebooting")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
     check(requests.some(r => r.method === 'POST' &&
@@ -290,6 +291,7 @@ async function main() {
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-close").classList.contains("hide")');
     await waitEval(cdp, sessionId, '!document.getElementById("operation-dialog").classList.contains("hide")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
     check(requests.some(r => r.method === 'POST' &&
@@ -302,6 +304,24 @@ async function main() {
           'broker save should POST editable broker fields');
     check(requests.some(r => r.method === 'POST' && r.url === `${BASE}/reboot`),
           'broker save should request reboot');
+
+    await evalPage(cdp, sessionId, `
+      window.__realFetch = window.fetch;
+      window.fetch = async () => new Response('{"error":"forced"}', {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      document.getElementById('save-broker').click();
+    `);
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save failed")');
+    await waitEval(cdp, sessionId, '!document.getElementById("operation-close").classList.contains("hide")');
+    await sleep(2500);
+    await waitEval(cdp, sessionId, '!document.getElementById("operation-dialog").classList.contains("hide")');
+    await evalPage(cdp, sessionId, `
+      document.getElementById('operation-close').click();
+      window.fetch = window.__realFetch;
+    `);
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")');
 
     await evalPage(cdp, sessionId, `
       document.querySelector('[data-tab="peers"]').click();
@@ -328,6 +348,7 @@ async function main() {
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-close").classList.contains("hide")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/peers/1` &&
