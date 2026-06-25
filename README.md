@@ -96,6 +96,30 @@ flowchart TD
 This repo owns product workflow and module composition. If a behavior is
 reusable, fix it in the module repo first, tag it, then update `deps.json`.
 
+## Systematic Regression Testing
+
+From the workspace root, run the shared pytest regression module:
+
+```sh
+../dephy_testkit/.venv/bin/python -m pytest ../dephy_testkit/tests/regression --module mqtt_field_bridge_app
+../dephy_testkit/.venv/bin/python -m pytest ../dephy_testkit/tests/regression --module mqtt_field_bridge_app --profile integration
+../dephy_testkit/.venv/bin/python -m pytest ../dephy_testkit/tests/regression --module mqtt_field_bridge_app --profile full
+```
+
+The local repo tests remain:
+
+```sh
+make -C tests/linux unit-tests provisioning-render-size
+make -C tests/linux integration-tests
+make -C tests/linux test
+```
+
+`make -C tests/linux test` is the canonical local entry point and triggers the
+main suites through `dephy_testkit` using `tests/linux/trigger_testkit.sh`.
+When a test case or test script changes, update the direct Makefile target and
+the matching `testkit-*` wrapper so regression and CI runs keep using testkit
+result reporting.
+
 ## Docs
 
 - `docs/readme_legacy.md`: previous long README and detailed examples.

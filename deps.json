@@ -50,7 +50,7 @@
     "dephy_testkit": {
       "repo": "git@github.com:judadao/dephy_testkit.git",
       "local": "../dephy_testkit",
-      "version": "e0b70d9",
+      "version": "0303584",
       "path": "deps/dephy_testkit"
     }
   },

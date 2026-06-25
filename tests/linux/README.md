@@ -27,11 +27,20 @@ make -C tests/linux scale-tests
 # Redundant 10-node ring scale test
 make -C tests/linux scale-ring-tests
 
-# Everything
+# Everything through dephy_testkit result wrappers
 make -C tests/linux test
 ```
 
 ## Test inventory
+
+The default `test` target runs the main suites through
+`tests/linux/trigger_testkit.sh`, which delegates to
+`dephy_testkit/scripts/run_with_result.sh` and emits JSON result lines. Keep
+direct targets such as `unit-tests`, `integration-tests`, and `stress` available
+for debugging, but route default and CI-style runs through `testkit-*` targets.
+When adding or changing a test case or shell/browser test script, update the
+direct Makefile target and the corresponding `testkit-*` wrapper in the same
+change.
 
 | Test | Type | What it covers |
 |------|------|----------------|

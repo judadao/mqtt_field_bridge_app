@@ -22,6 +22,7 @@ OUTDIR = out
         unit_product_console \
         unit_product_io_bridge \
         unit_provisioning_http web-network-test ui-browser-test run-web-server run_web_config_server integration-tests hardware-esp32-chain-bridge-test hardware-esp32-network-bind-test hardware-esp32-config-save-reboot-test stress scale-tests \
+        testkit-wrapper testkit-unit-tests testkit-render-size testkit-integration-tests testkit-stress \
         scale-ring-tests clean broker-p2p
 
 all: unit-tests
@@ -206,8 +207,23 @@ web-network-test: $(OUTDIR)/unit_provisioning_http
 provisioning-render-size: $(WEB_HDR)
 	@sh test_provisioning_render_size.sh
 
-testkit-wrapper:
-	@sh test_with_testkit.sh
+testkit-wrapper: testkit-unit-tests
+
+testkit-unit-tests:
+	@sh trigger_testkit.sh mqtt_field_bridge_unit \
+	    $(MAKE) -C $(CURDIR) unit-tests
+
+testkit-render-size:
+	@sh trigger_testkit.sh mqtt_field_bridge_render_size \
+	    $(MAKE) -C $(CURDIR) provisioning-render-size
+
+testkit-integration-tests:
+	@sh trigger_testkit.sh mqtt_field_bridge_integration \
+	    $(MAKE) -C $(CURDIR) integration-tests
+
+testkit-stress:
+	@sh trigger_testkit.sh mqtt_field_bridge_stress \
+	    $(MAKE) -C $(CURDIR) stress
 
 ui-browser-test: $(OUTDIR)/run_web_config_server
 	@node ui_browser_test.js
@@ -256,7 +272,7 @@ stress: broker-p2p
 	@bash stress_throughput.sh
 
 # ── run everything ─────────────────────────────────────────────────────────
-test: unit-tests provisioning-render-size testkit-wrapper integration-tests stress
+test: testkit-unit-tests testkit-render-size testkit-integration-tests testkit-stress
 
 clean:
 	rm -rf $(OUTDIR)
