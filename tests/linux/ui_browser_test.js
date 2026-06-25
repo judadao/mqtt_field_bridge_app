@@ -243,22 +243,14 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("network-state").textContent.includes("static")');
     await waitEval(cdp, sessionId, 'document.getElementById("ip-state").textContent.includes("192.168.127.4")');
 
-    requests.length = 0;
-    await evalPage(cdp, sessionId, `
-      document.querySelector('[data-tab="system"]').click();
-      document.getElementById('device_name').value = 'node-ui';
-      document.getElementById('save-system').click();
-    `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("System saved")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("System saved")');
-    check(requests.some(r => r.method === 'POST' &&
-          r.url === `${BASE}/config` &&
-          /"device_name":"node-ui"/.test(r.postData)),
-          'system save should POST device_name and show saved');
+    await waitEval(cdp, sessionId, 'document.body.textContent.includes("Dashboard")');
+    await waitEval(cdp, sessionId, 'document.body.textContent.includes("Settings")');
+    await waitEval(cdp, sessionId, 'document.querySelector("[data-tab=\\"system\\"]") === null');
 
     requests.length = 0;
     await evalPage(cdp, sessionId, `
       document.querySelector('[data-tab="network"]').click();
+      document.getElementById('device_name').value = 'node-ui';
       document.getElementById('dhcp_enabled').checked = false;
       document.getElementById('device_ip').value = '192.168.9.10';
       document.getElementById('gateway').value = '192.168.9.1';
@@ -269,8 +261,10 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Network saved, rebooting")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Network saved, rebooting")');
     await waitEval(cdp, sessionId, 'document.getElementById("status").textContent.includes("Rebooting")');
+    await evalPage(cdp, sessionId, 'document.getElementById("operation-close").click()');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
+          /"device_name":"node-ui"/.test(r.postData) &&
           /"device_ip":"192.168.9.10"/.test(r.postData) &&
           /"gateway":"192.168.9.1"/.test(r.postData) &&
           /"netmask":"255.255.255.0"/.test(r.postData) &&
@@ -292,6 +286,8 @@ async function main() {
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker saved, rebooting")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Broker saved, rebooting")');
+    await waitEval(cdp, sessionId, '!document.getElementById("operation-dialog").classList.contains("hide")');
+    await evalPage(cdp, sessionId, 'document.getElementById("operation-close").click()');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"broker_ip":"192.168.9.20"/.test(r.postData) &&
@@ -328,6 +324,7 @@ async function main() {
     `);
     await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker 1 saved")');
     await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Broker 1 saved")');
+    await evalPage(cdp, sessionId, 'document.getElementById("operation-close").click()');
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/peers/1` &&
           /"host":"192.168.127.10"/.test(r.postData) &&
