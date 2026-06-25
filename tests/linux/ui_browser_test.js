@@ -246,6 +246,10 @@ async function main() {
     await waitEval(cdp, sessionId, 'document.body.textContent.includes("Dashboard")');
     await waitEval(cdp, sessionId, 'document.body.textContent.includes("Settings")');
     await waitEval(cdp, sessionId, 'document.querySelector("[data-tab=\\"system\\"]") === null');
+    requests.length = 0;
+    await sleep(3500);
+    check(requests.some(r => r.method === 'GET' && r.url === `${BASE}/status`),
+          'dashboard should auto-refresh status');
 
     requests.length = 0;
     await evalPage(cdp, sessionId, `
@@ -258,10 +262,10 @@ async function main() {
       document.getElementById('dns').value = '1.1.1.1';
       document.getElementById('save-network').click();
     `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Network saved, rebooting")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Network saved, rebooting")');
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, 'document.getElementById("status").textContent.includes("Rebooting")');
-    await evalPage(cdp, sessionId, 'document.getElementById("operation-close").click()');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"device_name":"node-ui"/.test(r.postData) &&
@@ -284,10 +288,10 @@ async function main() {
       document.getElementById('cfg_p2p_port').value = '4885';
       document.getElementById('save-broker').click();
     `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker saved, rebooting")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Broker saved, rebooting")');
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
     await waitEval(cdp, sessionId, '!document.getElementById("operation-dialog").classList.contains("hide")');
-    await evalPage(cdp, sessionId, 'document.getElementById("operation-close").click()');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/config` &&
           /"broker_ip":"192.168.9.20"/.test(r.postData) &&
@@ -322,9 +326,9 @@ async function main() {
     await evalPage(cdp, sessionId, `
       document.querySelector('[data-i="1"] button').click();
     `);
-    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Broker 1 saved")');
-    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Broker 1 saved")');
-    await evalPage(cdp, sessionId, 'document.getElementById("operation-close").click()');
+    await waitEval(cdp, sessionId, 'document.getElementById("save-state").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-result").textContent.includes("Save success")');
+    await waitEval(cdp, sessionId, 'document.getElementById("operation-dialog").classList.contains("hide")', 3500);
     check(requests.some(r => r.method === 'POST' &&
           r.url === `${BASE}/peers/1` &&
           /"host":"192.168.127.10"/.test(r.postData) &&
