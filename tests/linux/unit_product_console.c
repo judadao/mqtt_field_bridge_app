@@ -71,6 +71,8 @@ static void test_help_and_status(void)
     CHECK(run_cmd("help") == 0);
     CHECK(strstr(out_buf, "commands:") != NULL);
     CHECK(strstr(out_buf, "menu") != NULL);
+    CHECK(strstr(out_buf, "settings") != NULL);
+    CHECK(strstr(out_buf, "summary") != NULL);
     CHECK(strstr(out_buf, "wifi") == NULL);
     CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
@@ -82,10 +84,10 @@ static void test_menu_lists_numbered_commands(void)
 {
     CHECK(run_cmd("menu") == 0);
     CHECK(strstr(out_buf, "Field Bridge CLI menu") != NULL);
-    CHECK(strstr(out_buf, "1. status") != NULL);
-    CHECK(strstr(out_buf, "2. info") != NULL);
-    CHECK(strstr(out_buf, "peer <i> <name> <host>") != NULL);
-    CHECK(strstr(out_buf, "Type a number; 0 returns") != NULL);
+    CHECK(strstr(out_buf, "1. info") != NULL);
+    CHECK(strstr(out_buf, "2. settings") != NULL);
+    CHECK(strstr(out_buf, "3. system") != NULL);
+    CHECK(strstr(out_buf, "Type a number to enter") != NULL);
     CHECK(run_cmd("0") == 0);
     CHECK(strstr(out_buf, "Field Bridge CLI menu") != NULL);
     CHECK(run_cmd("back") == 0);
@@ -94,6 +96,11 @@ static void test_menu_lists_numbered_commands(void)
 
 static void test_menu_index_commands(void)
 {
+    CHECK(run_cmd("menu") == 0);
+    CHECK(run_cmd("1") == 0);
+    CHECK(strstr(out_buf, "Info") != NULL);
+    CHECK(strstr(out_buf, "1. status") != NULL);
+    CHECK(strstr(out_buf, "2. summary") != NULL);
     CHECK(run_cmd("1") == 0);
     CHECK(strstr(out_buf, "Network       : init") != NULL);
     CHECK(strstr(out_buf, "0. return to menu") != NULL);
@@ -103,10 +110,16 @@ static void test_menu_index_commands(void)
     CHECK(run_cmd("3") == 0);
     CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
     CHECK(strstr(out_buf, "0. return to menu") != NULL);
-    CHECK(run_cmd("4") == 0);
+    CHECK(run_cmd("0") == 0);
+    CHECK(run_cmd("2") == 0);
+    CHECK(strstr(out_buf, "Settings") != NULL);
+    CHECK(strstr(out_buf, "broker <mqtt> <p2p> [ip]") != NULL);
+    CHECK(run_cmd("1") == 0);
     CHECK(strstr(out_buf, "usage: ip <addr>") != NULL);
+    CHECK(run_cmd("3") == 0);
+    CHECK(strstr(out_buf, "usage: broker <mqtt> <p2p> [ip]") != NULL);
     CHECK(run_cmd("99") != 0);
-    CHECK(strstr(out_buf, "ERR unknown menu index") != NULL);
+    CHECK(strstr(out_buf, "ERR unknown settings index") != NULL);
 }
 
 static void test_broker_save_config(void)
@@ -140,7 +153,7 @@ static void test_scan_and_show(void)
     CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
     CHECK(strstr(out_buf, "IP            : 192.168.127.4") != NULL);
     CHECK(strstr(out_buf, "Broker IP     : 192.168.127.15") != NULL);
-    CHECK(run_cmd("info") == 0);
+    CHECK(run_cmd("summary") == 0);
     CHECK(strstr(out_buf, "Runtime") != NULL);
     CHECK(strstr(out_buf, "Config") != NULL);
 }

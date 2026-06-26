@@ -21,6 +21,15 @@
 LOG_MODULE_REGISTER(product_console, LOG_LEVEL_INF);
 #endif
 
+typedef enum {
+    PRODUCT_CONSOLE_MENU_MAIN = 0,
+    PRODUCT_CONSOLE_MENU_INFO,
+    PRODUCT_CONSOLE_MENU_SETTINGS,
+    PRODUCT_CONSOLE_MENU_SYSTEM,
+} product_console_menu_t;
+
+static product_console_menu_t current_menu = PRODUCT_CONSOLE_MENU_MAIN;
+
 static void pc_write(product_console_write_fn write_fn, void *ctx,
                           const char *fmt, ...)
 {
@@ -76,12 +85,18 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     pc_write(write_fn, ctx,
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-                  "commands: help menu back status info show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu back info settings system status summary show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
 #else
-                  "commands: help menu back status info show ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu back info settings system status summary show ip dhcp broker broker-state peer defaults reset reboot\n");
 #endif
     pc_write(write_fn, ctx,
-                  "  info                     show runtime and saved network/broker config\n");
+                  "  info                     show info menu\n");
+    pc_write(write_fn, ctx,
+                  "  settings                 show settings menu\n");
+    pc_write(write_fn, ctx,
+                  "  system                   show system menu\n");
+    pc_write(write_fn, ctx,
+                  "  summary                  show runtime and saved network/broker config\n");
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
     pc_write(write_fn, ctx,
                   "  wifi <ssid> <pass|->     save WiFi AP, reboot to connect\n");
@@ -103,27 +118,72 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
 static void print_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
+        { "info", "runtime and saved values" },
+        { "settings", "network, WiFi, broker, peers" },
+        { "system", "reset and reboot" },
+    };
+
+    current_menu = PRODUCT_CONSOLE_MENU_MAIN;
+    (void)dephy_cli_render_menu("Field Bridge CLI menu",
+                                items,
+                                sizeof(items) / sizeof(items[0]),
+                                "Type a number to enter; 0 returns here",
+                                write_fn,
+                                ctx);
+}
+
+static void print_info_menu(product_console_write_fn write_fn, void *ctx)
+{
+    static const dephy_cli_menu_item_t items[] = {
         { "status", "runtime network/broker state" },
-        { "info", "runtime plus saved config" },
+        { "summary", "runtime plus saved config" },
         { "show", "saved network/broker config" },
+    };
+
+    current_menu = PRODUCT_CONSOLE_MENU_INFO;
+    (void)dephy_cli_render_menu("Info",
+                                items,
+                                sizeof(items) / sizeof(items[0]),
+                                "Type a number; 0 returns to main menu",
+                                write_fn,
+                                ctx);
+}
+
+static void print_settings_menu(product_console_write_fn write_fn, void *ctx)
+{
+    static const dephy_cli_menu_item_t items[] = {
         { "ip <addr> [gw] [mask]", "set static IP" },
         { "dhcp", "enable DHCP" },
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
         { "wifi <ssid> <pass|->", "set WiFi AP" },
-#else
-        { "broker <mqtt> <p2p> [ip]", "set broker ports/IP" },
 #endif
+        { "broker <mqtt> <p2p> [ip]", "set broker ports/IP" },
         { "broker-state <0|1>", "disable/enable broker" },
         { "peer <i> <name> <host> [mqtt] [p2p] [0|1]", "set bridge peer" },
         { "defaults small|large", "reset config profile" },
+    };
+
+    current_menu = PRODUCT_CONSOLE_MENU_SETTINGS;
+    (void)dephy_cli_render_menu("Settings",
+                                items,
+                                sizeof(items) / sizeof(items[0]),
+                                "Type the command with values; 0 returns to main menu",
+                                write_fn,
+                                ctx);
+}
+
+static void print_system_menu(product_console_write_fn write_fn, void *ctx)
+{
+    static const dephy_cli_menu_item_t items[] = {
         { "reset", "reset all settings" },
         { "reboot", "restart device" },
     };
 
-    (void)dephy_cli_render_menu("Field Bridge CLI menu",
+    current_menu = PRODUCT_CONSOLE_MENU_SYSTEM;
+    (void)dephy_cli_render_menu("System",
                                 items,
                                 sizeof(items) / sizeof(items[0]),
-                                "Type a number; 0 returns to this menu",
+                                "Type a number; 0 returns to main menu",
                                 write_fn,
                                 ctx);
 }
@@ -451,66 +511,103 @@ static int cmd_menu_index(int index,
                           product_console_reboot_fn reboot_fn,
                           void *reboot_ctx)
 {
-    switch (index) {
-    case 1:
-        return cmd_status(write_fn, write_ctx);
-    case 2:
-        return cmd_info(write_fn, write_ctx);
-    case 3:
-        return cmd_show(write_fn, write_ctx);
-    case 4:
-        pc_write(write_fn, write_ctx, "usage: ip <addr> [gw] [mask]\n");
-        return 0;
-    case 5:
-        return cmd_dhcp(write_fn, write_ctx);
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-    case 6:
-        pc_write(write_fn, write_ctx, "usage: wifi <ssid> <pass|->\n");
-        return 0;
-    case 7:
-#else
-    case 6:
-#endif
-        pc_write(write_fn, write_ctx, "usage: broker-state <0|1>\n");
-        return 0;
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-    case 8:
-#else
-    case 7:
-#endif
-        pc_write(write_fn, write_ctx,
-                 "usage: peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
-        return 0;
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-    case 9:
-#else
-    case 8:
-#endif
-        pc_write(write_fn, write_ctx, "usage: defaults small|large\n");
-        return 0;
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-    case 10:
-#else
-    case 9:
-#endif
-        if (product_config_reset_all() != 0) {
-            pc_write(write_fn, write_ctx, "ERR reset failed\n");
+    switch (current_menu) {
+    case PRODUCT_CONSOLE_MENU_MAIN:
+        switch (index) {
+        case 1:
+            print_info_menu(write_fn, write_ctx);
+            return 0;
+        case 2:
+            print_settings_menu(write_fn, write_ctx);
+            return 0;
+        case 3:
+            print_system_menu(write_fn, write_ctx);
+            return 0;
+        default:
+            pc_write(write_fn, write_ctx, "ERR unknown menu index; try menu\n");
             return -1;
         }
-        pc_write(write_fn, write_ctx, "OK reset defaults; reboot to apply\n");
-        return 0;
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-    case 11:
-#else
-    case 10:
-#endif
-        pc_write(write_fn, write_ctx, "OK rebooting\n");
-        if (reboot_fn) {
-            reboot_fn(reboot_ctx);
+
+    case PRODUCT_CONSOLE_MENU_INFO:
+        switch (index) {
+        case 1:
+            return cmd_status(write_fn, write_ctx);
+        case 2:
+            return cmd_info(write_fn, write_ctx);
+        case 3:
+            return cmd_show(write_fn, write_ctx);
+        default:
+            pc_write(write_fn, write_ctx, "ERR unknown info index; try info\n");
+            return -1;
         }
-        return 0;
+
+    case PRODUCT_CONSOLE_MENU_SETTINGS:
+        switch (index) {
+        case 1:
+            pc_write(write_fn, write_ctx, "usage: ip <addr> [gw] [mask]\n");
+            return 0;
+        case 2:
+            return cmd_dhcp(write_fn, write_ctx);
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        case 3:
+            pc_write(write_fn, write_ctx, "usage: wifi <ssid> <pass|->\n");
+            return 0;
+        case 4:
+#else
+        case 3:
+#endif
+            pc_write(write_fn, write_ctx, "usage: broker <mqtt> <p2p> [ip]\n");
+            return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        case 5:
+#else
+        case 4:
+#endif
+            pc_write(write_fn, write_ctx, "usage: broker-state <0|1>\n");
+            return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        case 6:
+#else
+        case 5:
+#endif
+            pc_write(write_fn, write_ctx,
+                     "usage: peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+            return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+        case 7:
+#else
+        case 6:
+#endif
+            pc_write(write_fn, write_ctx, "usage: defaults small|large\n");
+            return 0;
+        default:
+            pc_write(write_fn, write_ctx, "ERR unknown settings index; try settings\n");
+            return -1;
+        }
+
+    case PRODUCT_CONSOLE_MENU_SYSTEM:
+        switch (index) {
+        case 1:
+            if (product_config_reset_all() != 0) {
+                pc_write(write_fn, write_ctx, "ERR reset failed\n");
+                return -1;
+            }
+            pc_write(write_fn, write_ctx, "OK reset defaults; reboot to apply\n");
+            return 0;
+        case 2:
+            pc_write(write_fn, write_ctx, "OK rebooting\n");
+            if (reboot_fn) {
+                reboot_fn(reboot_ctx);
+            }
+            return 0;
+        default:
+            pc_write(write_fn, write_ctx, "ERR unknown system index; try system\n");
+            return -1;
+        }
+
     default:
-        pc_write(write_fn, write_ctx, "ERR unknown menu index; try menu\n");
+        current_menu = PRODUCT_CONSOLE_MENU_MAIN;
+        pc_write(write_fn, write_ctx, "ERR menu state reset; try menu\n");
         return -1;
     }
 }
@@ -550,14 +647,26 @@ int product_console_handle_line(char *line,
         print_menu(write_fn, write_ctx);
         return 0;
     }
+    if (strcmp(cmd, "info") == 0) {
+        print_info_menu(write_fn, write_ctx);
+        return 0;
+    }
+    if (strcmp(cmd, "settings") == 0) {
+        print_settings_menu(write_fn, write_ctx);
+        return 0;
+    }
+    if (strcmp(cmd, "system") == 0) {
+        print_system_menu(write_fn, write_ctx);
+        return 0;
+    }
     if (strcmp(cmd, "status") == 0) {
         return cmd_status(write_fn, write_ctx);
     }
+    if (strcmp(cmd, "summary") == 0) {
+        return cmd_info(write_fn, write_ctx);
+    }
     if (strcmp(cmd, "show") == 0) {
         return cmd_show(write_fn, write_ctx);
-    }
-    if (strcmp(cmd, "info") == 0) {
-        return cmd_info(write_fn, write_ctx);
     }
     if (strcmp(cmd, "ip") == 0) {
         return cmd_ip(&save, write_fn, write_ctx);

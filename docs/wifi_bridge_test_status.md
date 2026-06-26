@@ -227,3 +227,24 @@ Update:
   - `tmux: esp32-cli-ttyUSB2-17002` maps
     `192.168.127.5:17002` to `/dev/ttyUSB2`.
   - `nc 192.168.127.5 17002` immediately shows the CLI menu.
+
+Update:
+- Simplified the numbered CLI into three top-level layers:
+  - `info`
+  - `settings`
+  - `system`
+- The `info` layer contains `status`, `summary`, and `show`.
+- The `settings` layer contains static IP, DHCP, WiFi, broker, broker-state,
+  peer, and defaults actions. The broker setup is now visible in the WiFi
+  profile menu as `broker <mqtt> <p2p> [ip]`.
+- The `system` layer contains reset and reboot.
+- Direct text commands such as `status`, `summary`, `show`, `broker ...`,
+  `wifi ...`, `reset`, and `reboot` still work without navigating menus.
+- Validation:
+  - `make -C tests/linux unit_product_console` passed with `88/88`.
+  - `./scripts/sync_deps.sh replace && ./scripts/build_wifi_bridge_product.sh`
+    passed in `tmux: build-cli-3level-menu`.
+  - `/dev/ttyUSB2` was flashed in `tmux: flash-cli-3level-ttyUSB2`,
+    `EXIT_CODE=0`.
+  - `nc 192.168.127.5 17002` showed the simplified menu; selecting
+    `2` then `4` displayed `usage: broker <mqtt> <p2p> [ip]`.
