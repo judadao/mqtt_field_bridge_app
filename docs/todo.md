@@ -48,7 +48,7 @@ Source of truth: `docs/todo.yaml`. Update YAML before starting or completing wor
 
 - [x] Profile provisioning HTML/status rendering and cap response sizes for embedded memory headroom.
 - [x] Skip dependency re-sync work when deps.json pins already match clean local deps.
-- [x] Rework random-drop recovery benchmark into equal-client mosquitto/no-fallback/fallback recovery sanity comparison. (`20260626-213227`; all three delivered `100.0%` at about `3,581 msg/s` after dropping brokers A/B)
+- [x] Redesign random-drop recovery benchmark so clients intended for dropped brokers count against recovery. (`20260626-214321`; full-workload delivery: mosquitto `50.0%`, field no-fallback `50.0%`, field fallback `75.01%`)
 
 ## docs
 

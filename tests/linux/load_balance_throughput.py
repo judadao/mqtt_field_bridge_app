@@ -403,6 +403,23 @@ def requested_topic_counts(sub_plan: list[tuple[int, int]], topics: list[str]) -
     return counts
 
 
+def requested_topic_counts_by_broker(
+    sub_plan: list[tuple[int, int]],
+    topic_sets_by_broker: dict[int, list[str]],
+    fallback_topics: list[str],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    topic_offset = 0
+    for broker_idx, count in sub_plan:
+        broker_topics = topic_sets_by_broker.get(broker_idx, fallback_topics)
+        offset = 0 if broker_idx in topic_sets_by_broker else topic_offset
+        for i in range(count):
+            topic = broker_topics[(offset + i) % len(broker_topics)]
+            counts[topic] = counts.get(topic, 0) + 1
+        topic_offset += count
+    return counts
+
+
 def expected_deliveries(publishers: list[Publisher], subscribers: list[Subscriber]) -> int:
     subs_by_topic: dict[str, int] = {}
     for sub in subscribers:
@@ -416,6 +433,34 @@ def expected_deliveries_for_topics(publishers: list[Publisher], subs_by_topic: d
     for pub in publishers:
         for topic, sent in pub.sent_by_topic.items():
             expected += sent * subs_by_topic.get(topic, 0)
+    return expected
+
+
+def estimate_full_workload_deliveries(
+    publishers: list[Publisher],
+    pub_plan: list[tuple[int, int]],
+    requested_subs_by_topic: dict[str, int],
+    topic_sets_by_broker: dict[int, list[str]],
+    fallback_topics: list[str],
+) -> int:
+    connected_by_intended: dict[int, list[Publisher]] = {}
+    for pub in publishers:
+        connected_by_intended.setdefault(pub.intended, []).append(pub)
+
+    sent_samples = [pub.sent for pub in publishers if pub.sent > 0]
+    default_sent = round(sum(sent_samples) / len(sent_samples)) if sent_samples else 0
+    expected = 0
+    for broker_idx, count in pub_plan:
+        broker_topics = topic_sets_by_broker.get(broker_idx, fallback_topics)
+        connected_pubs = connected_by_intended.get(broker_idx, [])
+        for i in range(count):
+            if i < len(connected_pubs):
+                sent_by_topic = connected_pubs[i].sent_by_topic
+            else:
+                topic = broker_topics[i % len(broker_topics)]
+                sent_by_topic = {topic: default_sent}
+            for topic, sent in sent_by_topic.items():
+                expected += sent * requested_subs_by_topic.get(topic, 0)
     return expected
 
 
@@ -443,6 +488,7 @@ def run_case(args: argparse.Namespace) -> dict:
     rejected_pubs = 0
     rejected_subs_by_intended = [0] * args.broker_count
     rejected_pubs_by_intended = [0] * args.broker_count
+    requested_topic_sets_by_broker: dict[int, list[str]] = {}
 
     try:
         if args.impl == "mosquitto":
@@ -523,15 +569,22 @@ def run_case(args: argparse.Namespace) -> dict:
             time.sleep(args.drop_settle)
 
             random_drop_local_topics: dict[int, list[str]] = {}
+            if args.random_drop_local_topics:
+                for idx in range(args.broker_count):
+                    topic_count = max(
+                        args.random_drop_live_subscribers,
+                        args.random_drop_subscribers[idx] if idx < len(args.random_drop_subscribers) else 1,
+                        1,
+                    )
+                    random_drop_local_topics[idx] = [
+                        f"site/lb/{args.mode}/{stamp}/broker-{idx}/topic-{topic_idx}"
+                        for topic_idx in range(topic_count)
+                    ]
+                requested_topic_sets_by_broker = random_drop_local_topics
             if args.random_drop_live_only:
                 live_brokers = [idx for idx in range(args.broker_count) if idx not in dropped_brokers]
                 pub_plan = [(idx, args.random_drop_live_publishers) for idx in live_brokers]
                 sub_plan = [(idx, args.random_drop_live_subscribers) for idx in live_brokers]
-                for idx in live_brokers:
-                    random_drop_local_topics[idx] = [
-                        f"site/lb/{args.mode}/{stamp}/broker-{idx}/topic-{topic_idx}"
-                        for topic_idx in range(max(args.random_drop_live_subscribers, 1))
-                    ]
             else:
                 pub_plan = list(enumerate(args.random_drop_publishers))
                 sub_plan = list(enumerate(args.random_drop_subscribers))
@@ -601,8 +654,15 @@ def run_case(args: argparse.Namespace) -> dict:
     connected_subs = len(subscribers)
     connected_pubs = len(publishers)
     expected_fanout = expected_deliveries(publishers, subscribers)
-    if args.mode == "random_drop" and args.random_drop_live_only:
-        requested_fanout = expected_fanout
+    if args.mode == "random_drop" and requested_topic_sets_by_broker:
+        requested_counts = requested_topic_counts_by_broker(sub_plan, requested_topic_sets_by_broker, topics)
+        requested_fanout = estimate_full_workload_deliveries(
+            publishers,
+            pub_plan,
+            requested_counts,
+            requested_topic_sets_by_broker,
+            topics,
+        )
     else:
         requested_fanout = expected_deliveries_for_topics(publishers, requested_topic_counts(sub_plan, topics))
     delivery_rate = (received * 100.0 / expected_fanout) if expected_fanout else 0.0
@@ -714,6 +774,7 @@ def main() -> int:
     parser.add_argument("--random-drop-subscribers", type=parse_csv_ints, default=parse_csv_ints("4,4,4,4"))
     parser.add_argument("--random-drop-publishers", type=parse_csv_ints, default=parse_csv_ints("1,1,1,1"))
     parser.add_argument("--random-drop-live-only", action="store_true")
+    parser.add_argument("--random-drop-local-topics", action="store_true")
     parser.add_argument("--random-drop-live-subscribers", type=int, default=4)
     parser.add_argument("--random-drop-live-publishers", type=int, default=1)
     parser.add_argument("--drop-count", type=int, default=2)

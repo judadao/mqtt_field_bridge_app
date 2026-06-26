@@ -51,7 +51,7 @@ downloads the pinned dependency versions into `deps/`.
 
 ## Load-Balance Throughput Results
 
-The benchmark records three separate claims. Detailed logs are in
+The benchmark records four separate claims. Detailed logs are in
 `docs/load_balance_throughput_results.md`.
 
 ### 1. Single Broker Speed
@@ -76,28 +76,28 @@ Test condition:
 - Brokers A/B are randomly dropped before client admission.
 - Topic count is 16 and field broker client admission limit is 8 clients per
   broker.
-- After the drop, each live broker gets 1 publisher and 4 subscribers, so all
-  implementations run the same connected client count.
-- Topics are local to each live broker, so the result checks recovery health
-  without giving field mesh fanout an extra delivery multiplier.
+- The full intended workload is 1 publisher and 4 subscribers per broker.
+- Clients intended for dropped brokers stay in the expected-delivery denominator.
+- Topics are local to each intended broker, so mosquitto and field no-fallback
+  are comparable when they lose dropped-broker clients.
 - Mosquitto is the independent-broker baseline with no mesh or fallback.
 
 Column meanings:
-- `Req clients`: requested client layout after broker drop.
+- `Req clients`: requested client layout before broker drop.
 - `Clients`: connected client layout after admission.
-- `Delivery`: delivered messages versus the requested subscriber workload.
+- `Delivery`: actual received messages versus expected deliveries for the full
+  original workload.
 
 | Case | Dropped | Req clients | Clients | Rej subs | Rej pubs | Msg/s | Delivery |
 |------|--------:|------------:|--------:|---------:|---------:|------:|---------:|
-| mosquitto | `A/B` | `0/0/5/5` | `0/0/5/5` | `0` | `0` | `3,580.85` | `100.0%` |
-| field no-fallback | `A/B` | `0/0/5/5` | `0/0/5/5` | `0` | `0` | `3,580.7` | `100.0%` |
-| field fallback | `A/B` | `0/0/5/5` | `0/0/5/5` | `0` | `0` | `3,582.7` | `100.0%` |
+| mosquitto | `A/B` | `5/5/5/5` | `0/0/5/5` | `8` | `2` | `3,580.75` | `50.0%` |
+| field no-fallback | `A/B` | `5/5/5/5` | `0/0/5/5` | `8` | `2` | `3,582.4` | `50.0%` |
+| field fallback | `A/B` | `5/5/5/5` | `0/0/8/8` | `4` | `0` | `5,368.45` | `75.01%` |
 
-Result: with the same connected client count and local topics, mosquitto,
-field no-fallback, and field fallback recover to the same delivery behavior
-after dropping A/B. Fallback capacity gains are measured separately by the
-client-limit and topic-limit burst tests, where the requested load exceeds one
-broker's remaining capacity.
+Result: mosquitto and field no-fallback lose the clients intended for dropped
+brokers and recover about half of the full expected delivery. Field fallback
+redirects part of that dropped-broker load to the remaining live brokers, raising
+full-workload delivery to `75.01%` under the admission limit.
 
 ### 3. Client Limit Balance
 
