@@ -8,6 +8,56 @@ policy:
   - When behavior changes, update TODO status in the same change.
   - Keep legacy markdown details until they are fully migrated into this YAML.
 items:
+- id: hardware-six-eth-config
+  area: hardware
+  title: Flash and provision six W5500 ESP32 boards for manual bridge/MQTT validation.
+  status: in_progress
+  notes: Started on 2026-06-26. Build exists at build_product_eth. Target mapping
+    is /dev/ttyUSB0-5 with management IPs 192.168.127.4-9 and broker IPs
+    192.168.127.15-20, MQTT port 1883, bridge port 4884. Run the preparation
+    through tmux session six-eth-config so SSH disconnects do not stop flashing.
+    Current user-requested sequence is 2 ETH boards first, 4 WiFi boards next,
+    then all 6 bridges running for manual MQTT validation. The active product
+    firmware line is Ethernet-only; WiFi validation must use the separate WiFi
+    test profile/build, not the product ETH build.
+- id: hardware-dual-w5500-cli-bridge-recheck
+  area: hardware
+  title: Re-test two W5500 Ethernet ESP32 MQTT bridge peers with the current CLI-only firmware.
+  status: done
+  notes: User requested a fresh check on 2026-06-26. Use tmux for the run. The old
+    HTTP-based dual W5500 script is no longer the right control path because the
+    current product removed provisioning HTTP; configure peers through UART CLI
+    and then verify MQTT publish/subscribe through broker IPs. First attempts
+    failed before MQTT verification: Zephyr console_getline crashed in the UART
+    console thread, then the UART polling replacement built but did not complete
+    ESP A provisioning. On 2026-06-26, changed startup so erased boards wait in
+    UART provisioning before broker startup, changed the CLI thread back to
+    Zephyr console_getline with a larger stack, and changed the script to flash,
+    erase, and provision one board at a time using stable by-path serial ports.
+    Run r5 provisioned ESP A and ESP B, both broker TCP ports opened, and manual
+    MQTT bridge verification passed in both directions. Script timeout was raised
+    because one hardware bridge direction delivered after the original 15s window.
+    Run r6 then passed end-to-end with EXIT_CODE=0 in tmux
+    eth-2node-cli-recheck-r6-20260626. Final ETH mapping for manual testing is
+    ESP A management 192.168.127.4 / broker 192.168.127.15 and ESP B management
+    192.168.127.6 / broker 192.168.127.16.
+- id: hardware-six-bridge-manual-validation
+  area: hardware
+  title: Stage manual validation for 2 ETH, 4 WiFi, then 6 total bridge/MQTT nodes.
+  status: done
+  notes: Added on 2026-06-26 for the requested staged manual-test setup. Stage
+    1 runs the current CLI-only Ethernet product firmware on two W5500 boards
+    through tmux and provisions MQTT/bridge config over UART. Stage 2 needs the
+    WiFi test-profile firmware on four WiFi boards because main product firmware
+    is Ethernet-only. Stage 1 manual verification passed on 2026-06-26 with ESP
+    A broker 192.168.127.15 and ESP B broker 192.168.127.16. Stage 3 records
+    the final six-node operating config for manual bridge/MQTT testing. Stage
+    2 passed in tmux wifi-4node-bridge-r1-20260626 with WiFi nodes 10.88.0.2
+    through 10.88.0.5, 4-node MQTT bridge delivery, and fallback distribution
+    2/2/2/1 across all four brokers. Final six-node TCP check passed at
+    tests/linux/out/hardware/six-node-current-check-20260626-191308.log with
+    MQTT 1883 open on ETH brokers 192.168.127.15/16 and WiFi brokers
+    10.88.0.2-5.
 - id: todo-yaml-source
   area: repo
   title: Add docs/todo.yaml so the product app is tracked globally.

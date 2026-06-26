@@ -10,6 +10,7 @@ LOG_MODULE_REGISTER(product_config, LOG_LEVEL_INF);
 
 static field_bridge_peer_t peers[FIELD_BRIDGE_PEER_MAX];
 static field_bridge_settings_t settings;
+static uint8_t settings_loaded_from_store;
 
 static void settings_defaults(void)
 {
@@ -131,6 +132,7 @@ static int validate_settings(const field_bridge_settings_t *cfg)
 
 static void persist_load(void)
 {
+    settings_loaded_from_store = 0;
     if (dephy_config_store_init() != 0) {
         return;
     }
@@ -140,8 +142,10 @@ static void persist_load(void)
             memset(&peers[i], 0, sizeof(peers[i]));
         }
     }
-    if (dephy_config_store_load(SETTINGS_KEY, &settings, sizeof(settings)) != 0 ||
-        validate_settings(&settings) != 0) {
+    if (dephy_config_store_load(SETTINGS_KEY, &settings, sizeof(settings)) == 0 &&
+        validate_settings(&settings) == 0) {
+        settings_loaded_from_store = 1;
+    } else {
         settings_defaults();
     }
 }
@@ -161,8 +165,14 @@ void product_config_init(void)
 {
     memset(peers, 0, sizeof(peers));
     settings_defaults();
+    settings_loaded_from_store = 0;
     persist_load();
     LOG_INF("product config initialized");
+}
+
+int product_config_has_saved_settings(void)
+{
+    return settings_loaded_from_store ? 1 : 0;
 }
 
 int product_config_peer_count(void)
@@ -208,7 +218,11 @@ int product_config_set_settings(const field_bridge_settings_t *new_settings)
     }
 
     settings = *new_settings;
-    return persist_save_settings();
+    if (persist_save_settings() != 0) {
+        return -1;
+    }
+    settings_loaded_from_store = 1;
+    return 0;
 }
 
 int product_config_reset_all(void)
@@ -220,7 +234,11 @@ int product_config_reset_all(void)
             return -1;
         }
     }
-    return persist_save_settings();
+    if (persist_save_settings() != 0) {
+        return -1;
+    }
+    settings_loaded_from_store = 1;
+    return 0;
 }
 
 int product_config_apply_defaults(field_bridge_defaults_profile_t profile)
@@ -241,5 +259,9 @@ int product_config_apply_defaults(field_bridge_defaults_profile_t profile)
             return -1;
         }
     }
-    return persist_save_settings();
+    if (persist_save_settings() != 0) {
+        return -1;
+    }
+    settings_loaded_from_store = 1;
+    return 0;
 }

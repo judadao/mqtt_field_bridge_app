@@ -56,6 +56,7 @@ typedef enum {
 } field_bridge_defaults_profile_t;
 
 void product_config_init(void);
+int product_config_has_saved_settings(void);
 int product_config_peer_count(void);
 int product_config_get_peer(int index, field_bridge_peer_t *out);
 int product_config_set_peer(int index, const field_bridge_peer_t *peer);

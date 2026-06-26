@@ -49,6 +49,38 @@ make -C tests/linux test
 `run_linux_web.sh` uses sibling module checkouts when they exist. Otherwise it
 downloads the pinned dependency versions into `deps/`.
 
+## Load-Balance Throughput Results
+
+The benchmark records two product claims: a single field broker is near
+mosquitto speed, and admission fallback improves total client/topic capacity
+when one broker is hot and peer brokers still have room.
+
+Detailed logs are in `docs/load_balance_throughput_results.md`.
+
+### Single Broker Speed
+
+This isolates broker speed with the same eight clients concentrated on broker A.
+
+| Case | Client layout | Topic count | Msg/s | Delivery |
+|------|---------------|------------:|------:|---------:|
+| mosquitto | `8/0/0/0` | `1` | `28,618.2` | `100.0%` |
+| field no-fallback | `8/0/0/0` | `1` | `28,599.0` | `100.0%` |
+
+### Dynamic Balance Advantage
+
+This starts with broker A full and B/C/D lightly loaded, then sends 18 new
+subscribers to broker A. The workload uses 32 topics so the result shows both
+client and topic-subscription capacity.
+
+| Case | Clients A/B/C/D | Topic subs | Topics A/B/C/D | Rejected subs | Msg/s | Delivery |
+|------|----------------:|-----------:|----------------:|--------------:|------:|---------:|
+| field no-fallback | `8/2/2/2` | `13` | `7/2/2/2` | `18` | `727.45` | `100.0%` |
+| field fallback | `8/8/8/8` | `31` | `7/8/8/8` | `0` | `1,734.1` | `100.0%` |
+
+Fallback raises accepted subscribers from 13 to 31 topic subscriptions and
+keeps all four brokers at their admission limit. The benefit is total served
+work, not just raw per-broker speed.
+
 ## ESP32 / Dephy Build
 
 Use this path when you are ready to build firmware for the Dephy ESP32 target:

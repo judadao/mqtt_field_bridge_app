@@ -89,18 +89,27 @@ int main(void)
     product_config_init();
     product_runtime_init();
     product_status_io_init(NULL, NULL, status_config_reset_press, NULL);
-    product_console_start();
 
     field_bridge_settings_t settings;
     if (product_config_get_settings(&settings) == 0) {
         char ip_addr[FIELD_BRIDGE_HOST_MAX];
         char configured_ip[FIELD_BRIDGE_HOST_MAX];
         uint8_t requested_dhcp = settings.network.dhcp_enabled;
+        int need_uart_provisioning = !product_config_has_saved_settings();
 
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
         if (settings.network.wifi_ssid[0] == '\0') {
+            need_uart_provisioning = 1;
+        }
+#endif
+        if (need_uart_provisioning) {
+            product_console_start();
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
             LOG_INF("wifi not configured; waiting for UART CLI provisioning");
-            product_runtime_broker_failed("wifi not configured");
+#else
+            LOG_INF("product config not saved; waiting for UART CLI provisioning");
+#endif
+            product_runtime_broker_failed("UART provisioning required");
             product_status_io_set_running(0);
 #ifdef __ZEPHYR__
             while (1) {
@@ -110,7 +119,6 @@ int main(void)
             return 0;
 #endif
         }
-#endif
 
         snprintf(configured_ip, sizeof(configured_ip), "%s",
                  settings.network.device_ip);

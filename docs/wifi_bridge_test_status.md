@@ -218,6 +218,32 @@ Update:
   before bridging the UART.
 - Reflashed `/dev/ttyUSB2` with the updated CLI-only WiFi image:
   `tmux: build-flash-cli-return-ttyUSB2`, `EXIT_CODE=0`.
+
+## 2026-06-26 Staged 2 ETH + 4 WiFi manual validation
+
+Ethernet stage:
+- Firmware fix: erased devices now wait in UART provisioning before broker
+  startup; configured devices skip the long-running UART CLI thread during
+  normal broker runtime.
+- UART CLI was moved back to Zephyr `console_getline()` with an 8192-byte stack.
+- `tmux: eth-2node-cli-recheck-r6-20260626` passed with `EXIT_CODE=0`.
+- ESP A: management `192.168.127.4`, broker `192.168.127.15`.
+- ESP B: management `192.168.127.6`, broker `192.168.127.16`.
+- Both broker TCP ports opened and bidirectional MQTT bridge delivery passed.
+
+WiFi stage:
+- `tmux: wifi-4node-bridge-r1-20260626` passed with `EXIT_CODE=0`.
+- Nodes: `10.88.0.2`, `10.88.0.3`, `10.88.0.4`, `10.88.0.5`.
+- Bidirectional 4-node MQTT bridge delivery passed.
+- Admission fallback used all four brokers with distribution `2, 2, 2, 1`;
+  publisher fallback host was `10.88.0.5`.
+- Run log: `tests/linux/out/wifi_linux_ap_bridge/run-20260626-190832.log`.
+
+Final six-node check:
+- `tests/linux/out/hardware/six-node-current-check-20260626-191308.log`
+  shows MQTT `1883` open on all six brokers:
+  `192.168.127.15`, `192.168.127.16`, `10.88.0.2`, `10.88.0.3`,
+  `10.88.0.4`, and `10.88.0.5`.
 - Hardware validation on `/dev/ttyUSB2`:
   - `menu` prints the numbered menu.
   - `1` prints the formatted status table and `0. return to menu`.
@@ -290,3 +316,108 @@ Update:
   - `nc 192.168.127.5 17002` was tested through
     `settings -> local-broker -> broker-port` and
     `settings -> peer-bridge -> bridge-port`.
+
+## 2026-06-26 Six-node Ethernet manual-test preparation
+
+Goal:
+- Prepare all six W5500 ESP32 targets for manual bridge and MQTT testing.
+
+Current status:
+- Not complete yet.
+- `build_product_eth` exists and was built successfully at 2026-06-26 18:24.
+- Six UARTs are present as `/dev/ttyUSB0` through `/dev/ttyUSB5`.
+- Two direct non-tmux attempts stopped on `/dev/ttyUSB0` before flashing:
+  - First attempt: `west flash` could not find `esptool` because the Zephyr
+    venv path was not exported.
+  - Second attempt: `esptool` reported `/dev/ttyUSB0` busy or missing during
+    open, likely from USB reset/hub timing.
+- Added `scripts/hw_prepare_six_eth_config.sh` so the operation is resumable
+  and writes per-board flash, erase, and config logs.
+
+Planned tmux run:
+- Session: `six-eth-config`
+- Command: `./scripts/hw_prepare_six_eth_config.sh`
+- Log root: `tests/linux/out/hardware/six-eth-config-<timestamp>/`
+
+Target mapping:
+- `/dev/ttyUSB0`: management `192.168.127.4`, broker `192.168.127.15`
+- `/dev/ttyUSB1`: management `192.168.127.5`, broker `192.168.127.16`
+- `/dev/ttyUSB2`: management `192.168.127.6`, broker `192.168.127.17`
+- `/dev/ttyUSB3`: management `192.168.127.7`, broker `192.168.127.18`
+- `/dev/ttyUSB4`: management `192.168.127.8`, broker `192.168.127.19`
+- `/dev/ttyUSB5`: management `192.168.127.9`, broker `192.168.127.20`
+- MQTT port: `1883`
+- Bridge/P2P port: `4884`
+
+Next step:
+- Run the six-node preparation in tmux and update this section with the
+  completed board list or the first blocking board/log.
+
+Update:
+- `tmux: six-eth-config` completed one full pass and wrote logs under
+  `tests/linux/out/hardware/six-eth-config-20260626-183317/`.
+- The summary says all six nodes completed, but this is not fully trustworthy:
+  `config-ttyUSB2.log` and `config-ttyUSB3.log` contain `ZEPHYR FATAL ERROR`
+  immediately after the `ip ...` command, so those two boards must be treated
+  as not verified.
+- The initial six-node mapping also used management `192.168.127.5` for
+  `/dev/ttyUSB1`, which conflicts with the Linux host address used by the
+  Ethernet tests. Do not use that mapping for bridge validation.
+- For the immediate two-W5500 bridge check, use the known non-conflicting pair:
+  `/dev/ttyUSB0` as ESP A management `192.168.127.4` / broker `192.168.127.15`
+  and `/dev/ttyUSB1` as ESP B management `192.168.127.6` / broker
+  `192.168.127.16`.
+
+## 2026-06-26 Dual W5500 bridge re-check on CLI-only firmware
+
+Goal:
+- Re-test whether the two W5500 Ethernet ESP32 brokers can bridge MQTT traffic
+  with the current CLI-only product firmware.
+
+Important note:
+- The old `tests/linux/test_dual_esp32_w5500_bridge.sh` configures peers through
+  provisioning HTTP. That is stale for the current firmware because
+  provisioning HTTP was removed. Use UART CLI commands for setup, then verify
+  MQTT with `mqtt_cli`.
+
+Planned mapping:
+- ESP A: `/dev/ttyUSB0`, management `192.168.127.4`, broker `192.168.127.15`
+- ESP B: `/dev/ttyUSB1`, management `192.168.127.6`, broker `192.168.127.16`
+- MQTT port: `1883`
+- Bridge/P2P port: `4884`
+
+Next step:
+- Re-provision the two boards through tmux, configure peer slot 0, reboot, then
+  run bidirectional MQTT publish/subscribe across the bridge.
+
+Update:
+- Built `build_product_eth` with a larger console stack, but UART input still
+  crashed inside Zephyr `console_getline()` on ESP A when sending `menu`.
+- Replaced the Zephyr `console_getline()` path with a direct UART polling CLI
+  reader and rebuilt successfully:
+  - Build log: `tests/linux/out/hardware/build-eth-uart-poll.log`
+  - Memory: `dram1_0_seg` `89728 B / 96 KB = 91.28%`
+  - Unit validation: `make -C tests/linux unit_product_console` passed
+    `120/120`.
+- Re-ran dual W5500 setup in `tmux: dual-w5500-cli-bridge-r3`.
+  - Log root: `tests/linux/out/dual_w5500_cli_bridge-20260626-184448/`
+  - Flash and config erase completed for `/dev/ttyUSB0` and `/dev/ttyUSB1`.
+  - The run stopped during ESP A provisioning; `uart-esp-a.log` was empty, so
+    it did not reach MQTT bridge verification.
+- Network check after that run:
+  - Log: `tests/linux/out/hardware/dual-w5500-netcheck.log`
+  - Interface: `enx34298f70f788`
+  - `192.168.127.4` was `FAILED`.
+  - `192.168.127.15` and `192.168.127.16` had ARP entries, but TCP `1883`
+    was closed on both.
+
+Current answer:
+- The two W5500 Ethernet MQTT bridge is not verified as working on the current
+  CLI-only firmware. The blocker is device provisioning/bring-up, not a clean
+  MQTT bridge failure.
+
+Next step:
+- Make UART provisioning deterministic with the polling CLI path, capture Python
+  provisioning exceptions into the per-run log, then rerun
+  `scripts/hw_dual_w5500_cli_bridge_test.sh` until both broker TCP ports are
+  open before MQTT bridge assertions.

@@ -19,6 +19,9 @@ Source of truth: `docs/todo.yaml`. Update YAML before starting or completing wor
 
 ## hardware
 
+- [ ] Flash and provision six W5500 ESP32 boards for manual bridge/MQTT validation. (`tmux: six-eth-config`; management IPs `192.168.127.4`-`.9`, broker IPs `192.168.127.15`-`.20`, MQTT `1883`, bridge `4884`)
+- [x] Re-test two W5500 Ethernet ESP32 MQTT bridge peers with current CLI-only firmware. (`tmux: eth-2node-cli-recheck-r6-20260626`; ESP A `192.168.127.15`, ESP B `192.168.127.16`, bidirectional MQTT bridge passed)
+- [x] Stage manual validation for 2 ETH, 4 WiFi, then 6 total bridge/MQTT nodes. (`tmux: wifi-4node-bridge-r1-20260626`; WiFi `10.88.0.2`-`.5`; final six-node TCP check passed)
 - [x] Validate peer reconnection after WiFi reconnect on target ESP32 hardware. (`obsolete: Ethernet-only product direction`)
 - [x] Replace the ESP32 WiFi scan placeholder with live scan results after board-specific WiFi management is selected. (`obsolete: Ethernet-only product direction`)
 - [x] Verify DHCP-derived local STA IP, AP/gateway IP, and peer broker IP values on hardware. (`obsolete: Ethernet-only product direction`)

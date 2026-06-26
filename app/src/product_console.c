@@ -13,6 +13,7 @@
 #endif
 
 #ifdef __ZEPHYR__
+#include <zephyr/device.h>
 #include <zephyr/console/console.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -1003,16 +1004,17 @@ static void console_thread(void *p1, void *p2, void *p3)
     ARG_UNUSED(p1);
     ARG_UNUSED(p2);
     ARG_UNUSED(p3);
+    char line[CONFIG_CONSOLE_INPUT_MAX_LINE_LEN];
 
     console_getline_init();
     printk("\nfield-bridge console ready. type help\n");
     while (1) {
-        char *line = console_getline();
+        char *input = console_getline();
 
-        if (!line) {
-            k_sleep(K_MSEC(50));
+        if (!input || input[0] == '\0') {
             continue;
         }
+        snprintf(line, sizeof(line), "%s", input);
         (void)product_console_handle_line(line,
                                           zephyr_console_write,
                                           NULL,
@@ -1021,7 +1023,7 @@ static void console_thread(void *p1, void *p2, void *p3)
     }
 }
 
-K_THREAD_STACK_DEFINE(console_stack, 3072);
+K_THREAD_STACK_DEFINE(console_stack, 8192);
 static struct k_thread console_thread_data;
 static int console_started;
 

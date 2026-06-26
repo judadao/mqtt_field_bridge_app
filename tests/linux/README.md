@@ -60,6 +60,9 @@ change.
 | `test_chain_scale.sh` | scale | 10-node chain or ring; first-node publish reaches last-node subscriber |
 | `stress_reconnect.sh` | stress | 5 kill+restart cycles by default; B1 must not hang |
 | `stress_throughput.sh` | stress | 3-broker P2P under multi-publisher load; minimum throughput check |
+| `run_load_balance_matrix.sh` | benchmark | Mosquitto, field no-fallback, and field fallback comparison for hotspot and uneven client load |
+| `run_fair4_capacity_compare.sh` | benchmark | 4-broker comparison of concentrated `8/0/0/0` capacity against fallback-distributed `2/2/2/2` capacity |
+| `run_dynamic_balance_burst.sh` | benchmark | Hot-broker burst test showing fallback client and topic-subscription capacity gains |
 
 ## Knobs
 
@@ -76,6 +79,9 @@ change.
 | `SUB_COUNT` | 3 | throughput |
 | `DURATION` | 10 | throughput |
 | `MIN_THROUGHPUT_MSG` | 500 | throughput |
+| `ADMISSION` | 12 | load-balance matrix |
+| `PUBLISH_DELAY` | 0.0005 | load-balance matrix |
+| `TOPIC_COUNT` | 1 | dynamic balance burst |
 | `WEB_TEST_DEVICE_IP` | required by `web-network-test` | web network config |
 | `WEB_TEST_GATEWAY` | required by `web-network-test` | web network config |
 | `WEB_TEST_NETMASK` | required by `web-network-test` | web network config |
@@ -92,6 +98,45 @@ change.
 
 `web-network-test` sources `tests/linux/local_web_network.env` when present.
 That file is ignored so site-specific IP settings stay local.
+
+## Load-balance benchmark
+
+Run the comparative benchmark in `tmux` so long runs survive terminal
+disconnects:
+
+```bash
+tmux new-session -d -s lb-throughput \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_load_balance_matrix.sh'
+```
+
+Results are written under `tests/linux/out/load_balance_matrix/` and appended to
+`docs/load_balance_throughput_results.md`. The current benchmark direction is
+that fallback raises total accepted clients, while bridge fanout can reduce raw
+message rate. A follow-up case should test four brokers with admission `2` each
+and a target `2/2/2/2` distribution, to measure fully distributed throughput
+separately from hotspot overflow.
+
+The concentrated-versus-distributed capacity comparison is:
+
+```bash
+tmux new-session -d -s fair4-capacity \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_fair4_capacity_compare.sh'
+```
+
+The recorded 20260626 run showed mosquitto at `28,618.2 msg/s` with `8/0/0/0`,
+field no-fallback at `28,599.0 msg/s` with `8/0/0/0`, and field fallback at
+`16,462.6 msg/s` with `2/2/2/2`.
+
+The dynamic topic-capacity run is:
+
+```bash
+tmux new-session -d -s dynamic-topic32 \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && TOPIC_COUNT=32 tests/linux/run_dynamic_balance_burst.sh'
+```
+
+The recorded 20260626 run showed no-fallback serving `13` topic subscriptions
+with clients `8/2/2/2`, while fallback served `31` topic subscriptions with
+clients `8/8/8/8`.
 
 ## Manual web UI
 
