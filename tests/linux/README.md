@@ -129,6 +129,29 @@ The recorded 20260626 run showed mosquitto at `28,618.2 msg/s` with `8/0/0/0`,
 field no-fallback at `28,599.0 msg/s` with `8/0/0/0`, and field fallback at
 `16,462.6 msg/s` with `2/2/2/2`.
 
+### Recovery balance
+
+The random peer drop recovery run is:
+
+```bash
+tmux new-session -d -s random-drop \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_random_drop_recovery.sh'
+```
+
+This keeps broker A alive as the publisher source, randomly terminates peer
+brokers, then admits subscribers that initially target A/B/C/D. No-fallback
+clients targeting dropped brokers should be rejected; fallback clients should
+land on the remaining live brokers when capacity is available.
+
+The recorded 20260626 run used admission `32`, topic count `16`, drop count `2`,
+and seed `260626`, which dropped brokers B/C. Both cases reported `100.0%`
+delivery.
+
+| Impl | Dropped brokers | Topic subs | Topics A/B/C/D | Conn clients A/B/C/D | Conn subs A/B/C/D | Rej subs | Fallback subs | Msg/s |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| field_no_fallback | B/C | 12 | 4/0/0/8 | 5/0/0/8 | 4/0/0/8 | 16 | 0 | 1,343.8 |
+| field_fallback | B/C | 28 | 4/0/0/16 | 5/0/0/24 | 4/0/0/24 | 0 | 16 | 3,133.6 |
+
 The client-limit burst run is:
 
 ```bash
@@ -151,24 +174,6 @@ The recorded 20260626 run used client admission `64` and topic table limit `16`,
 preloaded topic subscriptions `16/4/4/4`, then sent 36 new topic subscribers to
 broker A. No-fallback stayed at `16/4/4/4` and rejected all 36; fallback reached
 `16/16/16/16` and rejected none.
-
-The random peer drop recovery run is:
-
-```bash
-tmux new-session -d -s random-drop \
-  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_random_drop_recovery.sh'
-```
-
-This keeps broker A alive as the publisher source, randomly terminates peer
-brokers, then admits subscribers that initially target A/B/C/D. No-fallback
-clients targeting dropped brokers should be rejected; fallback clients should
-land on the remaining live brokers when capacity is available.
-
-The recorded 20260626 run used admission `32`, topic count `16`, drop count `2`,
-and seed `260626`, which dropped brokers B/C. No-fallback stayed at `5/0/0/8`,
-rejected 16 subscribers, and delivered `1,343.8 msg/s`; fallback reached
-`5/0/0/24`, rejected none, accepted 16 fallback subscribers, and delivered
-`3,133.6 msg/s`. Both cases reported `100.0%` delivery.
 
 ## Manual web UI
 
