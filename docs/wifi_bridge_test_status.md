@@ -205,3 +205,25 @@ Update:
   - `status` returns `OK network=init ... error=wifi not configured`.
   - `show` returns the saved default network/broker config.
 - Remote UART CLI is available at `192.168.127.5:17002`.
+
+Update:
+- Added menu return support:
+  - `0` returns to the numbered menu.
+  - `back` is accepted as a command alias, but the screen text avoids printing
+    a bare `back` token to prevent UART output feedback from retriggering the
+    menu.
+  - `status`, `info`, and `show` end with `0. return to menu`.
+- Added `scripts/serial_menu_client.sh` for host-side remote UART access. The
+  TCP forwarder can call this helper so a new `nc` connection sends `menu`
+  before bridging the UART.
+- Reflashed `/dev/ttyUSB2` with the updated CLI-only WiFi image:
+  `tmux: build-flash-cli-return-ttyUSB2`, `EXIT_CODE=0`.
+- Hardware validation on `/dev/ttyUSB2`:
+  - `menu` prints the numbered menu.
+  - `1` prints the formatted status table and `0. return to menu`.
+  - `0` returns to the numbered menu.
+  - `back` returns to the numbered menu.
+- Remote validation:
+  - `tmux: esp32-cli-ttyUSB2-17002` maps
+    `192.168.127.5:17002` to `/dev/ttyUSB2`.
+  - `nc 192.168.127.5 17002` immediately shows the CLI menu.

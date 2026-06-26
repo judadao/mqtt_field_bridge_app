@@ -67,13 +67,18 @@ static int numeric_menu_command(const char *cmd)
     return value;
 }
 
+static void print_back_to_menu(product_console_write_fn write_fn, void *ctx)
+{
+    pc_write(write_fn, ctx, "\n0. return to menu\n");
+}
+
 static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     pc_write(write_fn, ctx,
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-                  "commands: help menu status info show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu back status info show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
 #else
-                  "commands: help menu status info show ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu back status info show ip dhcp broker broker-state peer defaults reset reboot\n");
 #endif
     pc_write(write_fn, ctx,
                   "  info                     show runtime and saved network/broker config\n");
@@ -118,7 +123,7 @@ static void print_menu(product_console_write_fn write_fn, void *ctx)
     (void)dephy_cli_render_menu("Field Bridge CLI menu",
                                 items,
                                 sizeof(items) / sizeof(items[0]),
-                                "Type the command shown after the number, for example: status",
+                                "Type a number; 0 returns to this menu",
                                 write_fn,
                                 ctx);
 }
@@ -141,6 +146,7 @@ static int cmd_status(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Remote subs   : %u\n", status.remote_subscriptions);
     pc_write(write_fn, ctx, "Error         : %s\n",
              status.last_error[0] ? status.last_error : "-");
+    print_back_to_menu(write_fn, ctx);
     return 0;
 }
 
@@ -165,6 +171,7 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "P2P port      : %u\n", settings.broker.p2p_port);
     pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
     pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
+    print_back_to_menu(write_fn, ctx);
     return 0;
 }
 
@@ -203,6 +210,7 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Broker        : %u\n", settings.broker.broker_enabled);
     pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
     pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
+    print_back_to_menu(write_fn, ctx);
     return 0;
 }
 
@@ -521,6 +529,10 @@ int product_console_handle_line(char *line,
     }
     cmd = strtok_r(line, " \t\r\n", &save);
     if (!cmd) {
+        return 0;
+    }
+    if (strcmp(cmd, "0") == 0 || strcmp(cmd, "back") == 0) {
+        print_menu(write_fn, write_ctx);
         return 0;
     }
     {

@@ -85,15 +85,24 @@ static void test_menu_lists_numbered_commands(void)
     CHECK(strstr(out_buf, "1. status") != NULL);
     CHECK(strstr(out_buf, "2. info") != NULL);
     CHECK(strstr(out_buf, "peer <i> <name> <host>") != NULL);
-    CHECK(strstr(out_buf, "Type the command shown after the number") != NULL);
+    CHECK(strstr(out_buf, "Type a number; 0 returns") != NULL);
+    CHECK(run_cmd("0") == 0);
+    CHECK(strstr(out_buf, "Field Bridge CLI menu") != NULL);
+    CHECK(run_cmd("back") == 0);
+    CHECK(strstr(out_buf, "Field Bridge CLI menu") != NULL);
 }
 
 static void test_menu_index_commands(void)
 {
     CHECK(run_cmd("1") == 0);
     CHECK(strstr(out_buf, "Network       : init") != NULL);
+    CHECK(strstr(out_buf, "0. return to menu") != NULL);
+    CHECK(run_cmd("2") == 0);
+    CHECK(strstr(out_buf, "Runtime") != NULL);
+    CHECK(strstr(out_buf, "0. return to menu") != NULL);
     CHECK(run_cmd("3") == 0);
     CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
+    CHECK(strstr(out_buf, "0. return to menu") != NULL);
     CHECK(run_cmd("4") == 0);
     CHECK(strstr(out_buf, "usage: ip <addr>") != NULL);
     CHECK(run_cmd("99") != 0);
