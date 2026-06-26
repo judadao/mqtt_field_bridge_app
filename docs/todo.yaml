@@ -8,6 +8,31 @@ policy:
   - When behavior changes, update TODO status in the same change.
   - Keep legacy markdown details until they are fully migrated into this YAML.
 items:
+- id: benchmark-fixed-message-active-failure-recovery
+  area: performance
+  title: Add fixed-message active broker failure recovery benchmark.
+  status: done
+  notes: Added on 2026-06-26 after reviewing that the random-drop admission
+    benchmark produced overly clean percentages. Desired model is four brokers
+    with 10000 expected messages each, a random failure count and random broker
+    set failing during active publish/receive for a few seconds, and fallback
+    clients continuing through live nodes until the fixed workload completes.
+    Completed with 20260626-fixed-random-failure: seed 260626 randomly dropped
+    brokers A/B/D after 0.5s, held them down for 3s, then restarted them.
+    Dropped-workload recovery was mosquitto 5799/30000, field no-fallback
+    5784/30000, and field fallback 29996/30000.
+- id: benchmark-random-drop-recovery-8clients
+  area: performance
+  title: Run random-drop recovery with 8 intended clients per broker.
+  status: done
+  notes: Added on 2026-06-26 after reviewing that connected client counts differ
+    between no-fallback and fallback in the 5/5/5/5 intended-client run. Run a
+    fixed intended layout of 8/8/8/8 clients using 1 publisher and 7 subscribers
+    per broker, admission 8, random drop seed 260626, and compare full-workload
+    expected deliveries with actual received deliveries. Superseded after review
+    because admission-before-drop percentages are not the desired active failure
+    model; benchmark-fixed-message-active-failure-recovery is the primary recovery
+    benchmark.
 - id: benchmark-random-drop-recovery-balance
   area: performance
   title: Redesign random-drop recovery benchmark so dropped-broker clients count against recovery.

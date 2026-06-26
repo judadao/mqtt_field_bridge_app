@@ -131,3 +131,23 @@ Column meanings:
 | mosquitto | 0/1 | 5/5/5/5 | 0/0/5/5 | 0/0/4/4 | 0/0/1/1 | 8 | 2 | 0 | 0 | 71615 | 71615 | 3580.75 | 100.0 | 50.0 |
 | field_no_fallback | 0/1 | 5/5/5/5 | 0/0/5/5 | 0/0/4/4 | 0/0/1/1 | 8 | 2 | 0 | 0 | 71648 | 71648 | 3582.4 | 100.0 | 50.0 |
 | field_fallback | 0/1 | 5/5/5/5 | 0/0/8/8 | 0/0/5/7 | 0/0/3/1 | 4 | 0 | 12 | 2 | 143140 | 107369 | 5368.45 | 100.0 | 75.01 |
+
+## 20260626-fixed-random-failure fixed-message broker failure recovery
+
+- Workload: 4 brokers, 10000 messages per broker, expected total 40000.
+- Failure: broker(s) A/B/D are terminated 0.5s after publishing starts, held down for 3.0s, then restarted.
+- Metric: received unique payloads versus the fixed expected message count; dropped workload isolates the failed broker workload.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/fixed_failure_recovery/20260626-fixed-random-failure`
+
+| Impl | Dropped | Expected A/B/C/D | Sent A/B/C/D | Received A/B/C/D | Dropped workload | Dropped delivery % | Pub done A/B/C/D | Pub reconnects | Sub reconnects | Missing | Delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mosquitto | A/B/D | 10000/10000/10000/10000 | 1932/1932/10000/1938 | 1931/1931/10000/1937 | 5799/30000 | 19.33 | 0/0/1/0 | 0/0/0/0 | 0/0/0/0 | 24201 | 39.4975 |
+| field_no_fallback | A/B/D | 10000/10000/10000/10000 | 1924/1929/10000/1934 | 1923/1928/10000/1933 | 5784/30000 | 19.28 | 0/0/1/0 | 0/0/0/0 | 0/0/0/0 | 24216 | 39.46 |
+| field_fallback | A/B/D | 10000/10000/10000/10000 | 10000/10000/10000/10000 | 9998/9999/10000/9999 | 29996/30000 | 99.9867 | 1/1/1/1 | 2/1/0/1 | 2/1/0/1 | 4 | 99.99 |
+
+Interpretation: the dropped-workload columns isolate only the failed A/B/D
+brokers, so healthy broker C does not hide recovery behavior. Mosquitto and field
+no-fallback stop the failed-broker publishers around 1900 messages each, leaving
+only about 19% of the failed workload delivered. Field fallback reconnects those
+failed-broker publishers and subscribers through live broker C, completes every
+publisher target, and loses only four QoS 0 messages at the socket-break boundary.

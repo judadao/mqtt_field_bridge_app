@@ -129,29 +129,33 @@ The recorded 20260626 run showed mosquitto at `28,618.2 msg/s` with `8/0/0/0`,
 field no-fallback at `28,599.0 msg/s` with `8/0/0/0`, and field fallback at
 `16,462.6 msg/s` with `2/2/2/2`.
 
-### Recovery balance
+### Fixed-message failure recovery
 
-The random peer drop recovery run is:
+The active broker failure recovery run is:
 
 ```bash
-tmux new-session -d -s random-drop \
-  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_random_drop_recovery.sh'
+tmux new-session -d -s fixed-failure \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_fixed_failure_recovery.py'
 ```
 
-This randomly terminates brokers, then admits the same intended
-publisher/subscriber layout for mosquitto, field no-fallback, and field
-fallback. Clients intended for dropped brokers stay in the expected-delivery
-denominator. Topics are local to each intended broker so mosquitto and field
-no-fallback are comparable when they lose dropped-broker clients.
+This starts four broker targets and one local publisher/subscriber pair per
+target. Each publisher attempts exactly 10,000 messages. The random seed selects
+both failure count and broker identities; fallback clients reconnect to live
+brokers and continue the fixed workload.
 
-The recorded 20260626 run used admission `8`, topic count `16`, drop count `2`,
-and seed `260626`, which dropped brokers A/B.
+The recorded 20260626 run used seed `260626`, randomly dropped brokers A/B/D
+after `0.5s`, held them down for `3s`, then restarted them.
 
-| Impl | Dropped brokers | Req clients A/B/C/D | Conn clients A/B/C/D | Rej subs | Rej pubs | Msg/s | Requested delivery % |
+| Impl | Dropped | Expected A/B/C/D | Sent A/B/C/D | Received A/B/C/D | Dropped workload | Missing | Delivery % |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| mosquitto | A/B | 5/5/5/5 | 0/0/5/5 | 8 | 2 | 3,580.75 | 50.0 |
-| field_no_fallback | A/B | 5/5/5/5 | 0/0/5/5 | 8 | 2 | 3,582.4 | 50.0 |
-| field_fallback | A/B | 5/5/5/5 | 0/0/8/8 | 4 | 0 | 5,368.45 | 75.01 |
+| mosquitto | A/B/D | 10000/10000/10000/10000 | 1932/1932/10000/1938 | 1931/1931/10000/1937 | 5799/30000 | 24201 | 39.4975 |
+| field_no_fallback | A/B/D | 10000/10000/10000/10000 | 1924/1929/10000/1934 | 1923/1928/10000/1933 | 5784/30000 | 24216 | 39.46 |
+| field_fallback | A/B/D | 10000/10000/10000/10000 | 10000/10000/10000/10000 | 9998/9999/10000/9999 | 29996/30000 | 4 | 99.99 |
+
+The fallback result is client-path recovery: failed publishers/subscribers detect
+the broken socket, reconnect to a live broker, and continue their fixed message
+targets. It is not durable QoS replay; a few QoS 0 messages can still be lost
+while the socket breaks.
 
 The client-limit burst run is:
 

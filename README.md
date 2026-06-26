@@ -69,35 +69,47 @@ Test condition:
 Result: the field broker is effectively equal to mosquitto for this single-node
 workload.
 
-### 2. Recovery Balance
+### 2. Fixed Message Broker Failure Recovery
 
 Test condition:
 - Four brokers: A, B, C, D.
-- Brokers A/B are randomly dropped before client admission.
-- Topic count is 16 and field broker client admission limit is 8 clients per
-  broker.
-- The full intended workload is 1 publisher and 4 subscribers per broker.
-- Clients intended for dropped brokers stay in the expected-delivery denominator.
-- Topics are local to each intended broker, so mosquitto and field no-fallback
-  are comparable when they lose dropped-broker clients.
-- Mosquitto is the independent-broker baseline with no mesh or fallback.
+- Each broker owns one local publisher/subscriber pair.
+- Each publisher attempts exactly 10,000 messages, so the fixed expected total
+  is 40,000 received messages.
+- The random seed selects both failure count and broker identities. In the
+  recorded run, three brokers are terminated 0.5s after publishing starts, held
+  down for 3s, then restarted.
+- Mosquitto and field no-fallback do not reconnect failed-broker clients.
+- Field fallback reconnects failed-broker clients to a live broker and continues
+  the remaining fixed publish/receive workload.
 
 Column meanings:
-- `Req clients`: requested client layout before broker drop.
-- `Clients`: connected client layout after admission.
-- `Delivery`: actual received messages versus expected deliveries for the full
-  original workload.
+- `Sent`: messages the publisher managed to send before completion or failure.
+- `Received`: unique payloads received by the matching subscriber.
+- `Dropped workload`: received messages for the failed brokers only, so recovery
+  is not hidden by healthy broker traffic.
+- `Pub done`: whether each broker's publisher reached 10,000 messages.
+- `Delivery`: received messages divided by the fixed expected 40,000.
 
-| Case | Dropped | Req clients | Clients | Rej subs | Rej pubs | Msg/s | Delivery |
-|------|--------:|------------:|--------:|---------:|---------:|------:|---------:|
-| mosquitto | `A/B` | `5/5/5/5` | `0/0/5/5` | `8` | `2` | `3,580.75` | `50.0%` |
-| field no-fallback | `A/B` | `5/5/5/5` | `0/0/5/5` | `8` | `2` | `3,582.4` | `50.0%` |
-| field fallback | `A/B` | `5/5/5/5` | `0/0/8/8` | `4` | `0` | `5,368.45` | `75.01%` |
+| Case | Dropped | Expected A/B/C/D | Sent A/B/C/D | Received A/B/C/D | Dropped workload | Pub done A/B/C/D | Missing | Delivery |
+|------|--------:|-----------------:|-------------:|------------------:|-----------------:|-----------------:|--------:|---------:|
+| mosquitto | `A/B/D` | `10000/10000/10000/10000` | `1932/1932/10000/1938` | `1931/1931/10000/1937` | `5799/30000` | `0/0/1/0` | `24201` | `39.4975%` |
+| field no-fallback | `A/B/D` | `10000/10000/10000/10000` | `1924/1929/10000/1934` | `1923/1928/10000/1933` | `5784/30000` | `0/0/1/0` | `24216` | `39.46%` |
+| field fallback | `A/B/D` | `10000/10000/10000/10000` | `10000/10000/10000/10000` | `9998/9999/10000/9999` | `29996/30000` | `1/1/1/1` | `4` | `99.99%` |
 
-Result: mosquitto and field no-fallback lose the clients intended for dropped
-brokers and recover about half of the full expected delivery. Field fallback
-redirects part of that dropped-broker load to the remaining live brokers, raising
-full-workload delivery to `75.01%` under the admission limit.
+Result: the fixed-message test shows the active failure behavior directly.
+Without fallback, publishers on failed brokers stop when their connections are
+cut and do not complete their 10,000-message targets. With fallback, those
+publishers and subscribers reconnect through live brokers and complete all but
+four QoS 0 messages from the fixed 40,000-message workload.
+
+The recovery happens at the client path, not through durable broker replay. When
+A/B/D fail, their publishers and subscribers see broken sockets. With fallback
+enabled they retry their intended broker first, then connect to a remaining live
+broker and continue using the same logical topics. The field broker mesh can then
+carry that workload through the live node. The four missing messages are expected
+QoS 0 loss around the failure boundary: packets already in flight when the socket
+breaks are not persisted and replayed.
 
 ### 3. Client Limit Balance
 
