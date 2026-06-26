@@ -87,6 +87,18 @@ static void test_menu_lists_numbered_commands(void)
     CHECK(strstr(out_buf, "Type the command shown after the number") != NULL);
 }
 
+static void test_menu_index_commands(void)
+{
+    CHECK(run_cmd("1") == 0);
+    CHECK(strstr(out_buf, "OK network=init") != NULL);
+    CHECK(run_cmd("3") == 0);
+    CHECK(strstr(out_buf, "OK device=esp32-min-broker") != NULL);
+    CHECK(run_cmd("4") == 0);
+    CHECK(strstr(out_buf, "usage: ip <addr>") != NULL);
+    CHECK(run_cmd("99") != 0);
+    CHECK(strstr(out_buf, "ERR unknown menu index") != NULL);
+}
+
 static void test_broker_save_config(void)
 {
     field_bridge_settings_t settings;
@@ -168,6 +180,7 @@ int main(void)
     printf("=== unit_product_console ===\n");
     RUN(test_help_and_status);
     RUN(test_menu_lists_numbered_commands);
+    RUN(test_menu_index_commands);
     RUN(test_broker_save_config);
     RUN(test_peer_command_saves_peer);
     RUN(test_scan_and_show);

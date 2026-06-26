@@ -49,6 +49,24 @@ static char *next_token(char **save)
     return strtok_r(NULL, " \t\r\n", save);
 }
 
+static int numeric_menu_command(const char *cmd)
+{
+    const char *p = cmd;
+    int value = 0;
+
+    if (!p || !*p) {
+        return 0;
+    }
+    while (*p) {
+        if (*p < '0' || *p > '9') {
+            return 0;
+        }
+        value = (value * 10) + (*p - '0');
+        p++;
+    }
+    return value;
+}
+
 static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     pc_write(write_fn, ctx,
@@ -417,6 +435,76 @@ static int cmd_defaults(char **save, product_console_write_fn write_fn, void *ct
     return 0;
 }
 
+static int cmd_menu_index(int index,
+                          product_console_write_fn write_fn,
+                          void *write_ctx,
+                          product_console_reboot_fn reboot_fn,
+                          void *reboot_ctx)
+{
+    switch (index) {
+    case 1:
+        return cmd_status(write_fn, write_ctx);
+    case 2:
+        return cmd_info(write_fn, write_ctx);
+    case 3:
+        return cmd_show(write_fn, write_ctx);
+    case 4:
+        pc_write(write_fn, write_ctx, "usage: ip <addr> [gw] [mask]\n");
+        return 0;
+    case 5:
+        return cmd_dhcp(write_fn, write_ctx);
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    case 6:
+        pc_write(write_fn, write_ctx, "usage: wifi <ssid> <pass|->\n");
+        return 0;
+    case 7:
+#else
+    case 6:
+#endif
+        pc_write(write_fn, write_ctx, "usage: broker-state <0|1>\n");
+        return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    case 8:
+#else
+    case 7:
+#endif
+        pc_write(write_fn, write_ctx,
+                 "usage: peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+        return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    case 9:
+#else
+    case 8:
+#endif
+        pc_write(write_fn, write_ctx, "usage: defaults small|large\n");
+        return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    case 10:
+#else
+    case 9:
+#endif
+        if (product_config_reset_all() != 0) {
+            pc_write(write_fn, write_ctx, "ERR reset failed\n");
+            return -1;
+        }
+        pc_write(write_fn, write_ctx, "OK reset defaults; reboot to apply\n");
+        return 0;
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    case 11:
+#else
+    case 10:
+#endif
+        pc_write(write_fn, write_ctx, "OK rebooting\n");
+        if (reboot_fn) {
+            reboot_fn(reboot_ctx);
+        }
+        return 0;
+    default:
+        pc_write(write_fn, write_ctx, "ERR unknown menu index; try menu\n");
+        return -1;
+    }
+}
+
 int product_console_handle_line(char *line,
                                 product_console_write_fn write_fn,
                                 void *write_ctx,
@@ -432,6 +520,13 @@ int product_console_handle_line(char *line,
     cmd = strtok_r(line, " \t\r\n", &save);
     if (!cmd) {
         return 0;
+    }
+    {
+        int index = numeric_menu_command(cmd);
+
+        if (index > 0) {
+            return cmd_menu_index(index, write_fn, write_ctx, reboot_fn, reboot_ctx);
+        }
     }
     if (strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0) {
         print_help(write_fn, write_ctx);
