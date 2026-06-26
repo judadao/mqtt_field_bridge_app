@@ -77,3 +77,119 @@ Next steps:
   `3208c02 fix: disable esp32 sta power save`.
 - Committed product bridge test harness and validation record:
   current HEAD `test: support variable wifi bridge node counts`.
+
+## 2026-06-26 HTTP/IP follow-up on main
+
+Goal: validate 1-node HTTP first, then 2/3/4 nodes.
+
+Current result: not passed yet. Multiple 1-node runs on `main` start HTTP and
+MQTT according to UART, but the Linux host cannot reliably reach the ESP32 over
+WiFi.
+
+Evidence:
+- `/dev/ttyUSB2` on AP `wlx3c64cf742c7b` and `wlxd84489239707`: UART reports
+  STA associated plus HTTP/MQTT listening at `10.88.0.2`, but host ARP becomes
+  `INCOMPLETE`; ping, `1883`, and `8080` fail.
+- `/dev/ttyUSB3` and `/dev/ttyUSB4` on AP `wlx3c64cf742c7b`: UART reports
+  HTTP/MQTT listening. ARP may briefly resolve to the ESP32 MAC, but TCP
+  connections to `1883`, `4884`, and `8080` time out or fall back to
+  `No route to host`.
+- `tcpdump` on `wlx3c64cf742c7b` captured repeated ARP requests from
+  `10.88.0.1` for `10.88.0.2` with no reply in the worst case, so several
+  failures happen before HTTP is reached.
+- Open AP (`LINUX_AP_PASS=`) improved ARP visibility but still timed out on
+  TCP, so WPA is not the only factor.
+- AP2 `wlxd84489239707` hangs in `nmcli connection up` for this AP profile.
+
+Local changes made during diagnosis:
+- `tests/linux/test_wifi_linux_ap_esp32_bridge.sh`
+  - Allows `NODE_COUNT=1`.
+  - Adds `HTTP_ONLY=1`, `HTTP_CHECK_SECONDS`, and multi-path HTTP soak checks.
+  - Makes `nmcli radio wifi on` a warning because this machine sometimes denies
+    that operation.
+- `../dephy_wifi/src/wifi.c`
+  - Starts the STA reconfigure thread only after STA settings are populated.
+  - Moves static IPv4 assignment until after STA association, matching DHCP's
+    post-association behavior.
+
+Builds/tests run:
+- `./scripts/sync_deps.sh replace && ./scripts/build_wifi_bridge_product.sh`
+  passed after both WiFi changes.
+- 1-node HTTP tmux sessions attempted:
+  `http-1node-debug`, `http-1node-debug-ap2-r2`, `http-1node-ttyUSB3`,
+  `http-1node-fixed`, `http-1node-openap`,
+  `http-1node-static-after-assoc`, and `http-1node-ttyUSB4`.
+
+Next recommended step:
+- Compare by flashing the previously passing
+  `mqtt_field_bridge_app_wifi_linux_ap_test/build_wifi_bridge_product` image
+  onto two boards and running the old 2-node test. If the old image now also
+  fails, focus on host AP/driver/NetworkManager state. If the old image passes,
+  diff the generated `.config` and linked module sources from the two build
+  directories.
+
+## 2026-06-26 UART CLI remote access
+
+For remote development, all six ESP32 UARTs are exposed through host TCP ports
+on `192.168.127.5`. Each forwarder runs in tmux through `socat`, so it survives
+SSH disconnects. The forwarders are intentionally single-connection listeners
+instead of `fork` listeners, because multiple concurrent TCP clients on one UART
+can corrupt the interactive CLI stream.
+
+Port mapping:
+- `192.168.127.5:17000` -> `/dev/ttyUSB0`
+- `192.168.127.5:17001` -> `/dev/ttyUSB1`
+- `192.168.127.5:17002` -> `/dev/ttyUSB2`
+- `192.168.127.5:17003` -> `/dev/ttyUSB3`
+- `192.168.127.5:17004` -> `/dev/ttyUSB4`
+- `192.168.127.5:17005` -> `/dev/ttyUSB5`
+
+Connect from a remote shell with:
+
+```sh
+nc 192.168.127.5 17003
+```
+
+Use `Ctrl-C` to disconnect before reconnecting or before another operator uses
+the same port.
+
+Current observation:
+- `/dev/ttyUSB2`, `/dev/ttyUSB3`, and `/dev/ttyUSB4` accepted UART writes but
+  did not echo CLI output during a short probe.
+- `/dev/ttyUSB5` is producing repeated `os: Halting system`, so that board is
+  not currently a usable CLI target until reflashed or reset.
+
+## 2026-06-26 CLI-only product follow-up
+
+Reusable CLI UI module:
+- Created `/home/judd/moxa/personal/dephy_cli`.
+- Pushed to `git@github.com:judadao/dephy_cli.git`.
+- Commit: `37234ac feat: add reusable CLI menu renderer`.
+- Tag: `dephy-cli-v0.1.0`.
+- Validation: `make -f Makefile.linux test` passed with `7 menu checks, 0 failed`.
+
+Product integration:
+- `mqtt_field_bridge_app` now depends on `dephy_cli` via `deps.json`.
+- Product UART `menu` rendering uses `dephy_cli_render_menu()`.
+- Product provisioning Web/HTTP was removed from the build/runtime path:
+  no `dephy_web` dependency, no embedded web asset generation, no
+  `provisioning_http_start()`, and no `provisioning_http_run()`.
+- Product commit pushed: `60aaf50 feat: replace provisioning web with CLI menu module`.
+
+Validation:
+- `./scripts/sync_deps.sh replace && make -C tests/linux unit-tests` passed.
+- `./scripts/sync_deps.sh replace && ./scripts/build_wifi_bridge_product.sh`
+  passed.
+- CLI-only WiFi image was flashed to `/dev/ttyUSB2` with `EXIT_CODE=0`.
+- Build memory after Web removal:
+  - `FLASH: 593760 B / 4194048 B = 14.16%`
+  - `dram0_0_seg: 183608 B / 192 KB = 93.39%`
+  - `dram1_0_seg: 91472 B / 96 KB = 93.05%`
+
+Hardware note:
+- `/dev/ttyUSB2` boots the CLI-only image and no longer starts HTTP.
+- UART hardware probing still shows repeated fragments such as
+  `console ready. type help`, `menu`, or WiFi log tails depending on NVS/runtime
+  state. Clearing storage at `0x3b0000` size `0x30000` removed saved WiFi config,
+  but the UART stream still needs cleanup before treating remote `nc` as a
+  polished CLI experience.
