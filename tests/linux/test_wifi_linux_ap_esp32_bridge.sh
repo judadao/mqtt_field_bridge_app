@@ -35,15 +35,18 @@ STATIC_NODE_IPS=${STATIC_NODE_IPS:-}
 BROKER_ENABLED=${BROKER_ENABLED:-1}
 HTTP_STABLE_REQUIRED=${HTTP_STABLE_REQUIRED:-2}
 UART_PEER_CONFIG=${UART_PEER_CONFIG:-1}
+HTTP_ONLY=${HTTP_ONLY:-0}
+HTTP_CHECK_SECONDS=${HTTP_CHECK_SECONDS:-120}
+HTTP_CHECK_PATHS=${HTTP_CHECK_PATHS:-"/ /status /config /peers /peer-status"}
 LOAD_CLIENTS=${LOAD_CLIENTS:-}
 LOAD_MIN_BROKERS=${LOAD_MIN_BROKERS:-}
 LOAD_WAIT_SECONDS=${LOAD_WAIT_SECONDS:-45}
 LOAD_TOPIC=${LOAD_TOPIC:-site/field-a/wifi-ap/load}
 
 case "$NODE_COUNT" in
-    2|3|4) ;;
+    1|2|3|4) ;;
     *)
-        printf 'error: NODE_COUNT must be 2, 3, or 4\n' >&2
+        printf 'error: NODE_COUNT must be 1, 2, 3, or 4\n' >&2
         exit 1
         ;;
 esac
@@ -698,6 +701,41 @@ wait_http_node_stable() {
     return 1
 }
 
+check_uart_logs_clean() {
+    if rg -n "ZEPHYR FATAL ERROR|ASSERTION FAIL|os: Halting system|broker_init failed|LoadProhibited|Guru Meditation" \
+        "$LOG_DIR"/uart-*.log >/dev/null 2>&1; then
+        printf 'error: fatal/runtime halt detected in UART logs\n' >&2
+        rg -n "ZEPHYR FATAL ERROR|ASSERTION FAIL|os: Halting system|broker_init failed|LoadProhibited|Guru Meditation" \
+            "$LOG_DIR"/uart-*.log >&2 || true
+        return 1
+    fi
+    return 0
+}
+
+verify_http_stability() {
+    node=$1
+    end=$((SECONDS + HTTP_CHECK_SECONDS))
+    ok=0
+
+    printf 'HTTP stability check: node=%s seconds=%s paths=%s\n' \
+        "$node" "$HTTP_CHECK_SECONDS" "$HTTP_CHECK_PATHS"
+    while [ "$SECONDS" -lt "$end" ]; do
+        for path in $HTTP_CHECK_PATHS; do
+            out="$LOG_DIR/http-$(printf '%s' "$path" | tr '/?' '__')-$node-$STAMP.out"
+            if ! curl -fsS --connect-timeout 2 --max-time 5 \
+                "http://$node:8080$path" >"$out"; then
+                printf 'error: HTTP request failed: http://%s:8080%s\n' "$node" "$path" >&2
+                check_uart_logs_clean || true
+                return 1
+            fi
+            ok=$((ok + 1))
+        done
+        check_uart_logs_clean
+        sleep 1
+    done
+    printf 'HTTP stability passed: %s request(s)\n' "$ok"
+}
+
 need curl
 need ip
 need nmcli
@@ -725,6 +763,8 @@ printf 'UART provision:%s\n' "$PROVISION_BY_UART"
 printf 'broker enabled:%s\n' "$BROKER_ENABLED"
 printf 'HTTP stable required:%s\n' "$HTTP_STABLE_REQUIRED"
 printf 'UART peer config:%s\n' "$UART_PEER_CONFIG"
+printf 'HTTP only:%s\n' "$HTTP_ONLY"
+printf 'HTTP check seconds:%s\n' "$HTTP_CHECK_SECONDS"
 printf 'setup Linux AP:%s\n' "$SETUP_LINUX_AP"
 
 if [ "$SKIP_BUILD" != "1" ]; then
@@ -745,7 +785,7 @@ fi
 
 printf '\n[1/6] Start Linux-hosted AP for ESP32 STA nodes\n'
 if [ "$SETUP_LINUX_AP" = "1" ]; then
-    nmcli radio wifi on
+    nmcli radio wifi on || printf 'warning: could not force WiFi radio on; continuing\n' >&2
     nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
     nmcli connection down "$LINUX_AP_CONN" >/dev/null 2>&1 || true
     nmcli connection delete "$LINUX_AP_CONN" >/dev/null 2>&1 || true
@@ -854,9 +894,15 @@ elif ! wait_for_nodes "$WIFI_IFACE" "$NODE_COUNT" "$NODES_FILE"; then
     exit 1
 fi
 
-if [ "$BROKER_ENABLED" != "1" ]; then
-    printf 'HTTP-only WiFi STA diagnostic passed for nodes:\n'
-    cat "$NODES_FILE"
+if [ "$HTTP_ONLY" = "1" ] || [ "$BROKER_ENABLED" != "1" ]; then
+    mapfile -t NODES <"$NODES_FILE"
+    printf 'HTTP-only WiFi STA diagnostic nodes:\n'
+    printf '  %s\n' "${NODES[@]:0:$NODE_COUNT}"
+    for node in "${NODES[@]:0:$NODE_COUNT}"; do
+        verify_http_stability "$node"
+    done
+    printf '\nPASS: HTTP stability diagnostic passed for %s node(s) on %s\n' \
+        "$NODE_COUNT" "$LINUX_AP_SSID"
     exit 0
 fi
 
