@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Show fallback throughput advantage when random peer brokers are unavailable.
+# Compare recovery health after random broker drops with equal connected clients.
 set -eu
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -19,6 +19,9 @@ DROP_SEED=${DROP_SEED:-260626}
 DROP_SETTLE=${DROP_SETTLE:-1.0}
 RANDOM_DROP_SUBSCRIBERS=${RANDOM_DROP_SUBSCRIBERS:-4,4,4,4}
 RANDOM_DROP_PUBLISHERS=${RANDOM_DROP_PUBLISHERS:-1,1,1,1}
+RANDOM_DROP_LIVE_ONLY=${RANDOM_DROP_LIVE_ONLY:-1}
+RANDOM_DROP_LIVE_SUBSCRIBERS=${RANDOM_DROP_LIVE_SUBSCRIBERS:-4}
+RANDOM_DROP_LIVE_PUBLISHERS=${RANDOM_DROP_LIVE_PUBLISHERS:-1}
 
 mkdir -p "$OUT_DIR"
 
@@ -28,6 +31,14 @@ run_case() {
     log="$OUT_DIR/random-drop-${impl}.log"
 
     printf '\n=== random_drop / %s ===\n' "$impl" | tee -a "$OUT_DIR/random-drop.log"
+    live_args=()
+    if [ "$RANDOM_DROP_LIVE_ONLY" = "1" ]; then
+        live_args=(
+            --random-drop-live-only
+            --random-drop-live-subscribers "$RANDOM_DROP_LIVE_SUBSCRIBERS"
+            --random-drop-live-publishers "$RANDOM_DROP_LIVE_PUBLISHERS"
+        )
+    fi
     "$ROOT_DIR/tests/linux/load_balance_throughput.py" \
         --mode random_drop \
         --impl "$impl" \
@@ -44,6 +55,7 @@ run_case() {
         --drop-settle "$DROP_SETTLE" \
         --random-drop-subscribers "$RANDOM_DROP_SUBSCRIBERS" \
         --random-drop-publishers "$RANDOM_DROP_PUBLISHERS" \
+        "${live_args[@]}" \
         >"$log" 2>&1
 
     python3 - "$log" "$OUT_DIR/random-drop-${impl}.json" <<'PY'
@@ -85,15 +97,17 @@ PY
     printf 'Random broker drop recovery test started at %s\n' "$(date -Is)"
     printf 'duration=%s settle=%s propagate=%s admission=%s publish_delay=%s topic_count=%s\n' \
         "$DURATION" "$SETTLE" "$PROPAGATE" "$ADMISSION" "$PUBLISH_DELAY" "$TOPIC_COUNT"
-    printf 'drop_count=%s drop_seed=%s drop_settle=%s subscribers=%s publishers=%s\n' \
-        "$DROP_COUNT" "$DROP_SEED" "$DROP_SETTLE" "$RANDOM_DROP_SUBSCRIBERS" "$RANDOM_DROP_PUBLISHERS"
+    printf 'drop_count=%s drop_seed=%s drop_settle=%s live_only=%s subscribers=%s publishers=%s live_subscribers=%s live_publishers=%s\n' \
+        "$DROP_COUNT" "$DROP_SEED" "$DROP_SETTLE" "$RANDOM_DROP_LIVE_ONLY" \
+        "$RANDOM_DROP_SUBSCRIBERS" "$RANDOM_DROP_PUBLISHERS" \
+        "$RANDOM_DROP_LIVE_SUBSCRIBERS" "$RANDOM_DROP_LIVE_PUBLISHERS"
 } | tee "$OUT_DIR/random-drop.log"
 
 run_case mosquitto "$PORT_BASE" | tee -a "$OUT_DIR/random-drop.log"
 run_case field_no_fallback "$((PORT_BASE + 1000))" | tee -a "$OUT_DIR/random-drop.log"
 run_case field_fallback "$((PORT_BASE + 2000))" | tee -a "$OUT_DIR/random-drop.log"
 
-python3 - "$OUT_DIR" "$STAMP" "$DURATION" "$ADMISSION" "$TOPIC_COUNT" "$DROP_COUNT" "$DROP_SEED" "$RANDOM_DROP_SUBSCRIBERS" "$RANDOM_DROP_PUBLISHERS" "$RESULT_DOC" <<'PY'
+python3 - "$OUT_DIR" "$STAMP" "$DURATION" "$ADMISSION" "$TOPIC_COUNT" "$DROP_COUNT" "$DROP_SEED" "$RANDOM_DROP_SUBSCRIBERS" "$RANDOM_DROP_PUBLISHERS" "$RANDOM_DROP_LIVE_ONLY" "$RANDOM_DROP_LIVE_SUBSCRIBERS" "$RANDOM_DROP_LIVE_PUBLISHERS" "$RESULT_DOC" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -107,7 +121,10 @@ drop_count = sys.argv[6]
 drop_seed = sys.argv[7]
 subscribers = sys.argv[8]
 publishers = sys.argv[9]
-result_doc = Path(sys.argv[10])
+live_only = sys.argv[10]
+live_subscribers = sys.argv[11]
+live_publishers = sys.argv[12]
+result_doc = Path(sys.argv[13])
 
 rows = []
 for impl in ("mosquitto", "field_no_fallback", "field_fallback"):
@@ -122,6 +139,9 @@ summary = {
     "drop_seed": int(drop_seed),
     "subscribers": subscribers,
     "publishers": publishers,
+    "live_only": live_only == "1",
+    "live_subscribers": int(live_subscribers),
+    "live_publishers": int(live_publishers),
     "results": rows,
 }
 (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
@@ -133,7 +153,13 @@ lines.append(f"- Duration: {duration}s per case")
 lines.append(f"- Field broker admission limit: {admission} clients per broker")
 lines.append(f"- Topic count: {topic_count}")
 lines.append(f"- Random drop: {drop_count} broker(s), seed `{drop_seed}`")
-lines.append(f"- Workload: publishers `{publishers}` and subscribers `{subscribers}` initially target A/B/C/D.")
+if live_only == "1":
+    lines.append(
+        f"- Workload: after the drop, each live broker gets {live_publishers} publisher(s) "
+        f"and {live_subscribers} subscriber(s), so connected client count is equal across implementations."
+    )
+else:
+    lines.append(f"- Workload: publishers `{publishers}` and subscribers `{subscribers}` initially target A/B/C/D.")
 lines.append("- Note: mosquitto has no broker bridge or fallback; it is the independent-broker baseline.")
 lines.append(f"- Artifacts: `{out_dir}`")
 lines.append("")

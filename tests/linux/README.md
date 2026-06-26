@@ -138,20 +138,21 @@ tmux new-session -d -s random-drop \
   'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_random_drop_recovery.sh'
 ```
 
-This randomly terminates brokers, then admits publishers and subscribers that
-initially target A/B/C/D. No-fallback clients targeting dropped brokers should
-be rejected; fallback clients should land on the remaining live brokers when
-capacity is available. Mosquitto is included as the independent-broker baseline
-with no mesh or fallback.
+This randomly terminates brokers, then admits the same publisher/subscriber
+layout on the remaining live brokers for mosquitto, field no-fallback, and field
+fallback. Topics are local to each live broker so the comparison checks recovery
+health without giving field mesh fanout an extra delivery multiplier. Mosquitto
+is included as the independent-broker baseline with no mesh or fallback.
 
 The recorded 20260626 run used admission `8`, topic count `16`, drop count `2`,
-and seed `260626`, which dropped brokers A/B.
+and seed `260626`, which dropped brokers A/B. Each live broker then admitted 1
+publisher and 4 subscribers.
 
-| Impl | Dropped brokers | Req clients A/B/C/D | Conn clients A/B/C/D | Rej subs | Rej pubs | Fallback subs | Fallback pubs | Msg/s | Requested delivery % |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| mosquitto | A/B | 5/5/5/5 | 0/0/5/5 | 8 | 2 | 0 | 0 | 895.0 | 25.0 |
-| field_no_fallback | A/B | 5/5/5/5 | 0/0/5/5 | 8 | 2 | 0 | 0 | 1,791.15 | 50.0 |
-| field_fallback | A/B | 5/5/5/5 | 0/0/8/8 | 4 | 0 | 12 | 2 | 5,367.45 | 75.0 |
+| Impl | Dropped brokers | Req clients A/B/C/D | Conn clients A/B/C/D | Rej subs | Rej pubs | Msg/s | Requested delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| mosquitto | A/B | 0/0/5/5 | 0/0/5/5 | 0 | 0 | 3,580.85 | 100.0 |
+| field_no_fallback | A/B | 0/0/5/5 | 0/0/5/5 | 0 | 0 | 3,580.7 | 100.0 |
+| field_fallback | A/B | 0/0/5/5 | 0/0/5/5 | 0 | 0 | 3,582.7 | 100.0 |
 
 The client-limit burst run is:
 

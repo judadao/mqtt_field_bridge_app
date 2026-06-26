@@ -150,11 +150,19 @@ class Subscriber:
 
 
 class Publisher:
-    def __init__(self, client: MqttClient, intended: int, connected: int, publish_delay: float):
+    def __init__(
+        self,
+        client: MqttClient,
+        intended: int,
+        connected: int,
+        publish_delay: float,
+        publish_topics: list[str] | None = None,
+    ):
         self.client = client
         self.intended = intended
         self.connected = connected
         self.publish_delay = publish_delay
+        self.publish_topics = publish_topics
         self.sent = 0
         self.sent_by_topic: dict[str, int] = {}
         self.errors = 0
@@ -162,7 +170,8 @@ class Publisher:
         self.thread: threading.Thread | None = None
 
     def start(self, topics: list[str]) -> None:
-        self.thread = threading.Thread(target=self._run, args=(topics,), daemon=True)
+        publish_topics = self.publish_topics if self.publish_topics is not None else topics
+        self.thread = threading.Thread(target=self._run, args=(publish_topics,), daemon=True)
         self.thread.start()
 
     def _run(self, topics: list[str]) -> None:
@@ -318,6 +327,7 @@ def connect_with_policy(
     publish_delay: float = 0.0,
     topics: list[str] | None = None,
     topic_offset: int = 0,
+    publish_topics: list[str] | None = None,
 ) -> tuple[list[Subscriber | Publisher], int]:
     connected: list[Subscriber | Publisher] = []
     rejected = 0
@@ -353,7 +363,7 @@ def connect_with_policy(
         if role.startswith("sub"):
             connected.append(Subscriber(connected_client, intended, chosen, chosen_topic))
         else:
-            connected.append(Publisher(connected_client, intended, chosen, publish_delay))
+            connected.append(Publisher(connected_client, intended, chosen, publish_delay, publish_topics))
     return connected, rejected
 
 
@@ -512,19 +522,35 @@ def run_case(args: argparse.Namespace) -> dict:
                 stop_broker(procs[broker_idx])
             time.sleep(args.drop_settle)
 
-            pub_plan = list(enumerate(args.random_drop_publishers))
-            sub_plan = list(enumerate(args.random_drop_subscribers))
+            random_drop_local_topics: dict[int, list[str]] = {}
+            if args.random_drop_live_only:
+                live_brokers = [idx for idx in range(args.broker_count) if idx not in dropped_brokers]
+                pub_plan = [(idx, args.random_drop_live_publishers) for idx in live_brokers]
+                sub_plan = [(idx, args.random_drop_live_subscribers) for idx in live_brokers]
+                for idx in live_brokers:
+                    random_drop_local_topics[idx] = [
+                        f"site/lb/{args.mode}/{stamp}/broker-{idx}/topic-{topic_idx}"
+                        for topic_idx in range(max(args.random_drop_live_subscribers, 1))
+                    ]
+            else:
+                pub_plan = list(enumerate(args.random_drop_publishers))
+                sub_plan = list(enumerate(args.random_drop_subscribers))
             for intended, count in pub_plan:
+                publish_topics = random_drop_local_topics.get(intended)
                 clients, rejected = connect_with_policy(
-                    "pub", count, intended, ports, fallback, publish_delay=args.publish_delay
+                    "pub", count, intended, ports, fallback,
+                    publish_delay=args.publish_delay,
+                    publish_topics=publish_topics,
                 )
                 publishers.extend(clients)  # type: ignore[arg-type]
                 rejected_pubs += rejected
                 rejected_pubs_by_intended[intended] += rejected
             for intended, count in sub_plan:
+                sub_topics = random_drop_local_topics.get(intended, topics)
                 clients, rejected = connect_with_policy(
                     "sub", count, intended, ports, fallback,
-                    topics=topics, topic_offset=sum(c for _, c in sub_plan[:intended])
+                    topics=sub_topics,
+                    topic_offset=0 if intended in random_drop_local_topics else sum(c for _, c in sub_plan[:intended])
                 )
                 subscribers.extend(clients)  # type: ignore[arg-type]
                 rejected_subs += rejected
@@ -575,7 +601,10 @@ def run_case(args: argparse.Namespace) -> dict:
     connected_subs = len(subscribers)
     connected_pubs = len(publishers)
     expected_fanout = expected_deliveries(publishers, subscribers)
-    requested_fanout = expected_deliveries_for_topics(publishers, requested_topic_counts(sub_plan, topics))
+    if args.mode == "random_drop" and args.random_drop_live_only:
+        requested_fanout = expected_fanout
+    else:
+        requested_fanout = expected_deliveries_for_topics(publishers, requested_topic_counts(sub_plan, topics))
     delivery_rate = (received * 100.0 / expected_fanout) if expected_fanout else 0.0
     requested_delivery_rate = (received * 100.0 / requested_fanout) if requested_fanout else 0.0
 
@@ -684,6 +713,9 @@ def main() -> int:
     parser.add_argument("--topic-burst-subscribers", type=int, default=36)
     parser.add_argument("--random-drop-subscribers", type=parse_csv_ints, default=parse_csv_ints("4,4,4,4"))
     parser.add_argument("--random-drop-publishers", type=parse_csv_ints, default=parse_csv_ints("1,1,1,1"))
+    parser.add_argument("--random-drop-live-only", action="store_true")
+    parser.add_argument("--random-drop-live-subscribers", type=int, default=4)
+    parser.add_argument("--random-drop-live-publishers", type=int, default=1)
     parser.add_argument("--drop-count", type=int, default=2)
     parser.add_argument("--drop-seed", type=int, default=260626)
     parser.add_argument("--drop-settle", type=float, default=1.0)

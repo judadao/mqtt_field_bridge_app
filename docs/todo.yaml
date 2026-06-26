@@ -10,7 +10,7 @@ policy:
 items:
 - id: benchmark-random-drop-recovery-balance
   area: performance
-  title: Rework random-drop recovery benchmark into mosquitto/no-fallback/fallback capacity comparison.
+  title: Rework random-drop recovery benchmark into equal-client recovery sanity comparison.
   status: done
   notes: Added on 2026-06-26 after the first random-drop run showed a misleading
     fallback result: admission was 32, so all failed clients landed on broker D
@@ -18,10 +18,12 @@ items:
     brokers with random broker drops, compare mosquitto, field no-fallback, and
     field fallback, use a lower admission limit such as 8, distribute publishers
     and subscribers across A/B/C/D, record connected and requested delivery rates,
-    and update README/results tables with the corrected comparison. Completed
-    on 2026-06-26 with run 20260626-212038: seed 260626 dropped brokers A/B;
-    requested delivery was 25.0% for mosquitto, 50.0% for field no-fallback,
-    and 75.0% for field fallback under admission 8.
+    and update README/results tables with the corrected comparison. Final
+    recovery sanity run 20260626-213227 uses equal connected clients after
+    dropping brokers A/B and local per-broker topics; mosquitto, field
+    no-fallback, and field fallback all delivered 100.0% with about 3,581 msg/s.
+    Fallback capacity gains remain covered by the client-limit and topic-limit
+    burst tests, where requested load exceeds one broker's remaining capacity.
 - id: hardware-six-eth-config
   area: hardware
   title: Flash and provision six W5500 ESP32 boards for manual bridge/MQTT validation.
