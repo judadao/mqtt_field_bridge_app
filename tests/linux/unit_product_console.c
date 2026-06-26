@@ -74,7 +74,8 @@ static void test_help_and_status(void)
     CHECK(strstr(out_buf, "wifi") == NULL);
     CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
-    CHECK(strstr(out_buf, "OK network=init") != NULL);
+    CHECK(strstr(out_buf, "Status") != NULL);
+    CHECK(strstr(out_buf, "Network       : init") != NULL);
 }
 
 static void test_menu_lists_numbered_commands(void)
@@ -90,9 +91,9 @@ static void test_menu_lists_numbered_commands(void)
 static void test_menu_index_commands(void)
 {
     CHECK(run_cmd("1") == 0);
-    CHECK(strstr(out_buf, "OK network=init") != NULL);
+    CHECK(strstr(out_buf, "Network       : init") != NULL);
     CHECK(run_cmd("3") == 0);
-    CHECK(strstr(out_buf, "OK device=esp32-min-broker") != NULL);
+    CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
     CHECK(run_cmd("4") == 0);
     CHECK(strstr(out_buf, "usage: ip <addr>") != NULL);
     CHECK(run_cmd("99") != 0);
@@ -126,12 +127,13 @@ static void test_peer_command_saves_peer(void)
 static void test_scan_and_show(void)
 {
     CHECK(run_cmd("show") == 0);
-    CHECK(strstr(out_buf, "OK device=esp32-min-broker") != NULL);
-    CHECK(strstr(out_buf, " ip=192.168.127.4 ") != NULL);
-    CHECK(strstr(out_buf, " broker_ip=192.168.127.15 ") != NULL);
+    CHECK(strstr(out_buf, "Saved config") != NULL);
+    CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
+    CHECK(strstr(out_buf, "IP            : 192.168.127.4") != NULL);
+    CHECK(strstr(out_buf, "Broker IP     : 192.168.127.15") != NULL);
     CHECK(run_cmd("info") == 0);
-    CHECK(strstr(out_buf, "OK runtime") != NULL);
-    CHECK(strstr(out_buf, "OK config") != NULL);
+    CHECK(strstr(out_buf, "Runtime") != NULL);
+    CHECK(strstr(out_buf, "Config") != NULL);
 }
 
 static void test_ip_and_dhcp_commands_save_network_config(void)

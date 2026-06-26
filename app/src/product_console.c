@@ -131,15 +131,16 @@ static int cmd_status(product_console_write_fn write_fn, void *ctx)
         pc_write(write_fn, ctx, "ERR status unavailable\n");
         return -1;
     }
-    pc_write(write_fn, ctx,
-                  "OK network=%s ip=%s broker=%s p2p=%s peers=%u remote_subs=%u error=%s\n",
-                  status.network_state,
-                  status.ip_addr,
-                  status.broker_state,
-                  status.p2p_role,
-                  status.connected_peers,
-                  status.remote_subscriptions,
-                  status.last_error[0] ? status.last_error : "-");
+    pc_write(write_fn, ctx, "Status\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Network       : %s\n", status.network_state);
+    pc_write(write_fn, ctx, "IP            : %s\n", status.ip_addr);
+    pc_write(write_fn, ctx, "Broker        : %s\n", status.broker_state);
+    pc_write(write_fn, ctx, "P2P           : %s\n", status.p2p_role);
+    pc_write(write_fn, ctx, "Peers         : %u\n", status.connected_peers);
+    pc_write(write_fn, ctx, "Remote subs   : %u\n", status.remote_subscriptions);
+    pc_write(write_fn, ctx, "Error         : %s\n",
+             status.last_error[0] ? status.last_error : "-");
     return 0;
 }
 
@@ -151,19 +152,19 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
         pc_write(write_fn, ctx, "ERR config unavailable\n");
         return -1;
     }
-    pc_write(write_fn, ctx,
-                  "OK device=%s ip=%s gw=%s mask=%s dns=%s dhcp=%u broker_ip=%s mqtt=%u p2p=%u bridge=%u mesh=%u\n",
-                  settings.system.device_name,
-                  settings.network.device_ip,
-                  settings.network.gateway,
-                  settings.network.netmask,
-                  settings.network.dns,
-                  settings.network.dhcp_enabled,
-                  settings.broker.broker_ip,
-                  settings.broker.mqtt_port,
-                  settings.broker.p2p_port,
-                  settings.broker.bridge_enabled,
-                  settings.broker.mesh_enabled);
+    pc_write(write_fn, ctx, "Saved config\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Device        : %s\n", settings.system.device_name);
+    pc_write(write_fn, ctx, "IP            : %s\n", settings.network.device_ip);
+    pc_write(write_fn, ctx, "Gateway       : %s\n", settings.network.gateway);
+    pc_write(write_fn, ctx, "Netmask       : %s\n", settings.network.netmask);
+    pc_write(write_fn, ctx, "DNS           : %s\n", settings.network.dns);
+    pc_write(write_fn, ctx, "DHCP          : %u\n", settings.network.dhcp_enabled);
+    pc_write(write_fn, ctx, "Broker IP     : %s\n", settings.broker.broker_ip);
+    pc_write(write_fn, ctx, "MQTT port     : %u\n", settings.broker.mqtt_port);
+    pc_write(write_fn, ctx, "P2P port      : %u\n", settings.broker.p2p_port);
+    pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
+    pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
     return 0;
 }
 
@@ -178,29 +179,30 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
         return -1;
     }
 
-    pc_write(write_fn, ctx,
-                  "OK runtime net=%s ip=%s broker=%s p2p=%s peers=%u remote_subs=%u error=%s\n",
-                  status.network_state,
-                  status.ip_addr,
-                  status.broker_state,
-                  status.p2p_role,
-                  status.connected_peers,
-                  status.remote_subscriptions,
-                  status.last_error[0] ? status.last_error : "-");
-    pc_write(write_fn, ctx,
-                  "OK config device=%s dhcp=%u ip=%s gw=%s mask=%s dns=%s broker_ip=%s mqtt=%u p2p=%u broker=%u bridge=%u mesh=%u\n",
-                  settings.system.device_name,
-                  settings.network.dhcp_enabled,
-                  settings.network.device_ip,
-                  settings.network.gateway,
-                  settings.network.netmask,
-                  settings.network.dns,
-                  settings.broker.broker_ip,
-                  settings.broker.mqtt_port,
-                  settings.broker.p2p_port,
-                  settings.broker.broker_enabled,
-                  settings.broker.bridge_enabled,
-                  settings.broker.mesh_enabled);
+    pc_write(write_fn, ctx, "Runtime\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Network       : %s\n", status.network_state);
+    pc_write(write_fn, ctx, "IP            : %s\n", status.ip_addr);
+    pc_write(write_fn, ctx, "Broker        : %s\n", status.broker_state);
+    pc_write(write_fn, ctx, "P2P           : %s\n", status.p2p_role);
+    pc_write(write_fn, ctx, "Peers         : %u\n", status.connected_peers);
+    pc_write(write_fn, ctx, "Remote subs   : %u\n", status.remote_subscriptions);
+    pc_write(write_fn, ctx, "Error         : %s\n",
+             status.last_error[0] ? status.last_error : "-");
+    pc_write(write_fn, ctx, "\nConfig\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Device        : %s\n", settings.system.device_name);
+    pc_write(write_fn, ctx, "DHCP          : %u\n", settings.network.dhcp_enabled);
+    pc_write(write_fn, ctx, "IP            : %s\n", settings.network.device_ip);
+    pc_write(write_fn, ctx, "Gateway       : %s\n", settings.network.gateway);
+    pc_write(write_fn, ctx, "Netmask       : %s\n", settings.network.netmask);
+    pc_write(write_fn, ctx, "DNS           : %s\n", settings.network.dns);
+    pc_write(write_fn, ctx, "Broker IP     : %s\n", settings.broker.broker_ip);
+    pc_write(write_fn, ctx, "MQTT port     : %u\n", settings.broker.mqtt_port);
+    pc_write(write_fn, ctx, "P2P port      : %u\n", settings.broker.p2p_port);
+    pc_write(write_fn, ctx, "Broker        : %u\n", settings.broker.broker_enabled);
+    pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
+    pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
     return 0;
 }
 
