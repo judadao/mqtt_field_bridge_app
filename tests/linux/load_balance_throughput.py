@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import socket
 import struct
 import subprocess
@@ -299,6 +300,15 @@ def start_field(
     return procs
 
 
+def stop_broker(proc: subprocess.Popen) -> None:
+    proc.terminate()
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=2)
+
+
 def connect_with_policy(
     role: str,
     num: int,
@@ -425,9 +435,13 @@ def run_case(args: argparse.Namespace) -> dict:
         elif args.mode == "topic_limit":
             sub_plan = []
             pub_plan = []
+        elif args.mode == "random_drop":
+            sub_plan = []
+            pub_plan = []
         else:
             raise ValueError(args.mode)
 
+        dropped_brokers: list[int] = []
         if args.mode in ("dynamic_burst", "topic_limit"):
             # Preload a hot broker and three lightly-loaded peers without using
             # fallback, then send a burst of new clients to the hot broker.
@@ -459,6 +473,35 @@ def run_case(args: argparse.Namespace) -> dict:
             rejected_subs += rejected
             sub_plan = preload_subs + [(0, burst_subscribers)]
             pub_plan = preload_pubs
+        elif args.mode == "random_drop":
+            # Keep broker A alive as the publish source, then randomly remove
+            # peer brokers before client admission. Fallback clients should
+            # land on the remaining live brokers; no-fallback clients should
+            # fail when their intended broker is unavailable.
+            rng = random.Random(args.drop_seed)
+            candidates = list(range(1, args.broker_count))
+            rng.shuffle(candidates)
+            dropped_brokers = sorted(candidates[: args.drop_count])
+            for broker_idx in dropped_brokers:
+                stop_broker(procs[broker_idx])
+            time.sleep(args.drop_settle)
+
+            pub_plan = [(0, args.random_drop_publishers)]
+            sub_counts = args.random_drop_subscribers
+            sub_plan = list(enumerate(sub_counts))
+            for intended, count in pub_plan:
+                clients, rejected = connect_with_policy(
+                    "pub", count, intended, ports, fallback, publish_delay=args.publish_delay
+                )
+                publishers.extend(clients)  # type: ignore[arg-type]
+                rejected_pubs += rejected
+            for intended, count in sub_plan:
+                clients, rejected = connect_with_policy(
+                    "sub", count, intended, ports, fallback,
+                    topics=topics, topic_offset=sum(c for _, c in sub_plan[:intended])
+                )
+                subscribers.extend(clients)  # type: ignore[arg-type]
+                rejected_subs += rejected
         else:
             for intended, count in pub_plan:
                 clients, rejected = connect_with_policy(
@@ -517,6 +560,11 @@ def run_case(args: argparse.Namespace) -> dict:
             if args.impl == "mosquitto" and args.mode in ("uneven", "dynamic_burst")
             else "",
         },
+        "failure": {
+            "dropped_brokers": dropped_brokers,
+            "drop_seed": args.drop_seed if args.mode == "random_drop" else None,
+            "drop_count": args.drop_count if args.mode == "random_drop" else None,
+        },
         "requested": {
             "subscribers": sum(c for _, c in sub_plan),
             "publishers": sum(c for _, c in pub_plan),
@@ -566,7 +614,11 @@ def parse_csv_ints(value: str) -> list[int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["hotspot", "uneven", "fair4", "dynamic_burst", "topic_limit"], required=True)
+    parser.add_argument(
+        "--mode",
+        choices=["hotspot", "uneven", "fair4", "dynamic_burst", "topic_limit", "random_drop"],
+        required=True,
+    )
     parser.add_argument(
         "--impl",
         choices=["mosquitto", "field_no_fallback", "field_fallback"],
@@ -592,6 +644,11 @@ def main() -> int:
     parser.add_argument("--topic-preload-subscribers", type=parse_csv_ints, default=parse_csv_ints("16,4,4,4"))
     parser.add_argument("--topic-preload-publishers", type=parse_csv_ints, default=parse_csv_ints("1,0,0,0"))
     parser.add_argument("--topic-burst-subscribers", type=int, default=36)
+    parser.add_argument("--random-drop-subscribers", type=parse_csv_ints, default=parse_csv_ints("4,8,8,8"))
+    parser.add_argument("--random-drop-publishers", type=int, default=1)
+    parser.add_argument("--drop-count", type=int, default=2)
+    parser.add_argument("--drop-seed", type=int, default=260626)
+    parser.add_argument("--drop-settle", type=float, default=1.0)
     parser.add_argument("--uneven-subscribers", type=parse_csv_ints, default=parse_csv_ints("16,6,2"))
     parser.add_argument("--uneven-publishers", type=parse_csv_ints, default=parse_csv_ints("4,2,1"))
     args = parser.parse_args()
@@ -614,6 +671,11 @@ def main() -> int:
         or len(args.topic_preload_publishers) != args.broker_count
     ):
         raise SystemExit("topic preload distributions must match --broker-count")
+    if args.mode == "random_drop":
+        if len(args.random_drop_subscribers) != args.broker_count:
+            raise SystemExit("random-drop subscriber distribution must match --broker-count")
+        if args.drop_count < 1 or args.drop_count >= args.broker_count:
+            raise SystemExit("random-drop --drop-count must be between 1 and broker-count - 1")
 
     run_case(args)
     return 0

@@ -30,3 +30,7 @@ Recent commits use short imperative summaries, for example `Refine bridge WiFi p
 ## Security & Configuration Tips
 
 Do not commit local credentials, IP plans, or generated dependency checkouts. Treat the default `admin` password and provisioning examples as development defaults only. Keep `deps.json` changes intentional and validate them with the Linux suite.
+
+## Local Workspace Permissions
+
+Paths under `/home/judd/moxa/personal/` are user-owned project workspaces with full local access. For ordinary local reads, writes, builds, and tests in those paths, do not request extra sandbox escalation unless the active environment explicitly requires it.

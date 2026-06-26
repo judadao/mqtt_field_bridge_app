@@ -114,3 +114,18 @@ Column meanings:
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | field_no_fallback | 28 | 16/4/4/4 | 17/4/4/4 | 36 | 0 | 35832 | 10976 | 548.8 | 70.0 |
 | field_fallback | 64 | 16/16/16/16 | 17/16/16/16 | 0 | 36 | 35805 | 35805 | 1790.25 | 100.0 |
+
+## 20260626-210127 random broker drop recovery
+
+- Duration: 20s per case
+- Field broker admission limit: 32 clients per broker
+- Topic count: 16
+- Random drop: 2 non-publisher broker(s), seed `260626`
+- Workload: one publisher remains on broker A; subscribers initially target A/B/C/D.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/random_drop_recovery/20260626-210127`
+
+| Impl | Dropped brokers | Topic subs | Topics A/B/C/D | Conn clients A/B/C/D | Conn subs A/B/C/D | Rej subs | Fallback subs | Published | Received | Msg/s | Delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| field_no_fallback | 1/2 | 12 | 4/0/0/8 | 5/0/0/8 | 4/0/0/8 | 16 | 0 | 35832 | 26876 | 1343.8 | 100.0 |
+| field_fallback | 1/2 | 28 | 4/0/0/16 | 5/0/0/24 | 4/0/0/24 | 0 | 16 | 35812 | 62672 | 3133.6 | 100.0 |
+
