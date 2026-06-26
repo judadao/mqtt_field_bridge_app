@@ -69,7 +69,31 @@ Test condition:
 Result: the field broker is effectively equal to mosquitto for this single-node
 workload.
 
-### 2. Client Limit Balance
+### 2. Recovery Balance
+
+Test condition:
+- Four field brokers: A, B, C, D.
+- Broker A remains alive as the publisher source.
+- Brokers B/C are randomly dropped before subscriber admission.
+- Topic count is 16 and client admission limit is 32 clients per broker.
+- Subscribers initially target A/B/C/D.
+
+Column meanings:
+- `Topic subs`: accepted subscriber-topic registrations across live brokers.
+- `Clients A/B/C/D`: total connected clients after broker drop and admission.
+- `Fallback subs`: subscribers accepted by another live broker after their
+  intended broker was unavailable.
+
+| Case | Dropped brokers | Topic subs | Topics A/B/C/D | Clients A/B/C/D | Subs A/B/C/D | Rejected subs | Fallback subs | Msg/s | Delivery |
+|------|----------------:|-----------:|----------------:|----------------:|-------------:|--------------:|--------------:|------:|---------:|
+| field no-fallback | `B/C` | `12` | `4/0/0/8` | `5/0/0/8` | `4/0/0/8` | `16` | `0` | `1,343.8` | `100.0%` |
+| field fallback | `B/C` | `28` | `4/0/0/16` | `5/0/0/24` | `4/0/0/24` | `0` | `16` | `3,133.6` | `100.0%` |
+
+Result: fallback recovers clients that targeted unavailable peer brokers and
+uses the remaining live broker capacity. The same broker drop that rejects 16
+subscribers without fallback is fully absorbed with fallback.
+
+### 3. Client Limit Balance
 
 Test condition:
 - Four field brokers: A, B, C, D.
@@ -92,7 +116,7 @@ Column meanings:
 Result: fallback uses the spare client capacity on B/C/D. The same burst that is
 rejected without fallback is accepted and served with fallback.
 
-### 3. Topic Subscription Limit Balance
+### 4. Topic Subscription Limit Balance
 
 Test condition:
 - Four field brokers: A, B, C, D.
