@@ -47,82 +47,11 @@ deps.json            Pinned dependency versions and build metadata
 ```sh
 git clone git@github.com:judadao/mqtt_field_bridge_app.git
 cd mqtt_field_bridge_app
-
-# Fetch pinned dependencies into deps/
-./scripts/sync_deps.sh download
-
-# Run fast host validation
-make -C tests/linux unit-tests
+./scripts/setup.sh
 ```
 
-For multi-repo development with sibling checkouts such as `../mqtt_min_broker`
-and `../dephy`, use:
-
-```sh
-./scripts/sync_deps.sh replace
-```
-
-## Dependency Commands
-
-```sh
-# Clone/fetch pinned deps into deps/ (default command)
-./scripts/sync_deps.sh download
-
-# Initialize Zephyr modules through the pinned Dephy workspace
-./scripts/sync_deps.sh init
-
-# Replace deps/ from sibling local checkouts
-./scripts/sync_deps.sh replace
-
-# Check whether the pinned broker tag is current
-./scripts/sync_deps.sh --check-latest
-```
-
-`local-build` runs `replace` and then builds. `external-build` runs `download`,
-`init`, and then builds.
-
-## Firmware Build
-
-Build the default Ethernet product firmware:
-
-```sh
-./scripts/sync_deps.sh external-build
-```
-
-During local module development:
-
-```sh
-./scripts/sync_deps.sh local-build
-```
-
-The board is read from `deps.json`; the current default is
-`esp32_devkitc/esp32/procpu`. The default build uses `app/prj.conf` plus the
-Dephy ESP32 slim product config listed in `deps.json`.
-
-The WiFi/Linux AP profile is a test profile, not the default product path:
-
-```sh
-./scripts/build_wifi_bridge_product.sh
-```
-
-## Linux Tests
-
-```sh
-# Unit tests only
-make -C tests/linux unit-tests
-
-# Broker/P2P integration scenarios
-make -C tests/linux integration-tests
-
-# Reconnect and throughput stress tests
-make -C tests/linux stress
-
-# Main local validation entry point via dephy_testkit wrappers
-make -C tests/linux test
-```
-
-Additional scale, hardware, and benchmark targets are documented in
-`tests/linux/README.md`.
+For setup options, firmware builds, local module development, and test commands,
+see `docs/setup.md`.
 
 ## Load-Balance Throughput Results
 
@@ -235,17 +164,6 @@ Column meanings:
 Result: fallback uses the spare topic-table capacity on B/C/D. Topic
 subscriptions rise from 28 to 64, and the rejected burst drops from 36 to 0.
 
-## Optional Linux Web Helper
-
-For browser inspection of the compatibility web/config helper:
-
-```sh
-./run_linux_web.sh
-```
-
-Open `http://127.0.0.1:8080/`. This helper is useful for local Linux checks, but
-it is not the primary firmware provisioning path.
-
 ## Architecture Flow
 
 ```mermaid
@@ -286,6 +204,8 @@ documents for reference.
 
 - `tests/linux/README.md`: Linux test inventory, knobs, benchmark commands, and
   hardware-test notes.
+- `docs/setup.md`: setup wrapper, dependency commands, firmware build, and test
+  commands.
 - `docs/field_bridge_scenario.md`: field bridge scenario notes.
 - `docs/field_validation_checklist.md`: hardware validation checklist.
 - `docs/hardware_wifi_validation.md`: WiFi validation notes for test profiles.
