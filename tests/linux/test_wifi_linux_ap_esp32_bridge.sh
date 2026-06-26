@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate four ESP32 WiFi broker bridge nodes on one Linux-hosted AP.
+# Validate ESP32 WiFi broker bridge nodes on one Linux-hosted AP.
 set -euo pipefail
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
@@ -7,11 +7,12 @@ BROKER_DIR="$ROOT_DIR/deps/mqtt_min_broker"
 CLI="$BROKER_DIR/build_out/mqtt_cli"
 LOG_DIR=${LOG_DIR:-"$ROOT_DIR/tests/linux/out/wifi_linux_ap_bridge"}
 BUILD_DIR=${BUILD_DIR:-"$ROOT_DIR/build_wifi_bridge_product"}
-ESP_PORTS=${ESP_PORTS:-"/dev/ttyUSB2 /dev/ttyUSB3 /dev/ttyUSB4 /dev/ttyUSB5"}
+NODE_COUNT=${NODE_COUNT:-2}
+ESP_PORTS=${ESP_PORTS:-"/dev/ttyUSB2 /dev/ttyUSB3"}
 NODE_IPS=${NODE_IPS:-}
 WIFI_IFACE=${WIFI_IFACE:-}
 LINUX_AP_SSID=${LINUX_AP_SSID:-Linux-Bridge-Test}
-LINUX_AP_PASS=${LINUX_AP_PASS:-bridge1234}
+LINUX_AP_PASS=${LINUX_AP_PASS-bridge1234}
 LINUX_AP_CHANNEL=${LINUX_AP_CHANNEL:-1}
 LINUX_AP_CONN=${LINUX_AP_CONN:-Linux-Bridge-Test-esp32-bridge}
 LINUX_AP_ADDR=${LINUX_AP_ADDR:-10.88.0.1/24}
@@ -23,6 +24,7 @@ SKIP_BUILD=${SKIP_BUILD:-0}
 SKIP_FLASH=${SKIP_FLASH:-0}
 ERASE_CONFIG=${ERASE_CONFIG:-1}
 KEEP_AP=${KEEP_AP:-0}
+SETUP_LINUX_AP=${SETUP_LINUX_AP:-1}
 CONFIG_ERASE_OFFSET=${CONFIG_ERASE_OFFSET:-0x3b0000}
 CONFIG_ERASE_SIZE=${CONFIG_ERASE_SIZE:-0x30000}
 RUNTIME_SERIAL=${RUNTIME_SERIAL:-0}
@@ -33,10 +35,24 @@ STATIC_NODE_IPS=${STATIC_NODE_IPS:-}
 BROKER_ENABLED=${BROKER_ENABLED:-1}
 HTTP_STABLE_REQUIRED=${HTTP_STABLE_REQUIRED:-2}
 UART_PEER_CONFIG=${UART_PEER_CONFIG:-1}
-LOAD_CLIENTS=${LOAD_CLIENTS:-7}
-LOAD_MIN_BROKERS=${LOAD_MIN_BROKERS:-4}
+LOAD_CLIENTS=${LOAD_CLIENTS:-}
+LOAD_MIN_BROKERS=${LOAD_MIN_BROKERS:-}
 LOAD_WAIT_SECONDS=${LOAD_WAIT_SECONDS:-45}
 LOAD_TOPIC=${LOAD_TOPIC:-site/field-a/wifi-ap/load}
+
+case "$NODE_COUNT" in
+    2|3|4) ;;
+    *)
+        printf 'error: NODE_COUNT must be 2, 3, or 4\n' >&2
+        exit 1
+        ;;
+esac
+if [ -z "$LOAD_CLIENTS" ]; then
+    LOAD_CLIENTS=$((NODE_COUNT * 2 - 1))
+fi
+if [ -z "$LOAD_MIN_BROKERS" ]; then
+    LOAD_MIN_BROKERS=$NODE_COUNT
+fi
 
 mkdir -p "$LOG_DIR"
 STAMP=$(date +%Y%m%d-%H%M%S)
@@ -63,7 +79,7 @@ detect_wifi_iface() {
 }
 
 cleanup() {
-    if [ "$KEEP_AP" != "1" ]; then
+    if [ "$SETUP_LINUX_AP" = "1" ] && [ "$KEEP_AP" != "1" ]; then
         nmcli connection down "$LINUX_AP_CONN" >/dev/null 2>&1 || true
     fi
     for pid in "${RUNTIME_PIDS[@]:-}"; do
@@ -217,7 +233,12 @@ provision_node_uart() {
     log_file=$4
 
     stty -F "$port" 115200 raw -echo -hupcl >/dev/null 2>&1 || true
-    python3 - "$port" "$static_ip" "${LINUX_AP_ADDR%/*}" "$LINUX_AP_SSID" "$LINUX_AP_PASS" "$BROKER_ENABLED" "$peer_commands" <<'PY' >"$log_file" 2>&1 &
+    wifi_pass_arg=$LINUX_AP_PASS
+    if [ -z "$wifi_pass_arg" ]; then
+        wifi_pass_arg="-"
+    fi
+
+    python3 - "$port" "$static_ip" "${LINUX_AP_ADDR%/*}" "$LINUX_AP_SSID" "$wifi_pass_arg" "$BROKER_ENABLED" "$peer_commands" <<'PY' >"$log_file" 2>&1 &
 import serial
 import sys
 import termios
@@ -364,26 +385,35 @@ peer_commands_for_node() {
     count=${#ips[@]}
 
     if [ "$UART_PEER_CONFIG" != "1" ] || [ "$BROKER_ENABLED" != "1" ] ||
-       [ "$count" -lt 4 ]; then
+       [ "$count" -lt 2 ]; then
         return 0
     fi
 
-    case "$idx" in
-        0)
-            printf 'peer 0 node1 %s %s %s 1\n' "${ips[1]}" "$MQTT_PORT" "$P2P_PORT"
-            ;;
-        1)
-            printf 'peer 0 node0 %s %s %s 1\n' "${ips[0]}" "$MQTT_PORT" "$P2P_PORT"
-            printf 'peer 1 node2 %s %s %s 1\n' "${ips[2]}" "$MQTT_PORT" "$P2P_PORT"
-            ;;
-        2)
-            printf 'peer 0 node1 %s %s %s 1\n' "${ips[1]}" "$MQTT_PORT" "$P2P_PORT"
-            printf 'peer 1 node3 %s %s %s 1\n' "${ips[3]}" "$MQTT_PORT" "$P2P_PORT"
-            ;;
-        3)
-            printf 'peer 0 node2 %s %s %s 1\n' "${ips[2]}" "$MQTT_PORT" "$P2P_PORT"
-            ;;
-    esac
+    peer_idx=0
+    if [ "$idx" -gt 0 ]; then
+        prev=$((idx - 1))
+        printf 'peer %s node%s %s %s %s 1\n' \
+            "$peer_idx" "$prev" "${ips[$prev]}" "$MQTT_PORT" "$P2P_PORT"
+        peer_idx=$((peer_idx + 1))
+    fi
+    if [ "$idx" -lt $((count - 1)) ]; then
+        next=$((idx + 1))
+        printf 'peer %s node%s %s %s %s 1\n' \
+            "$peer_idx" "$next" "${ips[$next]}" "$MQTT_PORT" "$P2P_PORT"
+    fi
+}
+
+expected_peer_count_for_node() {
+    idx=$1
+    count=$2
+
+    if [ "$count" -le 1 ]; then
+        printf '0\n'
+    elif [ "$idx" -eq 0 ] || [ "$idx" -eq $((count - 1)) ]; then
+        printf '1\n'
+    else
+        printf '2\n'
+    fi
 }
 
 start_runtime_serial_log() {
@@ -682,11 +712,12 @@ WIFI_IFACE=$(detect_wifi_iface)
 }
 
 printf '=== WiFi Linux AP ESP32 bridge test ===\n'
+printf 'node count:  %s\n' "$NODE_COUNT"
 printf 'ports:       %s\n' "$ESP_PORTS"
 printf 'node IPs:    %s\n' "${NODE_IPS:-auto}"
 printf 'wifi iface:  %s\n' "$WIFI_IFACE"
 printf 'Linux AP SSID: %s\n' "$LINUX_AP_SSID"
-printf 'ESP32 mode:    STA-only; ESP32 SoftAP is not used by this test\n'
+printf 'ESP32 mode:    WiFi STA on Linux-hosted AP\n'
 printf 'AP address:  %s\n' "$LINUX_AP_ADDR"
 printf 'run log:     %s\n' "$RUN_LOG"
 printf 'erase config:%s\n' "$ERASE_CONFIG"
@@ -694,6 +725,7 @@ printf 'UART provision:%s\n' "$PROVISION_BY_UART"
 printf 'broker enabled:%s\n' "$BROKER_ENABLED"
 printf 'HTTP stable required:%s\n' "$HTTP_STABLE_REQUIRED"
 printf 'UART peer config:%s\n' "$UART_PEER_CONFIG"
+printf 'setup Linux AP:%s\n' "$SETUP_LINUX_AP"
 
 if [ "$SKIP_BUILD" != "1" ]; then
     "$ROOT_DIR/scripts/sync_deps.sh" replace
@@ -701,34 +733,44 @@ if [ "$SKIP_BUILD" != "1" ]; then
     make -C "$BROKER_DIR" -f Makefile.linux P2P=1 all
 fi
 
-WEST_INFO=$(find_west_workspace)
-WEST=$(printf '%s\n' "$WEST_INFO" | sed -n '1p')
-WEST_WORKDIR=$(printf '%s\n' "$WEST_INFO" | sed -n '2p')
-if [ -d "$WEST_WORKDIR/.venv/bin" ]; then
-    PATH="$WEST_WORKDIR/.venv/bin:$PATH"
-    export PATH
+if [ "$SKIP_FLASH" != "1" ]; then
+    WEST_INFO=$(find_west_workspace)
+    WEST=$(printf '%s\n' "$WEST_INFO" | sed -n '1p')
+    WEST_WORKDIR=$(printf '%s\n' "$WEST_INFO" | sed -n '2p')
+    if [ -d "$WEST_WORKDIR/.venv/bin" ]; then
+        PATH="$WEST_WORKDIR/.venv/bin:$PATH"
+        export PATH
+    fi
 fi
 
 printf '\n[1/6] Start Linux-hosted AP for ESP32 STA nodes\n'
-nmcli radio wifi on
-nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
-nmcli connection down "$LINUX_AP_CONN" >/dev/null 2>&1 || true
-nmcli connection delete "$LINUX_AP_CONN" >/dev/null 2>&1 || true
-nmcli connection add type wifi ifname "$WIFI_IFACE" con-name "$LINUX_AP_CONN" ssid "$LINUX_AP_SSID" >/dev/null
-nmcli connection modify "$LINUX_AP_CONN" \
-    connection.autoconnect no \
-    802-11-wireless.mode ap \
-    802-11-wireless.band bg \
-    802-11-wireless.channel "$LINUX_AP_CHANNEL" \
-    802-11-wireless.powersave 2 \
-    802-11-wireless.ap-isolation 0 \
-    wifi-sec.key-mgmt wpa-psk \
-    wifi-sec.pmf 1 \
-    wifi-sec.psk "$LINUX_AP_PASS" \
-    ipv4.method manual \
-    ipv4.addresses "$LINUX_AP_ADDR" \
-    ipv6.method ignore
-nmcli connection up "$LINUX_AP_CONN" ifname "$WIFI_IFACE" >/dev/null
+if [ "$SETUP_LINUX_AP" = "1" ]; then
+    nmcli radio wifi on
+    nmcli device disconnect "$WIFI_IFACE" >/dev/null 2>&1 || true
+    nmcli connection down "$LINUX_AP_CONN" >/dev/null 2>&1 || true
+    nmcli connection delete "$LINUX_AP_CONN" >/dev/null 2>&1 || true
+    nmcli connection add type wifi ifname "$WIFI_IFACE" con-name "$LINUX_AP_CONN" ssid "$LINUX_AP_SSID" >/dev/null
+    nmcli connection modify "$LINUX_AP_CONN" \
+        connection.autoconnect no \
+        802-11-wireless.mode ap \
+        802-11-wireless.band bg \
+        802-11-wireless.channel "$LINUX_AP_CHANNEL" \
+        802-11-wireless.powersave 2 \
+        802-11-wireless.ap-isolation 0 \
+        ipv4.method manual \
+        ipv4.addresses "$LINUX_AP_ADDR" \
+        ipv6.method ignore
+    if [ -n "$LINUX_AP_PASS" ]; then
+        nmcli connection modify "$LINUX_AP_CONN" \
+            wifi-sec.key-mgmt wpa-psk \
+            wifi-sec.pmf 1 \
+            wifi-sec.psk "$LINUX_AP_PASS"
+    fi
+    nmcli connection up "$LINUX_AP_CONN" ifname "$WIFI_IFACE" >/dev/null
+else
+    printf 'SETUP_LINUX_AP=0; expecting existing AP ssid=%s addr=%s on %s\n' \
+        "$LINUX_AP_SSID" "$LINUX_AP_ADDR" "$WIFI_IFACE"
+fi
 nmcli device show "$WIFI_IFACE" >"$LOG_DIR/linux-ap-device-$STAMP.txt"
 
 printf '\n[2/6] Flash ESP32 WiFi STA nodes and provision static IPs/AP credentials\n'
@@ -736,12 +778,18 @@ if [ "$SKIP_FLASH" != "1" ]; then
     NODE_IPS=""
     # shellcheck disable=SC2206
     ESP_PORT_ARRAY=($ESP_PORTS)
+    if [ "${#ESP_PORT_ARRAY[@]}" -lt "$NODE_COUNT" ]; then
+        printf 'error: NODE_COUNT=%s requires at least %s ESP_PORTS entries\n' \
+            "$NODE_COUNT" "$NODE_COUNT" >&2
+        exit 1
+    fi
     STATIC_IP_ARRAY=()
-    for node_idx in "${!ESP_PORT_ARRAY[@]}"; do
+    for node_idx in $(seq 0 $((NODE_COUNT - 1))); do
         STATIC_IP_ARRAY+=("$(static_ip_for_node "$node_idx")")
     done
     node_idx=0
     for port in "${ESP_PORT_ARRAY[@]}"; do
+        [ "$node_idx" -lt "$NODE_COUNT" ] || break
         [ -e "$port" ] || {
             printf 'error: missing ESP32 port: %s\n' "$port" >&2
             exit 1
@@ -795,12 +843,12 @@ else
     printf 'SKIP_FLASH=1; using currently flashed nodes\n'
 fi
 
-printf '\n[3/6] Discover four ESP32 STA nodes on Linux-hosted AP\n'
+printf '\n[3/6] Discover %s ESP32 STA node(s) on Linux-hosted AP\n' "$NODE_COUNT"
 NODES_FILE="$LOG_DIR/nodes-$STAMP.txt"
 if [ -n "$NODE_IPS" ]; then
-    printf '%s\n' $NODE_IPS | sort -u >"$NODES_FILE"
-elif ! wait_for_nodes "$WIFI_IFACE" 4 "$NODES_FILE"; then
-    printf 'error: did not discover four HTTP nodes within %ss\n' "$WAIT_SECONDS" >&2
+    printf '%s\n' $NODE_IPS >"$NODES_FILE"
+elif ! wait_for_nodes "$WIFI_IFACE" "$NODE_COUNT" "$NODES_FILE"; then
+    printf 'error: did not discover %s HTTP nodes within %ss\n' "$NODE_COUNT" "$WAIT_SECONDS" >&2
     printf 'neighbor table:\n'
     ip -4 neigh show dev "$WIFI_IFACE" || true
     exit 1
@@ -813,21 +861,23 @@ if [ "$BROKER_ENABLED" != "1" ]; then
 fi
 
 mapfile -t NODES <"$NODES_FILE"
-if [ "${#NODES[@]}" -lt 4 ]; then
-    printf 'error: expected four nodes, found %s\n' "${#NODES[@]}" >&2
+if [ "${#NODES[@]}" -lt "$NODE_COUNT" ]; then
+    printf 'error: expected %s nodes, found %s\n' "$NODE_COUNT" "${#NODES[@]}" >&2
     cat "$NODES_FILE" >&2
     exit 1
 fi
 printf 'nodes:\n'
-printf '  %s\n' "${NODES[@]:0:4}"
-for node in "${NODES[@]:0:4}"; do
+printf '  %s\n' "${NODES[@]:0:$NODE_COUNT}"
+for node in "${NODES[@]:0:$NODE_COUNT}"; do
     wait_http_node_stable "$node" "$HTTP_STABLE_REQUIRED" || {
         printf 'error: node HTTP did not remain reachable: %s\n' "$node" >&2
         exit 1
     }
 done
 if [ "$RUNTIME_SERIAL" = "1" ]; then
-    for port in $ESP_PORTS; do
+    # shellcheck disable=SC2206
+    ESP_PORT_ARRAY=($ESP_PORTS)
+    for port in "${ESP_PORT_ARRAY[@]:0:$NODE_COUNT}"; do
         start_runtime_serial_log "$port" "$LOG_DIR/uart-runtime-$(basename "$port")-$STAMP.log"
     done
 fi
@@ -837,41 +887,48 @@ if [ "$UART_PEER_CONFIG" = "1" ]; then
     printf 'peer chain was configured over UART before reboot; settling %ss\n' "$SETTLE_SECONDS"
     sleep "$SETTLE_SECONDS"
 else
-    for node in "${NODES[@]:0:4}"; do
+    for node in "${NODES[@]:0:$NODE_COUNT}"; do
         wait_http_node "$node" || {
             printf 'error: node HTTP became unreachable before peer config: %s\n' "$node" >&2
             exit 1
         }
     done
-    post_peer "${NODES[0]}" 0 node1 "${NODES[1]}"
-    post_peer "${NODES[1]}" 0 node0 "${NODES[0]}"
-    post_peer "${NODES[1]}" 1 node2 "${NODES[2]}"
-    post_peer "${NODES[2]}" 0 node1 "${NODES[1]}"
-    post_peer "${NODES[2]}" 1 node3 "${NODES[3]}"
-    post_peer "${NODES[3]}" 0 node2 "${NODES[2]}"
+    for idx in $(seq 0 $((NODE_COUNT - 1))); do
+        peer_idx=0
+        if [ "$idx" -gt 0 ]; then
+            prev=$((idx - 1))
+            post_peer "${NODES[$idx]}" "$peer_idx" "node$prev" "${NODES[$prev]}"
+            peer_idx=$((peer_idx + 1))
+        fi
+        if [ "$idx" -lt $((NODE_COUNT - 1)) ]; then
+            next=$((idx + 1))
+            post_peer "${NODES[$idx]}" "$peer_idx" "node$next" "${NODES[$next]}"
+        fi
+    done
 
-    wait_peer_count "${NODES[0]}" 1
-    wait_peer_count "${NODES[1]}" 2
-    wait_peer_count "${NODES[2]}" 2
-    wait_peer_count "${NODES[3]}" 1
+    for idx in $(seq 0 $((NODE_COUNT - 1))); do
+        wait_peer_count "${NODES[$idx]}" "$(expected_peer_count_for_node "$idx" "$NODE_COUNT")"
+    done
 fi
 
-printf '\n[5/6] Verify bidirectional MQTT delivery across the four-node bridge\n'
-topic_a="site/field-a/wifi-ap/0-to-3"
-payload_a="wifi-bridge-0-to-3-$STAMP"
-publish_until_received "${NODES[0]}" "${NODES[3]}" "$topic_a" "$payload_a" "$LOG_DIR/recv-0-to-3-$STAMP.log"
+last_idx=$((NODE_COUNT - 1))
+
+printf '\n[5/6] Verify bidirectional MQTT delivery across the %s-node bridge\n' "$NODE_COUNT"
+topic_a="site/field-a/wifi-ap/0-to-$last_idx"
+payload_a="wifi-bridge-0-to-$last_idx-$STAMP"
+publish_until_received "${NODES[0]}" "${NODES[$last_idx]}" "$topic_a" "$payload_a" "$LOG_DIR/recv-0-to-$last_idx-$STAMP.log"
 kill "$SUB_PID" >/dev/null 2>&1 || true
 wait "$SUB_PID" >/dev/null 2>&1 || true
 SUB_PID=""
 
-topic_b="site/field-a/wifi-ap/3-to-0"
-payload_b="wifi-bridge-3-to-0-$STAMP"
-publish_until_received "${NODES[3]}" "${NODES[0]}" "$topic_b" "$payload_b" "$LOG_DIR/recv-3-to-0-$STAMP.log"
+topic_b="site/field-a/wifi-ap/$last_idx-to-0"
+payload_b="wifi-bridge-$last_idx-to-0-$STAMP"
+publish_until_received "${NODES[$last_idx]}" "${NODES[0]}" "$topic_b" "$payload_b" "$LOG_DIR/recv-$last_idx-to-0-$STAMP.log"
 kill "$SUB_PID" >/dev/null 2>&1 || true
 wait "$SUB_PID" >/dev/null 2>&1 || true
 SUB_PID=""
 
 printf '\n[6/6] Verify Linux client fallback load distribution from one WiFi broker\n'
-verify_load_distribution "${NODES[0]}" "${NODES[1]}" "${NODES[2]}" "${NODES[3]}"
+verify_load_distribution "${NODES[@]:0:$NODE_COUNT}"
 
-printf '\nPASS: four ESP32 WiFi broker bridge nodes exchanged MQTT messages on %s\n' "$LINUX_AP_SSID"
+printf '\nPASS: %s ESP32 WiFi broker bridge node(s) exchanged MQTT messages on %s\n' "$NODE_COUNT" "$LINUX_AP_SSID"

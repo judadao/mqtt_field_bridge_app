@@ -2,7 +2,7 @@
   "deps": {
     "mqtt_min_broker": {
       "repo": "git@github.com:judadao/zephy_min_mqtt_broker.git",
-      "local": "../mqtt_min_broker",
+      "local": "../mqtt_min_broker_wifi_linux_ap_test",
       "version": "mqtt-v0.1.23",
       "path": "deps/mqtt_min_broker"
     },
@@ -32,7 +32,7 @@
     },
     "dephy_wifi": {
       "repo": "git@github.com:judadao/dephy_wifi.git",
-      "local": "../dephy_wifi",
+      "local": "../dephy_wifi_wifi_linux_ap_test",
       "version": "dephy-wifi-v0.1.1",
       "path": "deps/dephy_wifi",
       "module_path": "deps/dephy_wifi",
