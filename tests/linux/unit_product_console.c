@@ -74,7 +74,7 @@ static void test_help_and_status(void)
     CHECK(strstr(out_buf, "settings") != NULL);
     CHECK(strstr(out_buf, "summary") != NULL);
     CHECK(strstr(out_buf, "device-network") != NULL);
-    CHECK(strstr(out_buf, "broker-setting") != NULL);
+    CHECK(strstr(out_buf, "local-broker") != NULL);
     CHECK(strstr(out_buf, "wifi") == NULL);
     CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
@@ -116,7 +116,7 @@ static void test_menu_index_commands(void)
     CHECK(run_cmd("2") == 0);
     CHECK(strstr(out_buf, "Settings") != NULL);
     CHECK(strstr(out_buf, "1. device-network") != NULL);
-    CHECK(strstr(out_buf, "2. broker-setting") != NULL);
+    CHECK(strstr(out_buf, "2. local-broker") != NULL);
     CHECK(strstr(out_buf, "3. peer-bridge") != NULL);
     CHECK(run_cmd("1") == 0);
     CHECK(strstr(out_buf, "Device Network Setting") != NULL);
@@ -125,12 +125,22 @@ static void test_menu_index_commands(void)
     CHECK(run_cmd("0") == 0);
     CHECK(run_cmd("2") == 0);
     CHECK(run_cmd("2") == 0);
-    CHECK(strstr(out_buf, "Broker Setting") != NULL);
+    CHECK(strstr(out_buf, "Local Broker Setting") != NULL);
+    CHECK(strstr(out_buf, "1. broker-port") != NULL);
+    CHECK(strstr(out_buf, "2. broker-ip") != NULL);
     CHECK(run_cmd("1") == 0);
-    CHECK(strstr(out_buf, "Command       : broker <mqtt> <p2p> [ip]") != NULL);
-    CHECK(strstr(out_buf, "Example       : broker 1883 4884") != NULL);
+    CHECK(strstr(out_buf, "Command       : broker-port <port>") != NULL);
+    CHECK(strstr(out_buf, "Example       : broker-port 1883") != NULL);
     CHECK(run_cmd("99") != 0);
-    CHECK(strstr(out_buf, "ERR unknown broker index") != NULL);
+    CHECK(strstr(out_buf, "ERR unknown local broker index") != NULL);
+    CHECK(run_cmd("0") == 0);
+    CHECK(run_cmd("2") == 0);
+    CHECK(run_cmd("3") == 0);
+    CHECK(strstr(out_buf, "Peer Bridge Setting") != NULL);
+    CHECK(strstr(out_buf, "1. bridge-port") != NULL);
+    CHECK(strstr(out_buf, "2. peer") != NULL);
+    CHECK(run_cmd("1") == 0);
+    CHECK(strstr(out_buf, "Command       : bridge-port <port>") != NULL);
 }
 
 static void test_broker_save_config(void)
@@ -142,6 +152,18 @@ static void test_broker_save_config(void)
     CHECK(settings.broker.mqtt_port == 1884);
     CHECK(settings.broker.p2p_port == 4885);
     CHECK(strcmp(settings.broker.broker_ip, "192.168.127.15") == 0);
+
+    CHECK(run_cmd("broker-port 1886") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(settings.broker.mqtt_port == 1886);
+
+    CHECK(run_cmd("broker-ip 192.168.127.16") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(strcmp(settings.broker.broker_ip, "192.168.127.16") == 0);
+
+    CHECK(run_cmd("bridge-port 4886") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(settings.broker.p2p_port == 4886);
 }
 
 static void test_peer_command_saves_peer(void)
@@ -164,6 +186,8 @@ static void test_scan_and_show(void)
     CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
     CHECK(strstr(out_buf, "IP            : 192.168.127.4") != NULL);
     CHECK(strstr(out_buf, "Broker IP     : 192.168.127.15") != NULL);
+    CHECK(strstr(out_buf, "Broker port   :") != NULL);
+    CHECK(strstr(out_buf, "Bridge port   :") != NULL);
     CHECK(run_cmd("summary") == 0);
     CHECK(strstr(out_buf, "Runtime") != NULL);
     CHECK(strstr(out_buf, "Config") != NULL);

@@ -94,9 +94,9 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx,
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-                  "commands: help menu back info settings system status summary show device-network broker-setting peer-bridge wifi ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge wifi ip dhcp broker-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
 #else
-                  "commands: help menu back info settings system status summary show device-network broker-setting peer-bridge ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge ip dhcp broker-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
 #endif
     pc_write(write_fn, ctx,
                   "  info                     show info menu\n");
@@ -115,11 +115,15 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx,
                   "  dhcp                     enable DHCP, reboot to apply\n");
     pc_write(write_fn, ctx,
-                  "  broker <mqtt> <p2p> [ip]  save local broker ports/ip\n");
+                  "  broker-port <port>        save local broker client port\n");
+    pc_write(write_fn, ctx,
+                  "  broker-ip <ip>            save local broker IP\n");
     pc_write(write_fn, ctx,
                   "  broker-state <0|1>     disable/enable broker on next boot\n");
     pc_write(write_fn, ctx,
-                  "  peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+                  "  bridge-port <port>        save local peer bridge port\n");
+    pc_write(write_fn, ctx,
+                  "  peer <i> <name> <host> [broker-port] [bridge-port] [0|1]\n");
     pc_write(write_fn, ctx,
                   "  defaults small|large      reset config profile\n");
 }
@@ -128,7 +132,7 @@ static void print_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
         { "info", "runtime and saved values" },
-        { "settings", "network, WiFi, broker, peers" },
+        { "settings", "network, broker, bridge" },
         { "system", "reset and reboot" },
     };
 
@@ -164,7 +168,7 @@ static void print_settings_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
         { "device-network", "device network setting" },
-        { "broker-setting", "broker setting" },
+        { "local-broker", "local broker setting" },
         { "peer-bridge", "peer bridge setting" },
     };
 
@@ -201,13 +205,14 @@ static void print_network_menu(product_console_write_fn write_fn, void *ctx)
 static void print_broker_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
-        { "broker <mqtt> <p2p> [ip]", "set broker ports/IP" },
+        { "broker-port <port>", "set local broker port" },
+        { "broker-ip <ip>", "set local broker IP" },
         { "broker-state <0|1>", "disable/enable broker" },
     };
 
     current_menu = PRODUCT_CONSOLE_MENU_BROKER;
     clear_screen(write_fn, ctx);
-    (void)dephy_cli_render_menu("Broker Setting",
+    (void)dephy_cli_render_menu("Local Broker Setting",
                                 items,
                                 sizeof(items) / sizeof(items[0]),
                                 "Type the command with values; 0 returns to main menu",
@@ -218,7 +223,8 @@ static void print_broker_menu(product_console_write_fn write_fn, void *ctx)
 static void print_peer_bridge_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
-        { "peer <i> <name> <host> [mqtt] [p2p] [0|1]", "set bridge peer" },
+        { "bridge-port <port>", "set local bridge port" },
+        { "peer <i> <name> <host> [broker-port] [bridge-port] [0|1]", "set peer" },
         { "defaults small|large", "reset config profile" },
     };
 
@@ -263,7 +269,7 @@ static int cmd_status(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Network       : %s\n", status.network_state);
     pc_write(write_fn, ctx, "IP            : %s\n", status.ip_addr);
     pc_write(write_fn, ctx, "Broker        : %s\n", status.broker_state);
-    pc_write(write_fn, ctx, "P2P           : %s\n", status.p2p_role);
+    pc_write(write_fn, ctx, "Bridge        : %s\n", status.p2p_role);
     pc_write(write_fn, ctx, "Peers         : %u\n", status.connected_peers);
     pc_write(write_fn, ctx, "Remote subs   : %u\n", status.remote_subscriptions);
     pc_write(write_fn, ctx, "Error         : %s\n",
@@ -290,8 +296,8 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "DNS           : %s\n", settings.network.dns);
     pc_write(write_fn, ctx, "DHCP          : %u\n", settings.network.dhcp_enabled);
     pc_write(write_fn, ctx, "Broker IP     : %s\n", settings.broker.broker_ip);
-    pc_write(write_fn, ctx, "MQTT port     : %u\n", settings.broker.mqtt_port);
-    pc_write(write_fn, ctx, "P2P port      : %u\n", settings.broker.p2p_port);
+    pc_write(write_fn, ctx, "Broker port   : %u\n", settings.broker.mqtt_port);
+    pc_write(write_fn, ctx, "Bridge port   : %u\n", settings.broker.p2p_port);
     pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
     pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
     print_back_to_menu(write_fn, ctx);
@@ -315,7 +321,7 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Network       : %s\n", status.network_state);
     pc_write(write_fn, ctx, "IP            : %s\n", status.ip_addr);
     pc_write(write_fn, ctx, "Broker        : %s\n", status.broker_state);
-    pc_write(write_fn, ctx, "P2P           : %s\n", status.p2p_role);
+    pc_write(write_fn, ctx, "Bridge        : %s\n", status.p2p_role);
     pc_write(write_fn, ctx, "Peers         : %u\n", status.connected_peers);
     pc_write(write_fn, ctx, "Remote subs   : %u\n", status.remote_subscriptions);
     pc_write(write_fn, ctx, "Error         : %s\n",
@@ -329,8 +335,8 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Netmask       : %s\n", settings.network.netmask);
     pc_write(write_fn, ctx, "DNS           : %s\n", settings.network.dns);
     pc_write(write_fn, ctx, "Broker IP     : %s\n", settings.broker.broker_ip);
-    pc_write(write_fn, ctx, "MQTT port     : %u\n", settings.broker.mqtt_port);
-    pc_write(write_fn, ctx, "P2P port      : %u\n", settings.broker.p2p_port);
+    pc_write(write_fn, ctx, "Broker port   : %u\n", settings.broker.mqtt_port);
+    pc_write(write_fn, ctx, "Bridge port   : %u\n", settings.broker.p2p_port);
     pc_write(write_fn, ctx, "Broker        : %u\n", settings.broker.broker_enabled);
     pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
     pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
@@ -363,24 +369,34 @@ static void print_usage_wifi(product_console_write_fn write_fn, void *ctx)
 }
 #endif
 
-static void print_usage_broker(product_console_write_fn write_fn, void *ctx)
+static void print_usage_broker_port(product_console_write_fn write_fn, void *ctx)
 {
     clear_screen(write_fn, ctx);
-    pc_write(write_fn, ctx, "Broker Setting\n");
+    pc_write(write_fn, ctx, "Local Broker Setting\n");
     pc_write(write_fn, ctx, "------------------------------\n");
-    pc_write(write_fn, ctx, "Command       : broker <mqtt> <p2p> [ip]\n");
-    pc_write(write_fn, ctx, "Example       : broker 1883 4884 10.88.0.2\n");
-    pc_write(write_fn, ctx, "MQTT port     : client/broker MQTT listen port\n");
-    pc_write(write_fn, ctx, "P2P port      : broker bridge routing port\n");
-    pc_write(write_fn, ctx, "Broker IP     : optional local broker IP override\n");
-    pc_write(write_fn, ctx, "Effect        : save broker config; reboot to apply\n");
+    pc_write(write_fn, ctx, "Command       : broker-port <port>\n");
+    pc_write(write_fn, ctx, "Example       : broker-port 1883\n");
+    pc_write(write_fn, ctx, "Meaning       : client connects to this broker port\n");
+    pc_write(write_fn, ctx, "Effect        : save broker port; reboot to apply\n");
+    print_back_to_menu(write_fn, ctx);
+}
+
+static void print_usage_broker_ip(product_console_write_fn write_fn, void *ctx)
+{
+    clear_screen(write_fn, ctx);
+    pc_write(write_fn, ctx, "Local Broker Setting\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Command       : broker-ip <ip>\n");
+    pc_write(write_fn, ctx, "Example       : broker-ip 10.88.0.2\n");
+    pc_write(write_fn, ctx, "Meaning       : local broker IP advertised/used by this node\n");
+    pc_write(write_fn, ctx, "Effect        : save broker IP; reboot to apply\n");
     print_back_to_menu(write_fn, ctx);
 }
 
 static void print_usage_broker_state(product_console_write_fn write_fn, void *ctx)
 {
     clear_screen(write_fn, ctx);
-    pc_write(write_fn, ctx, "Broker Setting\n");
+    pc_write(write_fn, ctx, "Local Broker Setting\n");
     pc_write(write_fn, ctx, "------------------------------\n");
     pc_write(write_fn, ctx, "Command       : broker-state <0|1>\n");
     pc_write(write_fn, ctx, "Disable       : broker-state 0\n");
@@ -394,11 +410,23 @@ static void print_usage_peer(product_console_write_fn write_fn, void *ctx)
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx, "Peer Bridge Setting\n");
     pc_write(write_fn, ctx, "------------------------------\n");
-    pc_write(write_fn, ctx, "Command       : peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+    pc_write(write_fn, ctx, "Command       : peer <i> <name> <host> [broker-port] [bridge-port] [0|1]\n");
     pc_write(write_fn, ctx, "Example       : peer 1 node2 10.88.0.3 1883 4884 1\n");
     pc_write(write_fn, ctx, "Index         : peer slot number\n");
     pc_write(write_fn, ctx, "Host          : peer broker IP or host name\n");
     pc_write(write_fn, ctx, "Effect        : save bridge peer\n");
+    print_back_to_menu(write_fn, ctx);
+}
+
+static void print_usage_bridge_port(product_console_write_fn write_fn, void *ctx)
+{
+    clear_screen(write_fn, ctx);
+    pc_write(write_fn, ctx, "Peer Bridge Setting\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Command       : bridge-port <port>\n");
+    pc_write(write_fn, ctx, "Example       : bridge-port 4884\n");
+    pc_write(write_fn, ctx, "Meaning       : local port used for broker-to-broker bridge traffic\n");
+    pc_write(write_fn, ctx, "Effect        : save local bridge port; reboot to apply\n");
     print_back_to_menu(write_fn, ctx);
 }
 
@@ -541,7 +569,8 @@ static int cmd_broker(char **save, product_console_write_fn write_fn, void *ctx)
     field_bridge_settings_t settings;
 
     if (!mqtt || !p2p || product_config_get_settings(&settings) != 0) {
-        pc_write(write_fn, ctx, "ERR usage: broker <mqtt> <p2p> [ip]\n");
+        pc_write(write_fn, ctx,
+                 "ERR legacy usage: broker <broker-port> <bridge-port> [broker-ip]\n");
         return -1;
     }
     settings.broker.mqtt_port = (uint16_t)atoi(mqtt);
@@ -554,6 +583,66 @@ static int cmd_broker(char **save, product_console_write_fn write_fn, void *ctx)
         return -1;
     }
     pc_write(write_fn, ctx, "OK saved broker config; reboot to apply\n");
+    return 0;
+}
+
+static int cmd_broker_port(char **save, product_console_write_fn write_fn,
+                           void *ctx)
+{
+    char *port = next_token(save);
+    field_bridge_settings_t settings;
+
+    if (!port || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: broker-port <port>\n");
+        return -1;
+    }
+    settings.broker.mqtt_port = (uint16_t)atoi(port);
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx, "OK saved broker-port=%u; reboot to apply\n",
+             settings.broker.mqtt_port);
+    return 0;
+}
+
+static int cmd_broker_ip(char **save, product_console_write_fn write_fn,
+                         void *ctx)
+{
+    char *ip = next_token(save);
+    field_bridge_settings_t settings;
+
+    if (!ip || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: broker-ip <ip>\n");
+        return -1;
+    }
+    copy_arg(settings.broker.broker_ip, sizeof(settings.broker.broker_ip), ip);
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx, "OK saved broker-ip=%s; reboot to apply\n",
+             settings.broker.broker_ip);
+    return 0;
+}
+
+static int cmd_bridge_port(char **save, product_console_write_fn write_fn,
+                           void *ctx)
+{
+    char *port = next_token(save);
+    field_bridge_settings_t settings;
+
+    if (!port || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: bridge-port <port>\n");
+        return -1;
+    }
+    settings.broker.p2p_port = (uint16_t)atoi(port);
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx, "OK saved bridge-port=%u; reboot to apply\n",
+             settings.broker.p2p_port);
     return 0;
 }
 
@@ -598,7 +687,7 @@ static int cmd_peer(char **save, product_console_write_fn write_fn, void *ctx)
 
     if (!index_s || !name || !host) {
         pc_write(write_fn, ctx,
-                      "ERR usage: peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+                 "ERR usage: peer <i> <name> <host> [broker-port] [bridge-port] [0|1]\n");
         return -1;
     }
     index = atoi(index_s);
@@ -717,22 +806,28 @@ static int cmd_menu_index(int index,
     case PRODUCT_CONSOLE_MENU_BROKER:
         switch (index) {
         case 1:
-            print_usage_broker(write_fn, write_ctx);
+            print_usage_broker_port(write_fn, write_ctx);
             return 0;
         case 2:
+            print_usage_broker_ip(write_fn, write_ctx);
+            return 0;
+        case 3:
             print_usage_broker_state(write_fn, write_ctx);
             return 0;
         default:
-            pc_write(write_fn, write_ctx, "ERR unknown broker index; try broker-setting\n");
+            pc_write(write_fn, write_ctx, "ERR unknown local broker index; try local-broker\n");
             return -1;
         }
 
     case PRODUCT_CONSOLE_MENU_PEER_BRIDGE:
         switch (index) {
         case 1:
-            print_usage_peer(write_fn, write_ctx);
+            print_usage_bridge_port(write_fn, write_ctx);
             return 0;
         case 2:
+            print_usage_peer(write_fn, write_ctx);
+            return 0;
+        case 3:
             print_usage_defaults(write_fn, write_ctx);
             return 0;
         default:
@@ -814,7 +909,9 @@ int product_console_handle_line(char *line,
         print_network_menu(write_fn, write_ctx);
         return 0;
     }
-    if (strcmp(cmd, "broker-setting") == 0 || strcmp(cmd, "broker-ui") == 0) {
+    if (strcmp(cmd, "local-broker") == 0 ||
+        strcmp(cmd, "broker-setting") == 0 ||
+        strcmp(cmd, "broker-ui") == 0) {
         print_broker_menu(write_fn, write_ctx);
         return 0;
     }
@@ -848,6 +945,15 @@ int product_console_handle_line(char *line,
 #endif
     if (strcmp(cmd, "broker") == 0) {
         return cmd_broker(&save, write_fn, write_ctx);
+    }
+    if (strcmp(cmd, "broker-port") == 0) {
+        return cmd_broker_port(&save, write_fn, write_ctx);
+    }
+    if (strcmp(cmd, "broker-ip") == 0) {
+        return cmd_broker_ip(&save, write_fn, write_ctx);
+    }
+    if (strcmp(cmd, "bridge-port") == 0) {
+        return cmd_bridge_port(&save, write_fn, write_ctx);
     }
     if (strcmp(cmd, "broker-state") == 0) {
         return cmd_broker_state(&save, write_fn, write_ctx);

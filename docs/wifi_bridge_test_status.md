@@ -269,3 +269,24 @@ Update:
   - `nc 192.168.127.5 17002` was tested through
     `settings -> broker-setting -> broker usage`; the output includes ANSI
     clear-screen sequences and the formatted broker detail page.
+
+Update:
+- Renamed the broker/bridge CLI concepts for operator clarity:
+  - `local-broker`: local broker setting
+  - `broker-port <port>`: local port used by normal MQTT clients
+  - `broker-ip <ip>`: local broker IP
+  - `peer-bridge`: peer bridge setting
+  - `bridge-port <port>`: local port used for broker-to-broker bridge traffic
+- Moved local bridge port out of local broker settings and into peer bridge
+  settings.
+- The old `broker <broker-port> <bridge-port> [broker-ip]` command is still
+  accepted as a legacy shortcut, but it is no longer shown in the menu.
+- Validation:
+  - `make -C tests/linux unit_product_console` passed with `120/120`.
+  - `./scripts/sync_deps.sh replace && ./scripts/build_wifi_bridge_product.sh`
+    passed in `tmux: build-cli-local-broker`.
+  - `/dev/ttyUSB2` was flashed in `tmux: flash-cli-local-broker-ttyUSB2`,
+    `EXIT_CODE=0`.
+  - `nc 192.168.127.5 17002` was tested through
+    `settings -> local-broker -> broker-port` and
+    `settings -> peer-bridge -> bridge-port`.
