@@ -68,18 +68,41 @@ This isolates broker speed with the same eight clients concentrated on broker A.
 
 ### Dynamic Balance Advantage
 
-This starts with broker A full and B/C/D lightly loaded, then sends 18 new
-subscribers to broker A. The workload uses 32 topics so the result shows both
-client and topic-subscription capacity.
+The dynamic-balance test starts with broker A already full and B/C/D lightly
+loaded. Then 18 new subscribers all try broker A first.
 
-| Case | Clients A/B/C/D | Topic subs | Topics A/B/C/D | Rejected subs | Msg/s | Delivery |
-|------|----------------:|-----------:|----------------:|--------------:|------:|---------:|
-| field no-fallback | `8/2/2/2` | `13` | `7/2/2/2` | `18` | `727.45` | `100.0%` |
-| field fallback | `8/8/8/8` | `31` | `7/8/8/8` | `0` | `1,734.1` | `100.0%` |
+Column meanings:
 
-Fallback raises accepted subscribers from 13 to 31 topic subscriptions and
-keeps all four brokers at their admission limit. The benefit is total served
-work, not just raw per-broker speed.
+- `Clients A/B/C/D`: total connected MQTT clients on each broker.
+- `Rejected burst subs`: new burst subscribers that could not connect.
+- `Topic subscriptions`: accepted subscriber-topic registrations.
+- `Topics A/B/C/D`: distinct subscribed topics present on each broker.
+
+#### Client Balancing
+
+This run uses one topic and measures whether overflow clients are accepted.
+
+| Case | Clients A/B/C/D | Rejected burst subs | Received | Msg/s |
+|------|----------------:|--------------------:|---------:|------:|
+| field no-fallback | `8/2/2/2` | `18` | `163,861` | `8,193.05` |
+| field fallback | `8/8/8/8` | `0` | `536,816` | `26,840.8` |
+
+Fallback uses the spare capacity on B/C/D, so the same burst that is rejected
+without fallback becomes accepted work.
+
+#### Topic Capacity
+
+This run uses 32 topics and measures topic-subscription capacity separately from
+raw message speed.
+
+| Case | Topic subscriptions | Topics A/B/C/D | Rejected burst subs | Delivery |
+|------|--------------------:|----------------:|--------------------:|---------:|
+| field no-fallback | `13` | `7/2/2/2` | `18` | `100.0%` |
+| field fallback | `31` | `7/8/8/8` | `0` | `100.0%` |
+
+Fallback raises accepted topic subscriptions from 13 to 31 and keeps all four
+brokers at their admission limit. This is the load-balancing benefit: higher
+total served work across the broker network.
 
 ## ESP32 / Dephy Build
 

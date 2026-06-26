@@ -79,8 +79,16 @@
 - Burst: 18 new subscribers all try broker A first.
 - Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/dynamic_balance_burst/20260626-topic32`
 
+Column meanings:
+- `Topics`: configured test topic count.
+- `Topic subs`: accepted subscriber-topic registrations.
+- `Topics A/B/C/D`: distinct subscribed topics present on each broker.
+- `Conn clients A/B/C/D`: total connected MQTT clients on each broker.
+- `Conn subs A/B/C/D`: connected subscribers on each broker.
+- `Rej subs`: burst subscribers that could not connect.
+- `Fallback subs`: burst subscribers accepted by a fallback broker.
+
 | Impl | Topics | Topic subs | Topics A/B/C/D | Conn clients A/B/C/D | Conn subs A/B/C/D | Rej subs | Fallback subs | Published | Received | Msg/s | Delivery % |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | field_no_fallback | 32 | 13 | 7/2/2/2 | 8/2/2/2 | 7/2/2/2 | 18 | 0 | 35810 | 14549 | 727.45 | 100.0 |
 | field_fallback | 32 | 31 | 7/8/8/8 | 8/8/8/8 | 7/8/8/8 | 0 | 18 | 35800 | 34682 | 1734.1 | 100.0 |
-
