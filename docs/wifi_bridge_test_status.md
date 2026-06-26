@@ -193,3 +193,15 @@ Hardware note:
   state. Clearing storage at `0x3b0000` size `0x30000` removed saved WiFi config,
   but the UART stream still needs cleanup before treating remote `nc` as a
   polished CLI experience.
+
+Update:
+- CLI UART output was cleaned up by keeping line-by-line menu rendering and
+  increasing the WiFi test profile log buffer to `CONFIG_LOG_BUFFER_SIZE=4096`.
+- `/dev/ttyUSB2` was reflashed with the CLI-only image and storage was cleared
+  at `0x3b0000` size `0x30000`.
+- Hardware CLI validation passed on `/dev/ttyUSB2`:
+  - Boot stops at `wifi not configured; waiting for UART CLI provisioning`.
+  - `menu` prints all 11 numbered commands without dropped messages.
+  - `status` returns `OK network=init ... error=wifi not configured`.
+  - `show` returns the saved default network/broker config.
+- Remote UART CLI is available at `192.168.127.5:17002`.

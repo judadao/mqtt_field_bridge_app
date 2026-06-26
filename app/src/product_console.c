@@ -496,7 +496,9 @@ int product_console_handle_line(char *line,
 static void zephyr_console_write(void *ctx, const char *text)
 {
     ARG_UNUSED(ctx);
+    k_sleep(K_MSEC(5));
     printk("%s", text);
+    k_sleep(K_MSEC(5));
 }
 
 static void zephyr_console_reboot(void *ctx)
