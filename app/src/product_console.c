@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <dephy_cli/menu.h>
+
 #include "product_config.h"
 #include "product_console.h"
 #include "product_runtime.h"
@@ -77,29 +79,30 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
 
 static void print_menu(product_console_write_fn write_fn, void *ctx)
 {
-    pc_write(write_fn, ctx, "Field Bridge CLI menu\n");
-    pc_write(write_fn, ctx, "  1. status                  runtime network/broker state\n");
-    pc_write(write_fn, ctx, "  2. info                    runtime plus saved config\n");
-    pc_write(write_fn, ctx, "  3. show                    saved network/broker config\n");
-    pc_write(write_fn, ctx, "  4. ip <addr> [gw] [mask]   set static IP\n");
-    pc_write(write_fn, ctx, "  5. dhcp                    enable DHCP\n");
+    static const dephy_cli_menu_item_t items[] = {
+        { "status", "runtime network/broker state" },
+        { "info", "runtime plus saved config" },
+        { "show", "saved network/broker config" },
+        { "ip <addr> [gw] [mask]", "set static IP" },
+        { "dhcp", "enable DHCP" },
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-    pc_write(write_fn, ctx, "  6. wifi <ssid> <pass|->    set WiFi AP\n");
-    pc_write(write_fn, ctx, "  7. broker <mqtt> <p2p> [ip]\n");
-    pc_write(write_fn, ctx, "  8. broker-state <0|1>\n");
-    pc_write(write_fn, ctx, "  9. peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
-    pc_write(write_fn, ctx, " 10. defaults small|large\n");
-    pc_write(write_fn, ctx, " 11. reset\n");
-    pc_write(write_fn, ctx, " 12. reboot\n");
+        { "wifi <ssid> <pass|->", "set WiFi AP" },
 #else
-    pc_write(write_fn, ctx, "  6. broker <mqtt> <p2p> [ip]\n");
-    pc_write(write_fn, ctx, "  7. broker-state <0|1>\n");
-    pc_write(write_fn, ctx, "  8. peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
-    pc_write(write_fn, ctx, "  9. defaults small|large\n");
-    pc_write(write_fn, ctx, " 10. reset\n");
-    pc_write(write_fn, ctx, " 11. reboot\n");
+        { "broker <mqtt> <p2p> [ip]", "set broker ports/IP" },
 #endif
-    pc_write(write_fn, ctx, "Type the command shown after the number, for example: status\n");
+        { "broker-state <0|1>", "disable/enable broker" },
+        { "peer <i> <name> <host> [mqtt] [p2p] [0|1]", "set bridge peer" },
+        { "defaults small|large", "reset config profile" },
+        { "reset", "reset all settings" },
+        { "reboot", "restart device" },
+    };
+
+    (void)dephy_cli_render_menu("Field Bridge CLI menu",
+                                items,
+                                sizeof(items) / sizeof(items[0]),
+                                "Type the command shown after the number, for example: status",
+                                write_fn,
+                                ctx);
 }
 
 static int cmd_status(product_console_write_fn write_fn, void *ctx)

@@ -19,7 +19,6 @@
 #endif
 #include "product_runtime.h"
 #include "product_status_io.h"
-#include "provisioning_http.h"
 
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 
@@ -100,7 +99,7 @@ int main(void)
 
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
         if (settings.network.wifi_ssid[0] == '\0') {
-            LOG_INF("wifi not configured; waiting for UART provisioning");
+            LOG_INF("wifi not configured; waiting for UART CLI provisioning");
             product_runtime_broker_failed("wifi not configured");
             product_status_io_set_running(0);
 #ifdef __ZEPHYR__
@@ -174,7 +173,6 @@ int main(void)
     }
 
     bridge_control_init();
-    provisioning_http_start();
 
     if (!settings.broker.broker_enabled) {
         LOG_INF("broker disabled by product config");
@@ -182,7 +180,9 @@ int main(void)
         product_status_io_set_running(0);
 #ifdef __ZEPHYR__
         k_thread_priority_set(k_current_get(), 7);
-        provisioning_http_run();
+        while (1) {
+            k_sleep(K_SECONDS(60));
+        }
 #endif
         return 0;
     }
@@ -211,7 +211,9 @@ int main(void)
                     6, 0, K_NO_WAIT);
     k_thread_name_set(&broker_run_thread, "mqtt_broker");
     k_thread_priority_set(k_current_get(), 7);
-    provisioning_http_run();
+    while (1) {
+        k_sleep(K_SECONDS(60));
+    }
 #else
     client_pool_init();
     if (broker_init() != 0) {
