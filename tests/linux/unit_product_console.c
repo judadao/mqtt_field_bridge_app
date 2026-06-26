@@ -73,6 +73,8 @@ static void test_help_and_status(void)
     CHECK(strstr(out_buf, "menu") != NULL);
     CHECK(strstr(out_buf, "settings") != NULL);
     CHECK(strstr(out_buf, "summary") != NULL);
+    CHECK(strstr(out_buf, "device-network") != NULL);
+    CHECK(strstr(out_buf, "broker-setting") != NULL);
     CHECK(strstr(out_buf, "wifi") == NULL);
     CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
@@ -113,13 +115,22 @@ static void test_menu_index_commands(void)
     CHECK(run_cmd("0") == 0);
     CHECK(run_cmd("2") == 0);
     CHECK(strstr(out_buf, "Settings") != NULL);
-    CHECK(strstr(out_buf, "broker <mqtt> <p2p> [ip]") != NULL);
+    CHECK(strstr(out_buf, "1. device-network") != NULL);
+    CHECK(strstr(out_buf, "2. broker-setting") != NULL);
+    CHECK(strstr(out_buf, "3. peer-bridge") != NULL);
     CHECK(run_cmd("1") == 0);
-    CHECK(strstr(out_buf, "usage: ip <addr>") != NULL);
-    CHECK(run_cmd("3") == 0);
-    CHECK(strstr(out_buf, "usage: broker <mqtt> <p2p> [ip]") != NULL);
+    CHECK(strstr(out_buf, "Device Network Setting") != NULL);
+    CHECK(run_cmd("1") == 0);
+    CHECK(strstr(out_buf, "Command       : ip <addr> [gw] [mask]") != NULL);
+    CHECK(run_cmd("0") == 0);
+    CHECK(run_cmd("2") == 0);
+    CHECK(run_cmd("2") == 0);
+    CHECK(strstr(out_buf, "Broker Setting") != NULL);
+    CHECK(run_cmd("1") == 0);
+    CHECK(strstr(out_buf, "Command       : broker <mqtt> <p2p> [ip]") != NULL);
+    CHECK(strstr(out_buf, "Example       : broker 1883 4884") != NULL);
     CHECK(run_cmd("99") != 0);
-    CHECK(strstr(out_buf, "ERR unknown settings index") != NULL);
+    CHECK(strstr(out_buf, "ERR unknown broker index") != NULL);
 }
 
 static void test_broker_save_config(void)

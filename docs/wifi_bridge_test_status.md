@@ -248,3 +248,24 @@ Update:
     `EXIT_CODE=0`.
   - `nc 192.168.127.5 17002` showed the simplified menu; selecting
     `2` then `4` displayed `usage: broker <mqtt> <p2p> [ip]`.
+
+Update:
+- Refined `settings` into three submenus:
+  - `device-network`: device network setting
+  - `broker-setting`: broker setting
+  - `peer-bridge`: peer bridge setting
+- Added ANSI clear-screen/page-home output before menu and detail pages so the
+  CLI feels like fixed pages in a normal terminal instead of continuously
+  scrolling.
+- Replaced short one-line usage output with readable detail pages. For example,
+  broker setup now shows command, example, MQTT port, P2P port, broker IP, and
+  effect.
+- Validation:
+  - `make -C tests/linux unit_product_console` passed with `99/99`.
+  - `./scripts/sync_deps.sh replace && ./scripts/build_wifi_bridge_product.sh`
+    passed in `tmux: build-cli-fixed-pages`.
+  - `/dev/ttyUSB2` was flashed in `tmux: flash-cli-fixed-pages-ttyUSB2`,
+    `EXIT_CODE=0`.
+  - `nc 192.168.127.5 17002` was tested through
+    `settings -> broker-setting -> broker usage`; the output includes ANSI
+    clear-screen sequences and the formatted broker detail page.
