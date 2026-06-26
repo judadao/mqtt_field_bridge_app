@@ -92,3 +92,25 @@ Column meanings:
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | field_no_fallback | 32 | 13 | 7/2/2/2 | 8/2/2/2 | 7/2/2/2 | 18 | 0 | 35810 | 14549 | 727.45 | 100.0 |
 | field_fallback | 32 | 31 | 7/8/8/8 | 8/8/8/8 | 7/8/8/8 | 0 | 18 | 35800 | 34682 | 1734.1 | 100.0 |
+
+## 20260626-topic-limit topic-limit burst
+
+- Duration: 20s per case
+- Client admission limit: 64 clients per broker
+- Topic subscription table limit: 16 entries per broker
+- Test topic count: 64
+- Preload: broker A has 16 topic subscriptions; B/C/D have 4 each.
+- Burst: 36 new topic subscribers all try broker A first.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/topic_limit_burst/20260626-topic-limit`
+
+Column meanings:
+- `Topic subs`: accepted subscriber-topic registrations across all brokers.
+- `Topics A/B/C/D`: accepted topic subscriptions on each broker.
+- `Clients A/B/C/D`: total connected MQTT clients on each broker.
+- `Rej subs`: burst subscribers rejected because no topic slot was available.
+- `Fallback subs`: burst subscribers accepted by another broker after A was full.
+
+| Impl | Topic subs | Topics A/B/C/D | Clients A/B/C/D | Rej subs | Fallback subs | Published | Received | Msg/s | Delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| field_no_fallback | 28 | 16/4/4/4 | 17/4/4/4 | 36 | 0 | 35832 | 10976 | 548.8 | 70.0 |
+| field_fallback | 64 | 16/16/16/16 | 17/16/16/16 | 0 | 36 | 35805 | 35805 | 1790.25 | 100.0 |

@@ -51,58 +51,72 @@ downloads the pinned dependency versions into `deps/`.
 
 ## Load-Balance Throughput Results
 
-The benchmark records two product claims: a single field broker is near
-mosquitto speed, and admission fallback improves total client/topic capacity
-when one broker is hot and peer brokers still have room.
+The benchmark records three separate claims. Detailed logs are in
+`docs/load_balance_throughput_results.md`.
 
-Detailed logs are in `docs/load_balance_throughput_results.md`.
+### 1. Single Broker Speed
 
-### Single Broker Speed
+Test condition:
+- One broker is active; all 8 MQTT clients connect to broker A.
+- Workload is 4 publishers, 4 subscribers, and 1 topic for 20 seconds.
+- This checks raw broker speed, not fallback.
 
-This isolates broker speed with the same eight clients concentrated on broker A.
-
-| Case | Client layout | Topic count | Msg/s | Delivery |
-|------|---------------|------------:|------:|---------:|
+| Case | Client layout A/B/C/D | Topic count | Msg/s | Delivery |
+|------|----------------------:|------------:|------:|---------:|
 | mosquitto | `8/0/0/0` | `1` | `28,618.2` | `100.0%` |
 | field no-fallback | `8/0/0/0` | `1` | `28,599.0` | `100.0%` |
 
-### Dynamic Balance Advantage
+Result: the field broker is effectively equal to mosquitto for this single-node
+workload.
 
-The dynamic-balance test starts with broker A already full and B/C/D lightly
-loaded. Then 18 new subscribers all try broker A first.
+### 2. Client Limit Balance
+
+Test condition:
+- Four field brokers: A, B, C, D.
+- Client admission limit is 8 clients per broker.
+- Topic count is 1, so topic capacity is not the limit.
+- Preload: A has 7 subscribers and 1 publisher, so A is full at 8 clients.
+  B/C/D each have 2 subscribers.
+- Burst: 18 new subscribers all try broker A first.
 
 Column meanings:
-
-- `Clients A/B/C/D`: total connected MQTT clients on each broker.
-- `Rejected burst subs`: new burst subscribers that could not connect.
-- `Topic subscriptions`: accepted subscriber-topic registrations.
-- `Topics A/B/C/D`: distinct subscribed topics present on each broker.
-
-#### Client Balancing
-
-This run uses one topic and measures whether overflow clients are accepted.
+- `Clients A/B/C/D`: total connected clients on each broker after the burst.
+- `Rejected burst subs`: burst subscribers that could not connect anywhere.
+- `Received`: delivered messages during the 20-second run.
 
 | Case | Clients A/B/C/D | Rejected burst subs | Received | Msg/s |
 |------|----------------:|--------------------:|---------:|------:|
 | field no-fallback | `8/2/2/2` | `18` | `163,861` | `8,193.05` |
 | field fallback | `8/8/8/8` | `0` | `536,816` | `26,840.8` |
 
-Fallback uses the spare capacity on B/C/D, so the same burst that is rejected
-without fallback becomes accepted work.
+Result: fallback uses the spare client capacity on B/C/D. The same burst that is
+rejected without fallback is accepted and served with fallback.
 
-#### Topic Capacity
+### 3. Topic Subscription Limit Balance
 
-This run uses 32 topics and measures topic-subscription capacity separately from
-raw message speed.
+Test condition:
+- Four field brokers: A, B, C, D.
+- Client admission limit is 64 clients per broker, so client count is not the
+  limit.
+- Topic subscription table limit is 16 entries per broker.
+- Test topic count is 64.
+- Preload: A has 16 topic subscriptions, so A's topic table is full. B/C/D each
+  have 4 topic subscriptions.
+- Burst: 36 new topic subscribers all try broker A first.
 
-| Case | Topic subscriptions | Topics A/B/C/D | Rejected burst subs | Delivery |
-|------|--------------------:|----------------:|--------------------:|---------:|
-| field no-fallback | `13` | `7/2/2/2` | `18` | `100.0%` |
-| field fallback | `31` | `7/8/8/8` | `0` | `100.0%` |
+Column meanings:
+- `Topic subs`: accepted subscriber-topic registrations across all brokers.
+- `Topics A/B/C/D`: accepted topic subscriptions on each broker.
+- `Rejected burst subs`: burst subscribers rejected because no topic slot was
+  available on the attempted broker path.
 
-Fallback raises accepted topic subscriptions from 13 to 31 and keeps all four
-brokers at their admission limit. This is the load-balancing benefit: higher
-total served work across the broker network.
+| Case | Topic subs | Topics A/B/C/D | Rejected burst subs | Received | Msg/s | Delivery |
+|------|-----------:|----------------:|--------------------:|---------:|------:|---------:|
+| field no-fallback | `28` | `16/4/4/4` | `36` | `10,976` | `548.8` | `70.0%` |
+| field fallback | `64` | `16/16/16/16` | `0` | `35,805` | `1,790.25` | `100.0%` |
+
+Result: fallback uses the spare topic-table capacity on B/C/D. Topic
+subscriptions rise from 28 to 64, and the rejected burst drops from 36 to 0.
 
 ## ESP32 / Dephy Build
 

@@ -62,7 +62,8 @@ change.
 | `stress_throughput.sh` | stress | 3-broker P2P under multi-publisher load; minimum throughput check |
 | `run_load_balance_matrix.sh` | benchmark | Mosquitto, field no-fallback, and field fallback comparison for hotspot and uneven client load |
 | `run_fair4_capacity_compare.sh` | benchmark | 4-broker comparison of concentrated `8/0/0/0` capacity against fallback-distributed `2/2/2/2` capacity |
-| `run_dynamic_balance_burst.sh` | benchmark | Hot-broker burst test showing fallback client and topic-subscription capacity gains |
+| `run_dynamic_balance_burst.sh` | benchmark | Hot-broker burst test showing fallback client-capacity gains |
+| `run_topic_limit_burst.sh` | benchmark | Hot-broker topic-table test showing fallback topic-subscription capacity gains |
 
 ## Knobs
 
@@ -82,6 +83,7 @@ change.
 | `ADMISSION` | 12 | load-balance matrix |
 | `PUBLISH_DELAY` | 0.0005 | load-balance matrix |
 | `TOPIC_COUNT` | 1 | dynamic balance burst |
+| `TOPIC_MAX_SUBS` | 16 | topic-limit burst |
 | `WEB_TEST_DEVICE_IP` | required by `web-network-test` | web network config |
 | `WEB_TEST_GATEWAY` | required by `web-network-test` | web network config |
 | `WEB_TEST_NETMASK` | required by `web-network-test` | web network config |
@@ -127,16 +129,28 @@ The recorded 20260626 run showed mosquitto at `28,618.2 msg/s` with `8/0/0/0`,
 field no-fallback at `28,599.0 msg/s` with `8/0/0/0`, and field fallback at
 `16,462.6 msg/s` with `2/2/2/2`.
 
-The dynamic topic-capacity run is:
+The client-limit burst run is:
 
 ```bash
-tmux new-session -d -s dynamic-topic32 \
-  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && TOPIC_COUNT=32 tests/linux/run_dynamic_balance_burst.sh'
+tmux new-session -d -s dynamic-client \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_dynamic_balance_burst.sh'
 ```
 
-The recorded 20260626 run showed no-fallback serving `13` topic subscriptions
-with clients `8/2/2/2`, while fallback served `31` topic subscriptions with
-clients `8/8/8/8`.
+The recorded 20260626 run used admission `8`, preloaded clients `8/2/2/2`, then
+sent 18 new subscribers to broker A. No-fallback stayed at `8/2/2/2` and
+rejected all 18; fallback reached `8/8/8/8` and rejected none.
+
+The topic-limit burst run is:
+
+```bash
+tmux new-session -d -s topic-limit \
+  'cd /home/judd/moxa/personal/mqtt_field_bridge_app && tests/linux/run_topic_limit_burst.sh'
+```
+
+The recorded 20260626 run used client admission `64` and topic table limit `16`,
+preloaded topic subscriptions `16/4/4/4`, then sent 36 new topic subscribers to
+broker A. No-fallback stayed at `16/4/4/4` and rejected all 36; fallback reached
+`16/16/16/16` and rejected none.
 
 ## Manual web UI
 

@@ -83,7 +83,7 @@ class MqttClient:
             raise ConnectionRefusedError(f"CONNACK rc={body[1]}")
         self.sock.settimeout(0.5)
 
-    def subscribe(self, topic: str) -> None:
+    def subscribe(self, topic: str) -> bool:
         variable = struct.pack("!H", 1)
         payload = enc_str(topic) + bytes([0])
         packet = bytes([0x82]) + enc_rem_len(len(variable) + len(payload)) + variable + payload
@@ -92,7 +92,7 @@ class MqttClient:
         while time.time() < end:
             typ, body = read_packet(self.sock)
             if typ == 0x90 and len(body) >= 3 and body[0:2] == b"\x00\x01":
-                return
+                return body[2] != 0x80
         raise TimeoutError("SUBACK timeout")
 
     def publish(self, topic: str, payload: str) -> None:
@@ -208,7 +208,14 @@ def wait_port(port: int, timeout: float = 5.0) -> None:
     raise TimeoutError(f"port {port} did not open")
 
 
-def build_field_binary(out: Path, mqtt_port: int, p2p_port: int, disc_port: int, admission: int) -> None:
+def build_field_binary(
+    out: Path,
+    mqtt_port: int,
+    p2p_port: int,
+    disc_port: int,
+    admission: int,
+    topic_max_subs: int,
+) -> None:
     srcs = [
         "src/broker.c",
         "src/client.c",
@@ -234,6 +241,7 @@ def build_field_binary(out: Path, mqtt_port: int, p2p_port: int, disc_port: int,
         "-DCONFIG_MQTT_P2P_STATIC_SEEDS_ONLY",
         "-DMQTT_MAX_CLIENTS=64",
         f"-DMQTT_ADMISSION_MAX_CLIENTS={admission}",
+        f"-DTOPIC_MAX_SUBS={topic_max_subs}" if topic_max_subs > 0 else "-DTOPIC_MAX_SUBS=512",
         f"-DMQTT_BROKER_PORT={mqtt_port}",
         f"-DP2P_PORT={p2p_port}",
         f"-DP2P_DISCOVERY_PORT={disc_port}",
@@ -265,12 +273,18 @@ def start_mosquitto(outdir: Path, ports: list[int]) -> list[subprocess.Popen]:
     return procs
 
 
-def start_field(outdir: Path, ports: list[int], p2p_ports: list[int], admission: int) -> list[subprocess.Popen]:
+def start_field(
+    outdir: Path,
+    ports: list[int],
+    p2p_ports: list[int],
+    admission: int,
+    topic_max_subs: int,
+) -> list[subprocess.Popen]:
     disc_port = ports[0] + 4000
     bins = []
     for idx, port in enumerate(ports):
         binary = outdir / f"field_b{idx + 1}"
-        build_field_binary(binary, port, p2p_ports[idx], disc_port, admission)
+        build_field_binary(binary, port, p2p_ports[idx], disc_port, admission, topic_max_subs)
         bins.append(binary)
 
     procs = []
@@ -301,30 +315,35 @@ def connect_with_policy(
         order = list(range(len(ports))) if fallback else [intended]
         if fallback:
             order = order[intended:] + order[:intended]
-        client = None
+        connected_client = None
         chosen = -1
+        chosen_topic = ""
         for broker_idx in order:
             try:
                 client = MqttClient(f"{role}{intended}{i}b{broker_idx}", "127.0.0.1", ports[broker_idx])
-                chosen = broker_idx
-                break
             except OSError:
-                client = None
-        if client is None:
+                continue
+            if role.startswith("sub"):
+                assert topics is not None
+                topic = topics[(topic_offset + i) % len(topics)]
+                try:
+                    if not client.subscribe(topic):
+                        client.close()
+                        continue
+                except OSError:
+                    client.close()
+                    continue
+                chosen_topic = topic
+            connected_client = client
+            chosen = broker_idx
+            break
+        if connected_client is None:
             rejected += 1
             continue
         if role.startswith("sub"):
-            assert topics is not None
-            topic = topics[(topic_offset + i) % len(topics)]
-            try:
-                client.subscribe(topic)
-            except OSError:
-                client.close()
-                rejected += 1
-                continue
-            connected.append(Subscriber(client, intended, chosen, topic))
+            connected.append(Subscriber(connected_client, intended, chosen, chosen_topic))
         else:
-            connected.append(Publisher(client, intended, chosen, publish_delay))
+            connected.append(Publisher(connected_client, intended, chosen, publish_delay))
     return connected, rejected
 
 
@@ -386,7 +405,7 @@ def run_case(args: argparse.Namespace) -> dict:
             procs = start_mosquitto(outdir, ports)
             time.sleep(args.settle)
         elif args.impl in ("field_no_fallback", "field_fallback"):
-            procs = start_field(outdir, ports, p2p_ports, admission)
+            procs = start_field(outdir, ports, p2p_ports, admission, args.topic_max_subs)
             time.sleep(args.settle)
         else:
             raise ValueError(args.impl)
@@ -403,14 +422,23 @@ def run_case(args: argparse.Namespace) -> dict:
         elif args.mode == "dynamic_burst":
             sub_plan = []
             pub_plan = []
+        elif args.mode == "topic_limit":
+            sub_plan = []
+            pub_plan = []
         else:
             raise ValueError(args.mode)
 
-        if args.mode == "dynamic_burst":
+        if args.mode in ("dynamic_burst", "topic_limit"):
             # Preload a hot broker and three lightly-loaded peers without using
             # fallback, then send a burst of new clients to the hot broker.
-            preload_subs = list(enumerate(args.dynamic_preload_subscribers))
-            preload_pubs = list(enumerate(args.dynamic_preload_publishers))
+            if args.mode == "topic_limit":
+                preload_subs = list(enumerate(args.topic_preload_subscribers))
+                preload_pubs = list(enumerate(args.topic_preload_publishers))
+                burst_subscribers = args.topic_burst_subscribers
+            else:
+                preload_subs = list(enumerate(args.dynamic_preload_subscribers))
+                preload_pubs = list(enumerate(args.dynamic_preload_publishers))
+                burst_subscribers = args.dynamic_burst_subscribers
             for intended, count in preload_pubs:
                 clients, rejected = connect_with_policy(
                     "pub", count, intended, ports, False, publish_delay=args.publish_delay
@@ -424,12 +452,12 @@ def run_case(args: argparse.Namespace) -> dict:
                 subscribers.extend(clients)  # type: ignore[arg-type]
                 rejected_subs += rejected
             clients, rejected = connect_with_policy(
-                "subburst", args.dynamic_burst_subscribers, 0, ports, fallback,
-                topics=topics, topic_offset=sum(args.dynamic_preload_subscribers)
+                "subburst", burst_subscribers, 0, ports, fallback,
+                topics=topics, topic_offset=sum(count for _, count in preload_subs)
             )
             subscribers.extend(clients)  # type: ignore[arg-type]
             rejected_subs += rejected
-            sub_plan = preload_subs + [(0, args.dynamic_burst_subscribers)]
+            sub_plan = preload_subs + [(0, burst_subscribers)]
             pub_plan = preload_pubs
         else:
             for intended, count in pub_plan:
@@ -484,6 +512,7 @@ def run_case(args: argparse.Namespace) -> dict:
             "duration_sec": args.duration,
             "admission": admission if args.impl.startswith("field") else None,
             "topic_count": args.topic_count,
+            "topic_max_subs": args.topic_max_subs if args.impl.startswith("field") else None,
             "note": "mosquitto has no broker bridge or fallback; this mode is aggregate local broker traffic"
             if args.impl == "mosquitto" and args.mode in ("uneven", "dynamic_burst")
             else "",
@@ -537,7 +566,7 @@ def parse_csv_ints(value: str) -> list[int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["hotspot", "uneven", "fair4", "dynamic_burst"], required=True)
+    parser.add_argument("--mode", choices=["hotspot", "uneven", "fair4", "dynamic_burst", "topic_limit"], required=True)
     parser.add_argument(
         "--impl",
         choices=["mosquitto", "field_no_fallback", "field_fallback"],
@@ -551,6 +580,7 @@ def main() -> int:
     parser.add_argument("--admission", type=int, default=12)
     parser.add_argument("--broker-count", type=int, default=3)
     parser.add_argument("--topic-count", type=int, default=1)
+    parser.add_argument("--topic-max-subs", type=int, default=0)
     parser.add_argument("--port-base", type=int, default=23000)
     parser.add_argument("--hotspot-subscribers", type=int, default=24)
     parser.add_argument("--hotspot-publishers", type=int, default=4)
@@ -559,6 +589,9 @@ def main() -> int:
     parser.add_argument("--dynamic-preload-subscribers", type=parse_csv_ints, default=parse_csv_ints("7,2,2,2"))
     parser.add_argument("--dynamic-preload-publishers", type=parse_csv_ints, default=parse_csv_ints("1,0,0,0"))
     parser.add_argument("--dynamic-burst-subscribers", type=int, default=18)
+    parser.add_argument("--topic-preload-subscribers", type=parse_csv_ints, default=parse_csv_ints("16,4,4,4"))
+    parser.add_argument("--topic-preload-publishers", type=parse_csv_ints, default=parse_csv_ints("1,0,0,0"))
+    parser.add_argument("--topic-burst-subscribers", type=int, default=36)
     parser.add_argument("--uneven-subscribers", type=parse_csv_ints, default=parse_csv_ints("16,6,2"))
     parser.add_argument("--uneven-publishers", type=parse_csv_ints, default=parse_csv_ints("4,2,1"))
     args = parser.parse_args()
@@ -576,6 +609,11 @@ def main() -> int:
         or len(args.dynamic_preload_publishers) != args.broker_count
     ):
         raise SystemExit("dynamic preload distributions must match --broker-count")
+    if args.mode == "topic_limit" and (
+        len(args.topic_preload_subscribers) != args.broker_count
+        or len(args.topic_preload_publishers) != args.broker_count
+    ):
+        raise SystemExit("topic preload distributions must match --broker-count")
 
     run_case(args)
     return 0
