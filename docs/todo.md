@@ -48,6 +48,7 @@ Source of truth: `docs/todo.yaml`. Update YAML before starting or completing wor
 
 - [x] Profile provisioning HTML/status rendering and cap response sizes for embedded memory headroom.
 - [x] Skip dependency re-sync work when deps.json pins already match clean local deps.
+- [x] Rework random-drop recovery benchmark into mosquitto/no-fallback/fallback capacity comparison. (`20260626-212038`; requested delivery: mosquitto `25.0%`, field no-fallback `50.0%`, field fallback `75.0%`)
 
 ## docs
 

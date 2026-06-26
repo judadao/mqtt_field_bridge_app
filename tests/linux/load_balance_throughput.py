@@ -364,6 +364,13 @@ def counts_by_broker(clients: list[Subscriber | Publisher], brokers: int) -> lis
     return counts
 
 
+def plan_counts_by_broker(plan: list[tuple[int, int]], brokers: int) -> list[int]:
+    counts = [0] * brokers
+    for broker_idx, count in plan:
+        counts[broker_idx] += count
+    return counts
+
+
 def fallback_count(clients: list[Subscriber | Publisher]) -> int:
     return sum(1 for client in clients if client.connected != client.intended)
 
@@ -375,11 +382,26 @@ def topic_counts_by_broker(subscribers: list[Subscriber], brokers: int) -> list[
     return [len(topics) for topics in per_broker]
 
 
+def requested_topic_counts(sub_plan: list[tuple[int, int]], topics: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    topic_offset = 0
+    for _, count in sub_plan:
+        for i in range(count):
+            topic = topics[(topic_offset + i) % len(topics)]
+            counts[topic] = counts.get(topic, 0) + 1
+        topic_offset += count
+    return counts
+
+
 def expected_deliveries(publishers: list[Publisher], subscribers: list[Subscriber]) -> int:
     subs_by_topic: dict[str, int] = {}
     for sub in subscribers:
         subs_by_topic[sub.topic] = subs_by_topic.get(sub.topic, 0) + 1
 
+    return expected_deliveries_for_topics(publishers, subs_by_topic)
+
+
+def expected_deliveries_for_topics(publishers: list[Publisher], subs_by_topic: dict[str, int]) -> int:
     expected = 0
     for pub in publishers:
         for topic, sent in pub.sent_by_topic.items():
@@ -409,6 +431,8 @@ def run_case(args: argparse.Namespace) -> dict:
     publishers: list[Publisher] = []
     rejected_subs = 0
     rejected_pubs = 0
+    rejected_subs_by_intended = [0] * args.broker_count
+    rejected_pubs_by_intended = [0] * args.broker_count
 
     try:
         if args.impl == "mosquitto":
@@ -459,42 +483,44 @@ def run_case(args: argparse.Namespace) -> dict:
                 )
                 publishers.extend(clients)  # type: ignore[arg-type]
                 rejected_pubs += rejected
+                rejected_pubs_by_intended[intended] += rejected
             for intended, count in preload_subs:
                 clients, rejected = connect_with_policy(
                     "sub", count, intended, ports, False, topics=topics, topic_offset=sum(c for _, c in preload_subs[:intended])
                 )
                 subscribers.extend(clients)  # type: ignore[arg-type]
                 rejected_subs += rejected
+                rejected_subs_by_intended[intended] += rejected
             clients, rejected = connect_with_policy(
                 "subburst", burst_subscribers, 0, ports, fallback,
                 topics=topics, topic_offset=sum(count for _, count in preload_subs)
             )
             subscribers.extend(clients)  # type: ignore[arg-type]
             rejected_subs += rejected
+            rejected_subs_by_intended[0] += rejected
             sub_plan = preload_subs + [(0, burst_subscribers)]
             pub_plan = preload_pubs
         elif args.mode == "random_drop":
-            # Keep broker A alive as the publish source, then randomly remove
-            # peer brokers before client admission. Fallback clients should
-            # land on the remaining live brokers; no-fallback clients should
-            # fail when their intended broker is unavailable.
+            # Randomly remove brokers before client admission. Fallback clients
+            # should land on remaining live field brokers; no-fallback and
+            # mosquitto clients should fail when their intended broker is down.
             rng = random.Random(args.drop_seed)
-            candidates = list(range(1, args.broker_count))
+            candidates = list(range(args.broker_count))
             rng.shuffle(candidates)
             dropped_brokers = sorted(candidates[: args.drop_count])
             for broker_idx in dropped_brokers:
                 stop_broker(procs[broker_idx])
             time.sleep(args.drop_settle)
 
-            pub_plan = [(0, args.random_drop_publishers)]
-            sub_counts = args.random_drop_subscribers
-            sub_plan = list(enumerate(sub_counts))
+            pub_plan = list(enumerate(args.random_drop_publishers))
+            sub_plan = list(enumerate(args.random_drop_subscribers))
             for intended, count in pub_plan:
                 clients, rejected = connect_with_policy(
                     "pub", count, intended, ports, fallback, publish_delay=args.publish_delay
                 )
                 publishers.extend(clients)  # type: ignore[arg-type]
                 rejected_pubs += rejected
+                rejected_pubs_by_intended[intended] += rejected
             for intended, count in sub_plan:
                 clients, rejected = connect_with_policy(
                     "sub", count, intended, ports, fallback,
@@ -502,6 +528,7 @@ def run_case(args: argparse.Namespace) -> dict:
                 )
                 subscribers.extend(clients)  # type: ignore[arg-type]
                 rejected_subs += rejected
+                rejected_subs_by_intended[intended] += rejected
         else:
             for intended, count in pub_plan:
                 clients, rejected = connect_with_policy(
@@ -509,6 +536,7 @@ def run_case(args: argparse.Namespace) -> dict:
                 )
                 publishers.extend(clients)  # type: ignore[arg-type]
                 rejected_pubs += rejected
+                rejected_pubs_by_intended[intended] += rejected
 
             for intended, count in sub_plan:
                 clients, rejected = connect_with_policy(
@@ -517,6 +545,7 @@ def run_case(args: argparse.Namespace) -> dict:
                 )
                 subscribers.extend(clients)  # type: ignore[arg-type]
                 rejected_subs += rejected
+                rejected_subs_by_intended[intended] += rejected
 
         for sub in subscribers:
             sub.start()
@@ -546,7 +575,9 @@ def run_case(args: argparse.Namespace) -> dict:
     connected_subs = len(subscribers)
     connected_pubs = len(publishers)
     expected_fanout = expected_deliveries(publishers, subscribers)
+    requested_fanout = expected_deliveries_for_topics(publishers, requested_topic_counts(sub_plan, topics))
     delivery_rate = (received * 100.0 / expected_fanout) if expected_fanout else 0.0
+    requested_delivery_rate = (received * 100.0 / requested_fanout) if requested_fanout else 0.0
 
     result = {
         "case": {
@@ -568,6 +599,8 @@ def run_case(args: argparse.Namespace) -> dict:
         "requested": {
             "subscribers": sum(c for _, c in sub_plan),
             "publishers": sum(c for _, c in pub_plan),
+            "subscribers_by_intended_broker": plan_counts_by_broker(sub_plan, args.broker_count),
+            "publishers_by_intended_broker": plan_counts_by_broker(pub_plan, args.broker_count),
         },
         "connected": {
             "subscribers": connected_subs,
@@ -587,6 +620,8 @@ def run_case(args: argparse.Namespace) -> dict:
         "rejected": {
             "subscribers": rejected_subs,
             "publishers": rejected_pubs,
+            "subscribers_by_intended_broker": rejected_subs_by_intended,
+            "publishers_by_intended_broker": rejected_pubs_by_intended,
         },
         "fallback": {
             "subscriber_fallback_count": fallback_count(subscribers),
@@ -597,6 +632,9 @@ def run_case(args: argparse.Namespace) -> dict:
             "received_messages": received,
             "throughput_msg_per_sec": round(received / args.duration, 2),
             "delivery_rate_percent": round(delivery_rate, 2),
+            "requested_delivery_rate_percent": round(requested_delivery_rate, 2),
+            "expected_connected_deliveries": expected_fanout,
+            "expected_requested_deliveries": requested_fanout,
             "publisher_errors": pub_errors,
         },
         "artifacts": {
@@ -644,8 +682,8 @@ def main() -> int:
     parser.add_argument("--topic-preload-subscribers", type=parse_csv_ints, default=parse_csv_ints("16,4,4,4"))
     parser.add_argument("--topic-preload-publishers", type=parse_csv_ints, default=parse_csv_ints("1,0,0,0"))
     parser.add_argument("--topic-burst-subscribers", type=int, default=36)
-    parser.add_argument("--random-drop-subscribers", type=parse_csv_ints, default=parse_csv_ints("4,8,8,8"))
-    parser.add_argument("--random-drop-publishers", type=int, default=1)
+    parser.add_argument("--random-drop-subscribers", type=parse_csv_ints, default=parse_csv_ints("4,4,4,4"))
+    parser.add_argument("--random-drop-publishers", type=parse_csv_ints, default=parse_csv_ints("1,1,1,1"))
     parser.add_argument("--drop-count", type=int, default=2)
     parser.add_argument("--drop-seed", type=int, default=260626)
     parser.add_argument("--drop-settle", type=float, default=1.0)
@@ -674,6 +712,8 @@ def main() -> int:
     if args.mode == "random_drop":
         if len(args.random_drop_subscribers) != args.broker_count:
             raise SystemExit("random-drop subscriber distribution must match --broker-count")
+        if len(args.random_drop_publishers) != args.broker_count:
+            raise SystemExit("random-drop publisher distribution must match --broker-count")
         if args.drop_count < 1 or args.drop_count >= args.broker_count:
             raise SystemExit("random-drop --drop-count must be between 1 and broker-count - 1")
 

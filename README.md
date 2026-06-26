@@ -72,26 +72,29 @@ workload.
 ### 2. Recovery Balance
 
 Test condition:
-- Four field brokers: A, B, C, D.
-- Broker A remains alive as the publisher source.
-- Brokers B/C are randomly dropped before subscriber admission.
-- Topic count is 16 and client admission limit is 32 clients per broker.
-- Subscribers initially target A/B/C/D.
+- Four brokers: A, B, C, D.
+- Brokers A/B are randomly dropped before client admission.
+- Topic count is 16 and field broker client admission limit is 8 clients per
+  broker.
+- Workload is 1 publisher and 4 subscribers initially targeting each broker.
+- Mosquitto is the independent-broker baseline with no mesh or fallback.
 
 Column meanings:
-- `Topic subs`: accepted subscriber-topic registrations across live brokers.
-- `Clients A/B/C/D`: total connected clients after broker drop and admission.
-- `Fallback subs`: subscribers accepted by another live broker after their
-  intended broker was unavailable.
+- `Req clients`: requested client layout before broker drop.
+- `Clients`: total connected clients after broker drop and admission.
+- `Requested delivery`: delivered messages versus the full requested subscriber
+  workload, so rejected clients reduce the percentage.
 
-| Case | Dropped brokers | Topic subs | Topics A/B/C/D | Clients A/B/C/D | Subs A/B/C/D | Rejected subs | Fallback subs | Msg/s | Delivery |
-|------|----------------:|-----------:|----------------:|----------------:|-------------:|--------------:|--------------:|------:|---------:|
-| field no-fallback | `B/C` | `12` | `4/0/0/8` | `5/0/0/8` | `4/0/0/8` | `16` | `0` | `1,343.8` | `100.0%` |
-| field fallback | `B/C` | `28` | `4/0/0/16` | `5/0/0/24` | `4/0/0/24` | `0` | `16` | `3,133.6` | `100.0%` |
+| Case | Dropped | Req clients | Clients | Rej subs | Rej pubs | Fallback subs | Fallback pubs | Msg/s | Requested delivery |
+|------|--------:|------------:|--------:|---------:|---------:|--------------:|--------------:|------:|-------------------:|
+| mosquitto | `A/B` | `5/5/5/5` | `0/0/5/5` | `8` | `2` | `0` | `0` | `895.0` | `25.0%` |
+| field no-fallback | `A/B` | `5/5/5/5` | `0/0/5/5` | `8` | `2` | `0` | `0` | `1,791.15` | `50.0%` |
+| field fallback | `A/B` | `5/5/5/5` | `0/0/8/8` | `4` | `0` | `12` | `2` | `5,367.45` | `75.0%` |
 
-Result: fallback recovers clients that targeted unavailable peer brokers and
-uses the remaining live broker capacity. The same broker drop that rejects 16
-subscribers without fallback is fully absorbed with fallback.
+Result: fallback recovers part of the clients that targeted unavailable brokers
+and uses the remaining live broker capacity. With the same random drop,
+requested delivery rises from mosquitto's `25.0%` and field no-fallback's
+`50.0%` to `75.0%`.
 
 ### 3. Client Limit Balance
 

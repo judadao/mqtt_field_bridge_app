@@ -115,17 +115,18 @@ Column meanings:
 | field_no_fallback | 28 | 16/4/4/4 | 17/4/4/4 | 36 | 0 | 35832 | 10976 | 548.8 | 70.0 |
 | field_fallback | 64 | 16/16/16/16 | 17/16/16/16 | 0 | 36 | 35805 | 35805 | 1790.25 | 100.0 |
 
-## 20260626-210127 random broker drop recovery
+## 20260626-212038 random broker drop recovery
 
 - Duration: 20s per case
-- Field broker admission limit: 32 clients per broker
+- Field broker admission limit: 8 clients per broker
 - Topic count: 16
-- Random drop: 2 non-publisher broker(s), seed `260626`
-- Workload: one publisher remains on broker A; subscribers initially target A/B/C/D.
-- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/random_drop_recovery/20260626-210127`
+- Random drop: 2 broker(s), seed `260626`
+- Workload: publishers `1,1,1,1` and subscribers `4,4,4,4` initially target A/B/C/D.
+- Note: mosquitto has no broker bridge or fallback; it is the independent-broker baseline.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/random_drop_recovery/20260626-212038`
 
-| Impl | Dropped brokers | Topic subs | Topics A/B/C/D | Conn clients A/B/C/D | Conn subs A/B/C/D | Rej subs | Fallback subs | Published | Received | Msg/s | Delivery % |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| field_no_fallback | 1/2 | 12 | 4/0/0/8 | 5/0/0/8 | 4/0/0/8 | 16 | 0 | 35832 | 26876 | 1343.8 | 100.0 |
-| field_fallback | 1/2 | 28 | 4/0/0/16 | 5/0/0/24 | 4/0/0/24 | 0 | 16 | 35812 | 62672 | 3133.6 | 100.0 |
-
+| Impl | Dropped brokers | Req clients A/B/C/D | Conn clients A/B/C/D | Conn subs A/B/C/D | Conn pubs A/B/C/D | Rej subs | Rej pubs | Fallback subs | Fallback pubs | Published | Received | Msg/s | Connected delivery % | Requested delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mosquitto | 0/1 | 5/5/5/5 | 0/0/5/5 | 0/0/4/4 | 0/0/1/1 | 8 | 2 | 0 | 0 | 71608 | 17900 | 895.0 | 50.0 | 25.0 |
+| field_no_fallback | 0/1 | 5/5/5/5 | 0/0/5/5 | 0/0/4/4 | 0/0/1/1 | 8 | 2 | 0 | 0 | 71648 | 35823 | 1791.15 | 100.0 | 50.0 |
+| field_fallback | 0/1 | 5/5/5/5 | 0/0/8/8 | 0/0/5/7 | 0/0/3/1 | 4 | 0 | 12 | 2 | 143123 | 107349 | 5367.45 | 100.0 | 75.0 |
