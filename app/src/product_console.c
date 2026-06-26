@@ -51,9 +51,9 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     pc_write(write_fn, ctx,
 #if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-                  "commands: help status info show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu status info show wifi ip dhcp broker broker-state peer defaults reset reboot\n");
 #else
-                  "commands: help status info show ip dhcp broker broker-state peer defaults reset reboot\n");
+                  "commands: help menu status info show ip dhcp broker broker-state peer defaults reset reboot\n");
 #endif
     pc_write(write_fn, ctx,
                   "  info                     show runtime and saved network/broker config\n");
@@ -73,6 +73,33 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
                   "  peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
     pc_write(write_fn, ctx,
                   "  defaults small|large      reset config profile\n");
+}
+
+static void print_menu(product_console_write_fn write_fn, void *ctx)
+{
+    pc_write(write_fn, ctx, "Field Bridge CLI menu\n");
+    pc_write(write_fn, ctx, "  1. status                  runtime network/broker state\n");
+    pc_write(write_fn, ctx, "  2. info                    runtime plus saved config\n");
+    pc_write(write_fn, ctx, "  3. show                    saved network/broker config\n");
+    pc_write(write_fn, ctx, "  4. ip <addr> [gw] [mask]   set static IP\n");
+    pc_write(write_fn, ctx, "  5. dhcp                    enable DHCP\n");
+#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+    pc_write(write_fn, ctx, "  6. wifi <ssid> <pass|->    set WiFi AP\n");
+    pc_write(write_fn, ctx, "  7. broker <mqtt> <p2p> [ip]\n");
+    pc_write(write_fn, ctx, "  8. broker-state <0|1>\n");
+    pc_write(write_fn, ctx, "  9. peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+    pc_write(write_fn, ctx, " 10. defaults small|large\n");
+    pc_write(write_fn, ctx, " 11. reset\n");
+    pc_write(write_fn, ctx, " 12. reboot\n");
+#else
+    pc_write(write_fn, ctx, "  6. broker <mqtt> <p2p> [ip]\n");
+    pc_write(write_fn, ctx, "  7. broker-state <0|1>\n");
+    pc_write(write_fn, ctx, "  8. peer <i> <name> <host> [mqtt] [p2p] [0|1]\n");
+    pc_write(write_fn, ctx, "  9. defaults small|large\n");
+    pc_write(write_fn, ctx, " 10. reset\n");
+    pc_write(write_fn, ctx, " 11. reboot\n");
+#endif
+    pc_write(write_fn, ctx, "Type the command shown after the number, for example: status\n");
 }
 
 static int cmd_status(product_console_write_fn write_fn, void *ctx)
@@ -405,6 +432,10 @@ int product_console_handle_line(char *line,
     }
     if (strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0) {
         print_help(write_fn, write_ctx);
+        return 0;
+    }
+    if (strcmp(cmd, "menu") == 0) {
+        print_menu(write_fn, write_ctx);
         return 0;
     }
     if (strcmp(cmd, "status") == 0) {

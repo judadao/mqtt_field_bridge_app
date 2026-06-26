@@ -70,10 +70,21 @@ static void test_help_and_status(void)
 {
     CHECK(run_cmd("help") == 0);
     CHECK(strstr(out_buf, "commands:") != NULL);
+    CHECK(strstr(out_buf, "menu") != NULL);
     CHECK(strstr(out_buf, "wifi") == NULL);
     CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
     CHECK(strstr(out_buf, "OK network=init") != NULL);
+}
+
+static void test_menu_lists_numbered_commands(void)
+{
+    CHECK(run_cmd("menu") == 0);
+    CHECK(strstr(out_buf, "Field Bridge CLI menu") != NULL);
+    CHECK(strstr(out_buf, "1. status") != NULL);
+    CHECK(strstr(out_buf, "2. info") != NULL);
+    CHECK(strstr(out_buf, "peer <i> <name> <host>") != NULL);
+    CHECK(strstr(out_buf, "Type the command shown after the number") != NULL);
 }
 
 static void test_broker_save_config(void)
@@ -156,6 +167,7 @@ int main(void)
 {
     printf("=== unit_product_console ===\n");
     RUN(test_help_and_status);
+    RUN(test_menu_lists_numbered_commands);
     RUN(test_broker_save_config);
     RUN(test_peer_command_saves_peer);
     RUN(test_scan_and_show);
