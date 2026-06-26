@@ -166,18 +166,38 @@ subscriptions rise from 28 to 64, and the rejected burst drops from 36 to 0.
 
 ## Architecture Flow
 
+The product has two paths: a control path that saves/applies configuration, and
+a data path that moves MQTT traffic after the bridge is running.
+
 ```mermaid
-flowchart LR
-    CLI[UART CLI] --> Config[product_config]
-    Config --> Runtime[product_runtime]
-    Runtime --> Net[product_ethernet]
-    Runtime --> Broker[mqtt_min_broker]
-    Runtime --> Bridge[bridge_control]
-    Bridge --> P2P[Static P2P seeds]
-    IO[dephy_industrial_io] --> Broker
-    Board[Dephy ESP32 profile] --> App[Zephyr product app]
-    Testkit[dephy_testkit] --> Tests[Linux product tests]
+flowchart TD
+    Installer[Installer / factory operator] --> CLI[UART CLI menu]
+    CLI --> Saved[Saved product config]
+
+    Boot[ESP32 boot] --> Saved
+    Saved --> Runtime[Runtime startup]
+    Runtime --> Ethernet[W5500 Ethernet]
+    Runtime --> LocalBroker[Local MQTT broker]
+    Runtime --> Peers[Static bridge peer list]
+
+    Peers --> Mesh[P2P broker links]
+    FieldIO[Field IO payloads] --> LocalBroker
+    LocalBroker --> Mesh
+    Mesh --> Remote[Remote brokers and subscribers]
+
+    Tests[Linux host tests] --> Saved
+    Tests --> Runtime
+    Tests --> LocalBroker
 ```
+
+In plain terms:
+- The installer configures network, broker, and peer slots through UART.
+- Boot reads the saved config once and starts Ethernet, the local broker, and
+  static P2P peer links from that config.
+- Field IO data enters the local broker, then the broker mesh forwards matching
+  MQTT traffic to peer brokers and subscribers.
+- Linux tests exercise the same product config and runtime logic without ESP32
+  hardware.
 
 ## Example Field Flow
 
