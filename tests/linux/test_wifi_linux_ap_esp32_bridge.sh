@@ -12,7 +12,7 @@ ESP_PORTS=${ESP_PORTS:-"/dev/ttyUSB2 /dev/ttyUSB3"}
 NODE_IPS=${NODE_IPS:-}
 WIFI_IFACE=${WIFI_IFACE:-}
 LINUX_AP_SSID=${LINUX_AP_SSID:-Linux-Bridge-Test}
-LINUX_AP_PASS=${LINUX_AP_PASS:-bridge1234}
+LINUX_AP_PASS=${LINUX_AP_PASS-bridge1234}
 LINUX_AP_CHANNEL=${LINUX_AP_CHANNEL:-1}
 LINUX_AP_CONN=${LINUX_AP_CONN:-Linux-Bridge-Test-esp32-bridge}
 LINUX_AP_ADDR=${LINUX_AP_ADDR:-10.88.0.1/24}
@@ -233,7 +233,12 @@ provision_node_uart() {
     log_file=$4
 
     stty -F "$port" 115200 raw -echo -hupcl >/dev/null 2>&1 || true
-    python3 - "$port" "$static_ip" "${LINUX_AP_ADDR%/*}" "$LINUX_AP_SSID" "$LINUX_AP_PASS" "$BROKER_ENABLED" "$peer_commands" <<'PY' >"$log_file" 2>&1 &
+    wifi_pass_arg=$LINUX_AP_PASS
+    if [ -z "$wifi_pass_arg" ]; then
+        wifi_pass_arg="-"
+    fi
+
+    python3 - "$port" "$static_ip" "${LINUX_AP_ADDR%/*}" "$LINUX_AP_SSID" "$wifi_pass_arg" "$BROKER_ENABLED" "$peer_commands" <<'PY' >"$log_file" 2>&1 &
 import serial
 import sys
 import termios
@@ -752,12 +757,15 @@ if [ "$SETUP_LINUX_AP" = "1" ]; then
         802-11-wireless.channel "$LINUX_AP_CHANNEL" \
         802-11-wireless.powersave 2 \
         802-11-wireless.ap-isolation 0 \
-        wifi-sec.key-mgmt wpa-psk \
-        wifi-sec.pmf 1 \
-        wifi-sec.psk "$LINUX_AP_PASS" \
         ipv4.method manual \
         ipv4.addresses "$LINUX_AP_ADDR" \
         ipv6.method ignore
+    if [ -n "$LINUX_AP_PASS" ]; then
+        nmcli connection modify "$LINUX_AP_CONN" \
+            wifi-sec.key-mgmt wpa-psk \
+            wifi-sec.pmf 1 \
+            wifi-sec.psk "$LINUX_AP_PASS"
+    fi
     nmcli connection up "$LINUX_AP_CONN" ifname "$WIFI_IFACE" >/dev/null
 else
     printf 'SETUP_LINUX_AP=0; expecting existing AP ssid=%s addr=%s on %s\n' \
