@@ -9,12 +9,6 @@ logic is compiled with a Zephyr shim header so it runs on the host.
 # Unit tests only (no broker needed)
 make -C tests/linux unit-tests
 
-# Provisioning web/config test with ignored local static IP settings
-make -C tests/linux web-network-test
-
-# Start the Linux provisioning web UI for browser inspection
-make -C tests/linux run-web-server
-
 # Integration tests (builds broker with P2P automatically)
 make -C tests/linux integration-tests
 
@@ -46,10 +40,6 @@ change.
 |------|------|----------------|
 | `unit_product_config` | unit | peer CRUD, boundary, null-safety, Linux persistence |
 | `unit_bridge_control` | unit | enabled peer filtering and invalid peer skipping |
-| `unit_provisioning_http` | unit | socket-based local HTML page, `/status`, `/peers`, `POST /peers/<index>`, and error routes |
-| `test_web_network_config.sh` | shell/unit | provisioning web `/config` save/read using ignored local static IP, gateway, netmask, and DNS values |
-| `ui_browser_test.js` | browser | headless Chrome UI flow for direct-load Ethernet UI, manual broker slot editing, peer-index save routing, and removed login/WiFi controls |
-| `run_web_config_server.sh` | manual | starts the Linux provisioning web UI at `http://127.0.0.1:8080/` using ignored local static network values |
 | `test_sync_deps.sh` | shell | `--version`, dirty check, missing tag, idempotency |
 | `test_3node_scenario.sh` | integration | Node1→Node2 routing, Node3 routing, Node1 local-only when Node2 offline, Node2 restart recovery |
 | `test_esp32_linux_chain_bridge.sh` | hardware/integration | Linux broker1-5 chain bridged to ESP32 through broker5; verifies publish ESP32→broker1 and broker1→ESP32 |
@@ -84,10 +74,6 @@ change.
 | `PUBLISH_DELAY` | 0.0005 | load-balance matrix |
 | `TOPIC_COUNT` | 1 | dynamic balance burst |
 | `TOPIC_MAX_SUBS` | 16 | topic-limit burst |
-| `WEB_TEST_DEVICE_IP` | required by `web-network-test` | web network config |
-| `WEB_TEST_GATEWAY` | required by `web-network-test` | web network config |
-| `WEB_TEST_NETMASK` | required by `web-network-test` | web network config |
-| `WEB_TEST_DNS` | required by `web-network-test` | web network config |
 | `ESP32_HOST` | `192.168.127.4` | ESP32/Linux chain bridge hardware test |
 | `ESP32_DEVICE_IP` | `192.168.127.4` | ESP32 management IP for network bind test |
 | `ESP32_BROKER_IP` | `192.168.127.15` | ESP32 broker IP for network bind test |
@@ -97,9 +83,6 @@ change.
 | `LINUX_PEER_HOST` | `192.168.127.5` | IP address the ESP32 uses to reach Linux broker5 |
 | `LINUX_HOST` | `192.168.127.5` | Linux middle broker IP visible from ESP32 bridge peers |
 | `BRIDGE_MODE` | `star` | `star` makes both ESP32 boards seed Linux; `chain` makes Linux seed ESP B |
-
-`web-network-test` sources `tests/linux/local_web_network.env` when present.
-That file is ignored so site-specific IP settings stay local.
 
 ## Load-balance benchmark
 
@@ -179,28 +162,6 @@ The recorded 20260626 run used client admission `64` and topic table limit `16`,
 preloaded topic subscriptions `16/4/4/4`, then sent 36 new topic subscribers to
 broker A. No-fallback stayed at `16/4/4/4` and rejected all 36; fallback reached
 `16/16/16/16` and rejected none.
-
-## Manual web UI
-
-Create or edit the ignored local file:
-
-```bash
-cat > tests/linux/local_web_network.env <<'EOF'
-WEB_TEST_DEVICE_IP=10.90.66.226
-WEB_TEST_GATEWAY=10.90.66.1
-WEB_TEST_NETMASK=255.255.254.0
-WEB_TEST_DNS=10.123.200.11
-EOF
-```
-
-Start the Linux provisioning web UI:
-
-```bash
-make -C tests/linux run-web-server
-```
-
-Then open `http://127.0.0.1:8080/`. The UI loads without login. Stop the server
-with `Ctrl-C`.
 
 ## Zephyr shim
 
