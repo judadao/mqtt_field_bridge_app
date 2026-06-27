@@ -173,42 +173,28 @@ peer list. MQTT clients publish and subscribe to any reachable broker; the mesh
 then forwards matching topic traffic across broker links.
 
 ```mermaid
-flowchart TD
-    subgraph Provisioning[Provisioning and boot]
-        Installer[Installer / factory operator]
-        CLI[UART CLI menu]
-        Config[Saved product config]
-        Boot[ESP32 boot]
-        Installer --> CLI
-        CLI --> Config
-        Boot --> Config
-    end
+flowchart LR
+    Operator[Installer / factory operator] --> UART[UART CLI provisioning]
 
-    subgraph Node[One field bridge node]
-        Runtime[Runtime startup]
-        Net[W5500 Ethernet]
-        Broker[Local MQTT broker]
-        PeerList[Static peer seed list]
-        Runtime --> Net
-        Runtime --> Broker
-        Runtime --> PeerList
-    end
+    UART --> ConfigA[Node A saved config]
+    UART --> ConfigB[Node B saved config]
+    UART --> ConfigC[Node C saved config]
+    UART --> ConfigD[Node D saved config]
 
-    subgraph Mesh[MQTT broker mesh]
-        P2P[P2P bridge links]
-        RemoteA[Peer broker A]
-        RemoteB[Peer broker B]
-        RemoteC[Peer broker C]
-        PeerList --> P2P
-        P2P <--> RemoteA
-        P2P <--> RemoteB
-        P2P <--> RemoteC
-    end
+    ConfigA --> A[Node A<br/>Ethernet + local MQTT broker]
+    ConfigB --> B[Node B<br/>Ethernet + local MQTT broker]
+    ConfigC --> C[Node C<br/>Ethernet + local MQTT broker]
+    ConfigD --> D[Node D<br/>Ethernet + local MQTT broker]
 
-    FieldIO[Field IO publisher] --> Broker
-    LocalSub[Local subscriber] --> Broker
-    Broker <--> P2P
-    P2P --> RemoteSub[Remote matching subscribers]
+    A <-->|P2P bridge| B
+    B <-->|P2P bridge| C
+    C <-->|P2P bridge| D
+    D <-->|P2P bridge| A
+
+    FieldIO[Field IO publisher] --> A
+    ClientB[MQTT client] --> B
+    C --> ClientC[MQTT subscriber]
+    D --> Remote[Remote subscribers / dashboards]
 ```
 
 In plain terms:
