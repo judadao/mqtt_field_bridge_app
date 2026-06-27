@@ -166,51 +166,162 @@ subscriptions rise from 28 to 64, and the rejected burst drops from 36 to 0.
 
 ## Architecture Flow
 
-The product has two paths: a control path that saves/applies configuration, and
-a data path that moves MQTT traffic after the bridge is running.
+The product runtime is a static-seed MQTT broker mesh. UART CLI provisioning
+saves each node's local network, local broker, and peer bridge settings. On
+boot, each ESP32 starts its local broker and opens P2P bridge links to the saved
+peer list. MQTT clients publish and subscribe to any reachable broker; the mesh
+then forwards matching topic traffic across broker links.
 
 ```mermaid
 flowchart TD
-    Installer[Installer / factory operator] --> CLI[UART CLI menu]
-    CLI --> Saved[Saved product config]
+    subgraph Provisioning[Provisioning and boot]
+        Installer[Installer / factory operator]
+        CLI[UART CLI menu]
+        Config[Saved product config]
+        Boot[ESP32 boot]
+        Installer --> CLI
+        CLI --> Config
+        Boot --> Config
+    end
 
-    Boot[ESP32 boot] --> Saved
-    Saved --> Runtime[Runtime startup]
-    Runtime --> Ethernet[W5500 Ethernet]
-    Runtime --> LocalBroker[Local MQTT broker]
-    Runtime --> Peers[Static bridge peer list]
+    subgraph Node[One field bridge node]
+        Runtime[Runtime startup]
+        Net[W5500 Ethernet]
+        Broker[Local MQTT broker]
+        PeerList[Static peer seed list]
+        Runtime --> Net
+        Runtime --> Broker
+        Runtime --> PeerList
+    end
 
-    Peers --> Mesh[P2P broker links]
-    FieldIO[Field IO payloads] --> LocalBroker
-    LocalBroker --> Mesh
-    Mesh --> Remote[Remote brokers and subscribers]
+    subgraph Mesh[MQTT broker mesh]
+        P2P[P2P bridge links]
+        RemoteA[Peer broker A]
+        RemoteB[Peer broker B]
+        RemoteC[Peer broker C]
+        PeerList --> P2P
+        P2P <--> RemoteA
+        P2P <--> RemoteB
+        P2P <--> RemoteC
+    end
 
-    Tests[Linux host tests] --> Saved
-    Tests --> Runtime
-    Tests --> LocalBroker
+    FieldIO[Field IO publisher] --> Broker
+    LocalSub[Local subscriber] --> Broker
+    Broker <--> P2P
+    P2P --> RemoteSub[Remote matching subscribers]
 ```
 
 In plain terms:
-- The installer configures network, broker, and peer slots through UART.
-- Boot reads the saved config once and starts Ethernet, the local broker, and
-  static P2P peer links from that config.
-- Field IO data enters the local broker, then the broker mesh forwards matching
-  MQTT traffic to peer brokers and subscribers.
-- Linux tests exercise the same product config and runtime logic without ESP32
-  hardware.
+- Each node owns one local MQTT broker and one saved static peer list.
+- Static peer seeds form the initial mesh; the broker module handles P2P topic
+  forwarding after links are up.
+- Publishers and subscribers can attach to different brokers while keeping the
+  same logical MQTT topics.
+- Linux tests exercise the same product config, runtime, peer filtering, and
+  routing logic without ESP32 hardware.
 
-## Example Field Flow
+## Mesh Example
+
+This four-node example uses a ring plus one diagonal seed so every node has a
+short path into the mesh. A subscriber on node D can receive a topic published
+through node A because the broker mesh forwards the matching subscription path.
 
 ```mermaid
 flowchart TD
-    A[Installer opens UART console] --> B[Set DHCP or static Ethernet values]
-    B --> C[Set local broker IP and ports]
-    C --> D[Configure peer bridge slots]
-    D --> E[Reboot to apply saved config]
-    E --> F[ESP32 starts Ethernet and local broker]
-    F --> G[Static P2P peers connect]
-    G --> H[Field IO publishes to site topics]
-    H --> I[Remote subscriber receives bridged data]
+    subgraph Site[Four field bridge brokers]
+        A[Node A<br/>192.168.127.15:1883<br/>bridge 4884]
+        B[Node B<br/>192.168.127.16:1883<br/>bridge 4884]
+        C[Node C<br/>192.168.127.17:1883<br/>bridge 4884]
+        D[Node D<br/>192.168.127.18:1883<br/>bridge 4884]
+    end
+
+    A <-->|P2P| B
+    B <-->|P2P| C
+    C <-->|P2P| D
+    D <-->|P2P| A
+    A <-->|P2P| C
+
+    Sensor[Field IO publisher<br/>topic site/line1/temp] --> A
+    D --> Dashboard[Remote subscriber<br/>site/line1/temp]
+```
+
+Example peer slots:
+
+| Node | Peer 0 | Peer 1 |
+|------|--------|--------|
+| A | B `192.168.127.16:4884` | C `192.168.127.17:4884` |
+| B | C `192.168.127.17:4884` | A `192.168.127.15:4884` |
+| C | D `192.168.127.18:4884` | A `192.168.127.15:4884` |
+| D | A `192.168.127.15:4884` | C `192.168.127.17:4884` |
+
+## Recovery Process
+
+Recovery is client-path fallback plus mesh routing, not durable broker replay.
+When a broker fails, clients connected to that broker lose their TCP sockets.
+Fallback clients retry their intended broker first, then connect to another live
+broker. After reconnect, they keep publishing or subscribing to the same logical
+topics, and the live broker mesh carries matching traffic through the remaining
+nodes. QoS 0 packets already in flight at the failure boundary can still be
+lost.
+
+```mermaid
+flowchart TD
+    Healthy[Normal traffic through broker A] --> Failure[Broker A fails]
+    Failure --> SocketBreak[Publishers/subscribers detect broken socket]
+    SocketBreak --> RetryA[Retry intended broker A]
+    RetryA --> Alive{A reachable?}
+    Alive -- yes --> RejoinA[Reconnect to A]
+    Alive -- no --> Fallback[Connect to live broker B/C/D]
+    Fallback --> Resume[Resume same topic workload]
+    RejoinA --> Resume
+    Resume --> MeshRoute[Mesh forwards matching topics]
+    MeshRoute --> Delivered[Live subscribers receive traffic]
+    Failure --> BoundaryLoss[Possible QoS 0 in-flight loss]
+```
+
+## Four-Node Recovery Sequence
+
+This sequence matches the benchmark behavior: four brokers A/B/C/D are running,
+broker A fails, affected clients reconnect to live broker B, and B/C/D continue
+carrying the same topic workload through the mesh. The same process applies when
+multiple brokers fail as long as at least one fallback target remains reachable.
+
+```mermaid
+sequenceDiagram
+    participant PubA as Publisher originally on A
+    participant SubA as Subscriber originally on A
+    participant A as Broker A
+    participant B as Broker B
+    participant C as Broker C
+    participant D as Broker D
+
+    PubA->>A: Publish site/line1/temp
+    SubA->>A: Subscribe site/line1/temp
+    A->>B: P2P bridge link
+    B->>A: P2P bridge link
+    B->>C: P2P bridge link
+    C->>B: P2P bridge link
+    C->>D: P2P bridge link
+    D->>C: P2P bridge link
+    D->>A: P2P bridge link
+    A->>D: P2P bridge link
+
+    Note over A: Broker A fails
+    A--xPubA: TCP socket breaks
+    A--xSubA: TCP socket breaks
+    PubA->>A: Retry intended broker
+    A--xPubA: Not reachable
+    SubA->>A: Retry intended broker
+    A--xSubA: Not reachable
+
+    PubA->>B: Fallback connect
+    SubA->>B: Fallback connect
+    SubA->>B: Re-subscribe site/line1/temp
+    PubA->>B: Continue publishing site/line1/temp
+    B->>C: Forward matching mesh traffic
+    C->>D: Forward if downstream subscribers match
+    B->>SubA: Deliver resumed topic traffic
+    Note over PubA,SubA: In-flight QoS 0 messages at failure time may be missing
 ```
 
 ## Results And Historical Notes
