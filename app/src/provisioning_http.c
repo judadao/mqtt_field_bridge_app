@@ -34,7 +34,7 @@
 
 LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
 
-#if defined(__ZEPHYR__) && !defined(CONFIG_DEPHY_ETH)
+#if defined(__ZEPHYR__) && !defined(CONFIG_HTTP_SERVER)
 
 int provisioning_http_start(void)
 {
@@ -43,8 +43,13 @@ int provisioning_http_start(void)
 
 #else
 
+#ifdef __ZEPHYR__
+#define REQ_BUF_SIZE 1024
+#define RESP_BUF_SIZE 2048
+#else
 #define REQ_BUF_SIZE 4096
 #define RESP_BUF_SIZE 8192
+#endif
 
 static uint8_t started;
 static char request_buf[REQ_BUF_SIZE];
@@ -68,33 +73,17 @@ static const char index_html[] =
 "<!doctype html><html><head><meta charset=\"utf-8\">"
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
 "<title>Field Bridge Settings</title>"
-"<style>:root{--button-bg:#1565c0}body{font-family:sans-serif;margin:24px;max-width:960px}"
-"label{display:block;margin:10px 0 4px}input,select{width:100%;max-width:420px;padding:8px}"
-"button{background:var(--button-bg);color:white;border:0;padding:9px 14px;margin-top:14px}"
-"button.secondary{background:#555}.peer{border:1px solid #ddd;padding:12px;margin:0 0 12px}"
-".peer-head{display:flex;align-items:center;justify-content:space-between;gap:12px}"
-".peer-head label{display:flex;align-items:center;gap:6px;margin:0}.peer-head input{width:auto}"
-"pre{background:#f4f4f4;padding:12px;overflow:auto}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}"
-"@media(max-width:720px){.grid{grid-template-columns:1fr}}</style></head>"
-"<body><h1>Field Bridge Settings</h1>"
-"<section class=\"grid\"><div><h2>Network</h2>"
-"<label>Device IP</label><input id=\"device_ip\"><label>Gateway</label><input id=\"gateway\">"
-"<label>Netmask</label><input id=\"netmask\"><label>DNS</label><input id=\"dns\">"
-"<label>Mode</label><select id=\"mode\"><option value=\"auto\">Auto</option><option value=\"eth\">ETH</option><option value=\"wifi\">WiFi</option></select>"
-"<h2>Broker</h2><label>Broker IP</label><input id=\"broker_ip\"><label>MQTT Port</label><input id=\"mqtt_port\" type=\"number\">"
-"<label>P2P Port</label><input id=\"p2p_port\" type=\"number\"><label>Topic Prefix</label><input id=\"topic_prefix\">"
-"<button onclick=\"saveConfig()\">Save</button></div>"
-"<div><h2>Broker Peers</h2><div id=\"peer-forms\"></div><pre id=\"peers\"></pre>"
-"<h2>WiFi Connect</h2><p>Use UART CLI for WiFi mode. Ethernet mode exposes this web UI/API.</p>"
-"</div></section>"
+"<style>body{font-family:sans-serif;margin:24px;max-width:760px}"
+"button{margin:6px;padding:10px 14px;background:#1565c0;color:white;border:0}"
+"pre{background:#f4f4f4;padding:12px;white-space:pre-wrap}</style></head>"
+"<body><h1>Field Bridge Settings</h1><button onclick=\"cfg()\">Save Config</button>"
+"<h2>Broker Peers</h2><button onclick=\"peer(0)\">Save Peer 0</button>"
+"<button onclick=\"peer(1)\">Save Peer 1</button><pre id=\"o\"></pre>"
 "<script>"
-"async function j(p,o){let r=await fetch(p,o);let t=await r.text();try{return JSON.parse(t)}catch(e){return t}}"
-"async function saveJson(p,b){let r=await fetch(p,{method:'POST',body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r}"
-"function esc(v){return String(v||'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]))}"
-"function renderPeers(ps){document.getElementById('peer-forms').innerHTML=ps.map(p=>`<div class=\"peer\"><div class=\"peer-head\"><strong>Slot ${p.index}</strong><label><input id=\"peer_enabled_${p.index}\" type=\"checkbox\" ${p.enabled?'checked':''}>Enabled</label></div><label>Name</label><input id=\"peer_name_${p.index}\" value=\"${esc(p.name)}\"><label>Host</label><input id=\"peer_host_${p.index}\" value=\"${esc(p.host)}\"><label>MQTT Port</label><input id=\"peer_mqtt_${p.index}\" type=\"number\" value=\"${p.mqtt_port||1883}\"><label>P2P Port</label><input id=\"peer_p2p_${p.index}\" type=\"number\" value=\"${p.p2p_port||4884}\"><button class=\"secondary\" onclick=\"savePeer(${p.index})\">Save Peer</button></div>`).join('')}"
-"async function load(){let c=await j('/config');for(let k of ['device_ip','gateway','netmask','dns','broker_ip','mqtt_port','p2p_port','topic_prefix']){if(document.getElementById(k))document.getElementById(k).value=c[k]||''}document.getElementById('mode').value=c.mode||'auto';let ps=await j('/peers');renderPeers(ps);document.getElementById('peers').textContent=JSON.stringify(ps,null,2)}"
-"async function saveConfig(){let b={device_name:'esp32-min-broker',site_id:'field-a',dhcp_enabled:0,broker_enabled:1,bridge_enabled:1,mesh_enabled:1};for(let k of ['device_ip','gateway','netmask','dns','broker_ip','topic_prefix','mode'])b[k]=document.getElementById(k).value;for(let k of ['mqtt_port','p2p_port'])b[k]=parseInt(document.getElementById(k).value||'0',10);try{await saveJson('/config',b);alert('Save success');await load()}catch(e){alert('Save failed')}}"
-"async function savePeer(i){let b={name:document.getElementById('peer_name_'+i).value,host:document.getElementById('peer_host_'+i).value,mqtt_port:parseInt(document.getElementById('peer_mqtt_'+i).value||'1883',10),p2p_port:parseInt(document.getElementById('peer_p2p_'+i).value||'4884',10),enabled:document.getElementById('peer_enabled_'+i).checked?1:0};try{await saveJson('/peers/'+i,b);alert('Save success');await load()}catch(e){alert('Save failed')}}"
+"async function j(u,o){let r=await fetch(u,o),t=await r.text();if(!r.ok)throw t;try{return JSON.parse(t)}catch(e){return t}}"
+"async function load(){window.c=await j('/config');window.ps=await j('/peers');o.textContent=JSON.stringify({config:c,peers:ps},0,2)}"
+"async function cfg(){try{c.device_ip=prompt('Device IP',c.device_ip)||c.device_ip;c.gateway=prompt('Gateway',c.gateway)||c.gateway;c.netmask=prompt('Netmask',c.netmask)||c.netmask;await j('/config',{method:'POST',body:JSON.stringify(c)});alert('Save success');load()}catch(e){alert('Save failed')}}"
+"async function peer(i){try{let p=ps[i];p.name=prompt('Name',p.name)||p.name;p.host=prompt('Host',p.host)||p.host;p.mqtt_port=parseInt(prompt('MQTT Port',p.mqtt_port||1883)||1883,10);p.p2p_port=parseInt(prompt('P2P Port',p.p2p_port||4884)||4884,10);p.enabled=confirm('Enable peer?')?1:0;await j('/peers/'+i,{method:'POST',body:JSON.stringify(p)});alert('Save success');load()}catch(e){alert('Save failed')}}"
 "load();</script></body></html>";
 
 #ifndef __ZEPHYR__
@@ -447,10 +436,6 @@ static int apply_peer_json(int index, const char *body)
 }
 
 #ifdef __ZEPHYR__
-static const struct http_header zephyr_html_headers[] = {
-    { "Content-Type", "text/html; charset=utf-8" },
-};
-
 static const struct http_header zephyr_json_headers[] = {
     { "Content-Type", "application/json" },
 };
@@ -514,11 +499,17 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
 
     if (client->method == HTTP_GET &&
         (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)) {
+        size_t html_len = strlen(index_html);
+
+        if (html_len >= RESP_BUF_SIZE) {
+            zephyr_set_json_response(response_ctx, HTTP_500_INTERNAL_SERVER_ERROR,
+                                     "{\"error\":\"index too large\"}");
+            return 0;
+        }
         response_ctx->status = HTTP_200_OK;
-        response_ctx->headers = zephyr_html_headers;
-        response_ctx->header_count = ARRAY_SIZE(zephyr_html_headers);
-        response_ctx->body = (const uint8_t *)index_html;
-        response_ctx->body_len = strlen(index_html);
+        memcpy(response_buf, index_html, html_len);
+        response_ctx->body = (const uint8_t *)response_buf;
+        response_ctx->body_len = html_len;
         response_ctx->final_chunk = true;
         return 0;
     }
@@ -623,7 +614,7 @@ static struct http_resource_detail_dynamic zephyr_fallback_detail = {
     .common = {
         .type = HTTP_RESOURCE_TYPE_DYNAMIC,
         .bitmask_of_supported_http_methods = BIT(HTTP_GET) | BIT(HTTP_POST),
-        .content_type = "application/json",
+        .content_type = "text/html",
     },
     .cb = zephyr_dynamic_handler,
 };
