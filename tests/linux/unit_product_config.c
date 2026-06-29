@@ -193,6 +193,7 @@ static void test_settings_defaults(void)
     CHECK(strcmp(s.network.netmask, "255.255.0.0") == 0);
     CHECK(strcmp(s.network.dns, "192.168.127.5") == 0);
     CHECK(s.network.dhcp_enabled == 0);
+    CHECK(s.network.mode == FIELD_BRIDGE_NETWORK_MODE_AUTO);
     CHECK(strcmp(s.broker.broker_ip, "192.168.127.15") == 0);
     CHECK(strcmp(s.broker.site_id, "field-a") == 0);
     CHECK(strcmp(s.broker.topic_prefix, "site/field-a") == 0);
@@ -211,6 +212,7 @@ static void test_settings_set_and_get(void)
     strcpy(in.network.netmask, "255.255.255.0");
     strcpy(in.network.dns, "8.8.8.8");
     in.network.dhcp_enabled = 0;
+    in.network.mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
     strcpy(in.broker.site_id, "site-b");
     strcpy(in.broker.broker_ip, "192.168.10.20");
     strcpy(in.broker.topic_prefix, "site/site-b");
@@ -230,6 +232,7 @@ static void test_settings_set_and_get(void)
     CHECK(strcmp(out.network.netmask, "255.255.255.0") == 0);
     CHECK(strcmp(out.network.dns, "8.8.8.8") == 0);
     CHECK(out.network.dhcp_enabled == 0);
+    CHECK(out.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
     CHECK(strcmp(out.broker.site_id, "site-b") == 0);
     CHECK(strcmp(out.broker.broker_ip, "192.168.10.20") == 0);
     CHECK(out.broker.mqtt_port == 1884);
@@ -286,6 +289,31 @@ static void test_reject_invalid_settings(void)
     CHECK(product_config_get_settings(&s) == 0);
     s.network.dns[0] = '\0';
     CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.network.mode = 99;
+    CHECK(product_config_set_settings(&s) == -1);
+}
+
+static void test_network_mode_helpers(void)
+{
+    uint8_t mode = 99;
+
+    CHECK(strcmp(product_config_network_mode_name(FIELD_BRIDGE_NETWORK_MODE_AUTO),
+                 "auto") == 0);
+    CHECK(strcmp(product_config_network_mode_name(FIELD_BRIDGE_NETWORK_MODE_ETH),
+                 "eth") == 0);
+    CHECK(strcmp(product_config_network_mode_name(FIELD_BRIDGE_NETWORK_MODE_WIFI),
+                 "wifi") == 0);
+    CHECK(strcmp(product_config_network_mode_name(99), "unknown") == 0);
+    CHECK(product_config_network_mode_from_name("auto", &mode) == 0);
+    CHECK(mode == FIELD_BRIDGE_NETWORK_MODE_AUTO);
+    CHECK(product_config_network_mode_from_name("ethernet", &mode) == 0);
+    CHECK(mode == FIELD_BRIDGE_NETWORK_MODE_ETH);
+    CHECK(product_config_network_mode_from_name("wi-fi", &mode) == 0);
+    CHECK(mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
+    CHECK(product_config_network_mode_from_name("bad", &mode) == -1);
+    CHECK(product_config_network_mode_from_name("auto", NULL) == -1);
 }
 
 static void test_reset_all_restores_defaults_and_clears_peers(void)
@@ -401,6 +429,7 @@ static void test_settings_persist_survives_reinit(void)
     strcpy(in.network.netmask, "255.255.255.0");
     strcpy(in.network.dns, "10.10.10.53");
     in.network.dhcp_enabled = 0;
+    in.network.mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
     strcpy(in.broker.broker_ip, "10.10.10.20");
     strcpy(in.broker.site_id, "persist-site");
     strcpy(in.broker.topic_prefix, "site/persist-site");
@@ -419,6 +448,7 @@ static void test_settings_persist_survives_reinit(void)
     CHECK(strcmp(out.system.device_name, "persist-node") == 0);
     CHECK(strcmp(out.network.device_ip, "10.10.10.1") == 0);
     CHECK(strcmp(out.network.dns, "10.10.10.53") == 0);
+    CHECK(out.network.mode == FIELD_BRIDGE_NETWORK_MODE_ETH);
     CHECK(strcmp(out.broker.broker_ip, "10.10.10.20") == 0);
     CHECK(strcmp(out.broker.site_id, "persist-site") == 0);
     CHECK(out.broker.p2p_port == 5884);
@@ -454,6 +484,7 @@ int main(void)
     RUN(test_reject_invalid_enabled_peer);
     RUN(test_reject_enabled_peer_with_missing_fields);
     RUN(test_reject_invalid_settings);
+    RUN(test_network_mode_helpers);
     RUN(test_reset_all_restores_defaults_and_clears_peers);
     RUN(test_apply_large_defaults);
     RUN(test_apply_defaults_rejects_unknown_profile);

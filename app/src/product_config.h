@@ -23,6 +23,12 @@ typedef struct {
     char device_name[FIELD_BRIDGE_NAME_MAX];
 } field_bridge_system_settings_t;
 
+typedef enum {
+    FIELD_BRIDGE_NETWORK_MODE_AUTO = 0,
+    FIELD_BRIDGE_NETWORK_MODE_ETH = 1,
+    FIELD_BRIDGE_NETWORK_MODE_WIFI = 2,
+} field_bridge_network_mode_t;
+
 typedef struct {
     char wifi_ssid[FIELD_BRIDGE_HOST_MAX];
     char wifi_password[FIELD_BRIDGE_HOST_MAX];
@@ -31,6 +37,7 @@ typedef struct {
     char netmask[FIELD_BRIDGE_HOST_MAX];
     char dns[FIELD_BRIDGE_HOST_MAX];
     uint8_t dhcp_enabled;
+    uint8_t mode;
 } field_bridge_network_settings_t;
 
 typedef struct {
@@ -64,5 +71,7 @@ int product_config_get_settings(field_bridge_settings_t *out);
 int product_config_set_settings(const field_bridge_settings_t *settings);
 int product_config_reset_all(void);
 int product_config_apply_defaults(field_bridge_defaults_profile_t profile);
+const char *product_config_network_mode_name(uint8_t mode);
+int product_config_network_mode_from_name(const char *name, uint8_t *mode);
 
 #endif /* PRODUCT_CONFIG_H */

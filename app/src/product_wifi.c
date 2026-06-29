@@ -2,7 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#if !defined(__ZEPHYR__) || defined(CONFIG_DEPHY_WIFI)
 #include <dephy_wifi/wifi.h>
+#define PRODUCT_HAS_DEPHY_WIFI 1
+#else
+#define PRODUCT_HAS_DEPHY_WIFI 0
+#endif
 
 #include "product_wifi.h"
 
@@ -10,6 +15,7 @@
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
+#if PRODUCT_HAS_DEPHY_WIFI
 static void copy_field(char *dst, size_t dst_cap, const char *src)
 {
     if (!dst || dst_cap == 0) {
@@ -95,11 +101,13 @@ static void build_wifi_settings(const field_bridge_settings_t *settings,
                settings->network.dns);
     wifi_settings->dhcp_enabled = settings->network.dhcp_enabled;
 }
+#endif
 
 int product_wifi_start(const field_bridge_settings_t *settings,
                        char *ip_addr,
                        size_t ip_addr_cap)
 {
+#if PRODUCT_HAS_DEPHY_WIFI
     dephy_wifi_settings_t wifi_settings;
 
     if (!settings || !ip_addr || ip_addr_cap == 0) {
@@ -108,12 +116,19 @@ int product_wifi_start(const field_bridge_settings_t *settings,
 
     build_wifi_settings(settings, &wifi_settings);
     return dephy_wifi_start(&wifi_settings, ip_addr, ip_addr_cap);
+#else
+    (void)settings;
+    (void)ip_addr;
+    (void)ip_addr_cap;
+    return -ENODEV;
+#endif
 }
 
 int product_wifi_apply_settings(const field_bridge_settings_t *settings,
                                 char *ip_addr,
                                 size_t ip_addr_cap)
 {
+#if PRODUCT_HAS_DEPHY_WIFI
     dephy_wifi_settings_t wifi_settings;
     int rc;
 
@@ -128,9 +143,23 @@ int product_wifi_apply_settings(const field_bridge_settings_t *settings,
     }
     copy_field(ip_addr, ip_addr_cap, wifi_settings.device_ip);
     return 0;
+#else
+    (void)settings;
+    (void)ip_addr;
+    (void)ip_addr_cap;
+    return -ENODEV;
+#endif
 }
 
 int product_wifi_scan_json(char *buf, size_t buf_cap)
 {
+#if PRODUCT_HAS_DEPHY_WIFI
     return dephy_wifi_scan_json(buf, buf_cap);
+#else
+    if (!buf || buf_cap == 0) {
+        return -EINVAL;
+    }
+    snprintf(buf, buf_cap, "[]");
+    return -ENODEV;
+#endif
 }

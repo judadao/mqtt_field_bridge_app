@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -12,11 +13,8 @@
 #include "bridge_control.h"
 #include "product_console.h"
 #include "product_config.h"
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
 #include "product_wifi.h"
-#else
 #include "product_ethernet.h"
-#endif
 #include "product_runtime.h"
 #include "product_status_io.h"
 
@@ -82,6 +80,108 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
 }
 #endif
 
+static int wifi_configured(const field_bridge_settings_t *settings)
+{
+    return settings && settings->network.wifi_ssid[0] != '\0';
+}
+
+static int has_prefix(const char *value, const char *prefix)
+{
+    size_t len;
+
+    if (!value || !prefix) {
+        return 0;
+    }
+    len = strlen(prefix);
+    return strncmp(value, prefix, len) == 0 &&
+           (value[len] == '\0' || value[len] == '.');
+}
+
+static int auto_prefers_wifi(const field_bridge_settings_t *settings)
+{
+    if (!wifi_configured(settings)) {
+        return 0;
+    }
+    if (strcmp(settings->network.gateway,
+               CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY) == 0) {
+        return 1;
+    }
+    return has_prefix(settings->network.device_ip,
+                      CONFIG_FIELD_BRIDGE_WIFI_STATIC_PREFIX);
+}
+
+static int start_ethernet_network(const field_bridge_settings_t *settings,
+                                  char *ip_addr,
+                                  size_t ip_addr_cap)
+{
+    int rc = product_ethernet_start(settings, ip_addr, ip_addr_cap);
+
+    if (rc != 0) {
+        return rc;
+    }
+    if (!product_ethernet_link_ready()) {
+        LOG_WRN("ethernet start completed but link is not ready");
+        return -ENOLINK;
+    }
+    return 0;
+}
+
+static int start_configured_network(const field_bridge_settings_t *settings,
+                                    char *ip_addr,
+                                    size_t ip_addr_cap,
+                                    uint8_t *active_mode)
+{
+    int rc;
+
+    if (!settings || !ip_addr || ip_addr_cap == 0 || !active_mode) {
+        return -EINVAL;
+    }
+    ip_addr[0] = '\0';
+    *active_mode = settings->network.mode;
+
+    switch (settings->network.mode) {
+    case FIELD_BRIDGE_NETWORK_MODE_ETH:
+        rc = start_ethernet_network(settings, ip_addr, ip_addr_cap);
+        if (rc == 0) {
+            *active_mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
+        }
+        return rc;
+    case FIELD_BRIDGE_NETWORK_MODE_WIFI:
+        if (!wifi_configured(settings)) {
+            return -ENODATA;
+        }
+        rc = product_wifi_start(settings, ip_addr, ip_addr_cap);
+        if (rc == 0) {
+            *active_mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
+        }
+        return rc;
+    case FIELD_BRIDGE_NETWORK_MODE_AUTO:
+        if (auto_prefers_wifi(settings)) {
+            rc = product_wifi_start(settings, ip_addr, ip_addr_cap);
+            if (rc == 0) {
+                *active_mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
+            }
+            return rc;
+        }
+        rc = start_ethernet_network(settings, ip_addr, ip_addr_cap);
+        if (rc == 0) {
+            *active_mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
+            return 0;
+        }
+        LOG_WRN("auto mode: ethernet unavailable (%d)", rc);
+        if (!wifi_configured(settings)) {
+            return -ENODATA;
+        }
+        rc = product_wifi_start(settings, ip_addr, ip_addr_cap);
+        if (rc == 0) {
+            *active_mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
+        }
+        return rc;
+    default:
+        return -EINVAL;
+    }
+}
+
 int main(void)
 {
     LOG_INF("MQTT field bridge app starting");
@@ -94,21 +194,17 @@ int main(void)
     if (product_config_get_settings(&settings) == 0) {
         char ip_addr[FIELD_BRIDGE_HOST_MAX];
         char configured_ip[FIELD_BRIDGE_HOST_MAX];
+        uint8_t active_network_mode = settings.network.mode;
         uint8_t requested_dhcp = settings.network.dhcp_enabled;
         int need_uart_provisioning = !product_config_has_saved_settings();
 
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-        if (settings.network.wifi_ssid[0] == '\0') {
+        if (settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI &&
+            settings.network.wifi_ssid[0] == '\0') {
             need_uart_provisioning = 1;
         }
-#endif
         if (need_uart_provisioning) {
             product_console_start();
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-            LOG_INF("wifi not configured; waiting for UART CLI provisioning");
-#else
-            LOG_INF("product config not saved; waiting for UART CLI provisioning");
-#endif
+            LOG_INF("network config not ready; waiting for UART CLI provisioning");
             product_runtime_broker_failed("UART provisioning required");
             product_status_io_set_running(0);
 #ifdef __ZEPHYR__
@@ -128,25 +224,30 @@ int main(void)
                 settings.network.device_ip,
                 settings.broker.broker_ip,
                 settings.network.dhcp_enabled,
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-                "wifi"
+                product_config_network_mode_name(settings.network.mode));
+        if (start_configured_network(&settings, ip_addr, sizeof(ip_addr),
+                                     &active_network_mode) != 0) {
+            if (settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_AUTO &&
+                !wifi_configured(&settings)) {
+                product_console_start();
+                LOG_INF("auto mode has no usable ethernet and no wifi config; waiting for UART CLI provisioning");
+                product_runtime_broker_failed("UART provisioning required");
+                product_status_io_set_running(0);
+#ifdef __ZEPHYR__
+                while (1) {
+                    k_sleep(K_SECONDS(60));
+                }
 #else
-                "ethernet"
+                return 0;
 #endif
-                );
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-        if (product_wifi_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
-            product_runtime_broker_failed("wifi start failed");
+            }
+            product_runtime_broker_failed("network start failed");
             product_status_io_set_error();
             return -1;
         }
-#else
-        if (product_ethernet_start(&settings, ip_addr, sizeof(ip_addr)) != 0) {
-            product_runtime_broker_failed("ethernet start failed");
-            product_status_io_set_error();
-            return -1;
-        }
-#endif
+        LOG_INF("network active transport=%s ip=%s",
+                product_config_network_mode_name(active_network_mode),
+                ip_addr[0] ? ip_addr : "-");
         if (ip_addr[0]) {
             snprintf(settings.network.device_ip, sizeof(settings.network.device_ip),
                      "%s", ip_addr);
@@ -161,19 +262,19 @@ int main(void)
             strcmp(ip_addr, configured_ip) == 0) {
             settings.network.dhcp_enabled = 0;
         }
+        settings.network.mode = active_network_mode;
         product_runtime_network_start(&settings);
         if (!product_runtime_network_ready()) {
             product_runtime_broker_failed("network not ready");
             product_status_io_set_error();
             return -1;
         }
-#if !defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-        if (!settings.broker.broker_enabled) {
+        if (active_network_mode == FIELD_BRIDGE_NETWORK_MODE_ETH &&
+            !settings.broker.broker_enabled) {
             settings.broker.broker_enabled = 1;
             (void)product_config_set_settings(&settings);
             LOG_INF("broker_enabled was disabled; enabling for power-on startup");
         }
-#endif
     } else {
         product_runtime_broker_failed("settings unavailable");
         product_status_io_set_error();

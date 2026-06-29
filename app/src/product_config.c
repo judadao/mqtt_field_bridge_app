@@ -48,6 +48,7 @@ static void settings_defaults(void)
     strncpy(settings.broker.broker_ip, "192.168.127.15",
             sizeof(settings.broker.broker_ip) - 1);
 #endif
+    settings.network.mode = FIELD_BRIDGE_NETWORK_MODE_AUTO;
     strncpy(settings.broker.site_id, "field-a",
             sizeof(settings.broker.site_id) - 1);
     strncpy(settings.broker.topic_prefix, "site/field-a",
@@ -73,6 +74,13 @@ static void settings_large_defaults(void)
 static int valid_bool(uint8_t v)
 {
     return v <= 1;
+}
+
+static int valid_network_mode(uint8_t mode)
+{
+    return mode == FIELD_BRIDGE_NETWORK_MODE_AUTO ||
+           mode == FIELD_BRIDGE_NETWORK_MODE_ETH ||
+           mode == FIELD_BRIDGE_NETWORK_MODE_WIFI;
 }
 
 static int valid_port(uint16_t port)
@@ -111,7 +119,8 @@ static int validate_settings(const field_bridge_settings_t *cfg)
         !valid_nonempty(cfg->network.gateway) ||
         !valid_nonempty(cfg->network.netmask) ||
         !valid_nonempty(cfg->network.dns) ||
-        !valid_bool(cfg->network.dhcp_enabled)) {
+        !valid_bool(cfg->network.dhcp_enabled) ||
+        !valid_network_mode(cfg->network.mode)) {
         return -1;
     }
     if (!valid_nonempty(cfg->broker.broker_ip) ||
@@ -264,4 +273,38 @@ int product_config_apply_defaults(field_bridge_defaults_profile_t profile)
     }
     settings_loaded_from_store = 1;
     return 0;
+}
+
+const char *product_config_network_mode_name(uint8_t mode)
+{
+    switch (mode) {
+    case FIELD_BRIDGE_NETWORK_MODE_AUTO:
+        return "auto";
+    case FIELD_BRIDGE_NETWORK_MODE_ETH:
+        return "eth";
+    case FIELD_BRIDGE_NETWORK_MODE_WIFI:
+        return "wifi";
+    default:
+        return "unknown";
+    }
+}
+
+int product_config_network_mode_from_name(const char *name, uint8_t *mode)
+{
+    if (!name || !mode) {
+        return -1;
+    }
+    if (strcmp(name, "auto") == 0) {
+        *mode = FIELD_BRIDGE_NETWORK_MODE_AUTO;
+        return 0;
+    }
+    if (strcmp(name, "eth") == 0 || strcmp(name, "ethernet") == 0) {
+        *mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
+        return 0;
+    }
+    if (strcmp(name, "wifi") == 0 || strcmp(name, "wi-fi") == 0) {
+        *mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
+        return 0;
+    }
+    return -1;
 }

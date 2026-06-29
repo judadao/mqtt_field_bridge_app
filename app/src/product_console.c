@@ -8,8 +8,14 @@
 #include "product_config.h"
 #include "product_console.h"
 #include "product_runtime.h"
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
 #include "product_wifi.h"
+
+#ifndef CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY
+#define CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY "10.88.0.1"
+#endif
+
+#ifndef CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK
+#define CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK "255.255.255.0"
 #endif
 
 #ifdef __ZEPHYR__
@@ -94,11 +100,7 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx,
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge wifi ip dhcp broker-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
-#else
-                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge ip dhcp broker-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
-#endif
+                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge mode wifi ip dhcp broker-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
     pc_write(write_fn, ctx,
                   "  info                     show info menu\n");
     pc_write(write_fn, ctx,
@@ -107,10 +109,10 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
                   "  system                   show system menu\n");
     pc_write(write_fn, ctx,
                   "  summary                  show runtime and saved network/broker config\n");
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
     pc_write(write_fn, ctx,
                   "  wifi <ssid> <pass|->     save WiFi AP, reboot to connect\n");
-#endif
+    pc_write(write_fn, ctx,
+                  "  mode auto|eth|wifi       save network transport mode\n");
     pc_write(write_fn, ctx,
                   "  ip <addr> [gw] [mask]    save static network IP, reboot to apply\n");
     pc_write(write_fn, ctx,
@@ -186,11 +188,10 @@ static void print_settings_menu(product_console_write_fn write_fn, void *ctx)
 static void print_network_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
+        { "mode auto|eth|wifi", "set network mode" },
         { "ip <addr> [gw] [mask]", "set static IP" },
         { "dhcp", "enable DHCP" },
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
         { "wifi <ssid> <pass|->", "set WiFi AP" },
-#endif
     };
 
     current_menu = PRODUCT_CONSOLE_MENU_DEVICE_NETWORK;
@@ -291,6 +292,8 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Saved config\n");
     pc_write(write_fn, ctx, "------------------------------\n");
     pc_write(write_fn, ctx, "Device        : %s\n", settings.system.device_name);
+    pc_write(write_fn, ctx, "Mode          : %s\n",
+             product_config_network_mode_name(settings.network.mode));
     pc_write(write_fn, ctx, "IP            : %s\n", settings.network.device_ip);
     pc_write(write_fn, ctx, "Gateway       : %s\n", settings.network.gateway);
     pc_write(write_fn, ctx, "Netmask       : %s\n", settings.network.netmask);
@@ -330,6 +333,8 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "\nConfig\n");
     pc_write(write_fn, ctx, "------------------------------\n");
     pc_write(write_fn, ctx, "Device        : %s\n", settings.system.device_name);
+    pc_write(write_fn, ctx, "Mode          : %s\n",
+             product_config_network_mode_name(settings.network.mode));
     pc_write(write_fn, ctx, "DHCP          : %u\n", settings.network.dhcp_enabled);
     pc_write(write_fn, ctx, "IP            : %s\n", settings.network.device_ip);
     pc_write(write_fn, ctx, "Gateway       : %s\n", settings.network.gateway);
@@ -356,7 +361,19 @@ static void print_usage_ip(product_console_write_fn write_fn, void *ctx)
     print_back_to_menu(write_fn, ctx);
 }
 
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+static void print_usage_mode(product_console_write_fn write_fn, void *ctx)
+{
+    clear_screen(write_fn, ctx);
+    pc_write(write_fn, ctx, "Device Network Setting\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Command       : mode auto|eth|wifi\n");
+    pc_write(write_fn, ctx, "Auto          : try Ethernet, fallback to WiFi if configured\n");
+    pc_write(write_fn, ctx, "ETH           : Ethernet only; web UI/API allowed\n");
+    pc_write(write_fn, ctx, "WiFi          : WiFi only; UART config only\n");
+    pc_write(write_fn, ctx, "Effect        : save network mode; reboot to apply\n");
+    print_back_to_menu(write_fn, ctx);
+}
+
 static void print_usage_wifi(product_console_write_fn write_fn, void *ctx)
 {
     clear_screen(write_fn, ctx);
@@ -368,7 +385,6 @@ static void print_usage_wifi(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "Effect        : save WiFi AP; reboot to connect\n");
     print_back_to_menu(write_fn, ctx);
 }
-#endif
 
 static void print_usage_broker_port(product_console_write_fn write_fn, void *ctx)
 {
@@ -460,35 +476,34 @@ static int cmd_ip(char **save, product_console_write_fn write_fn, void *ctx)
         copy_arg(settings.network.gateway, sizeof(settings.network.gateway), gw);
         copy_arg(settings.network.dns, sizeof(settings.network.dns), gw);
     } else if (!settings.network.gateway[0]) {
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-        copy_arg(settings.network.gateway, sizeof(settings.network.gateway),
-                 CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
-        copy_arg(settings.network.dns, sizeof(settings.network.dns),
-                 CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
-#else
-        copy_arg(settings.network.gateway, sizeof(settings.network.gateway), "192.168.127.5");
-        copy_arg(settings.network.dns, sizeof(settings.network.dns), "192.168.127.5");
-#endif
+        if (settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI) {
+            copy_arg(settings.network.gateway, sizeof(settings.network.gateway),
+                     CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
+            copy_arg(settings.network.dns, sizeof(settings.network.dns),
+                     CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
+        } else {
+            copy_arg(settings.network.gateway, sizeof(settings.network.gateway),
+                     "192.168.127.5");
+            copy_arg(settings.network.dns, sizeof(settings.network.dns),
+                     "192.168.127.5");
+        }
     }
     if (mask) {
         copy_arg(settings.network.netmask, sizeof(settings.network.netmask), mask);
     } else if (!settings.network.netmask[0]) {
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
-        copy_arg(settings.network.netmask, sizeof(settings.network.netmask),
-                 CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK);
-#else
-        copy_arg(settings.network.netmask, sizeof(settings.network.netmask), "255.255.0.0");
-#endif
+        if (settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI) {
+            copy_arg(settings.network.netmask, sizeof(settings.network.netmask),
+                     CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK);
+        } else {
+            copy_arg(settings.network.netmask, sizeof(settings.network.netmask),
+                     "255.255.0.0");
+        }
     }
     if (!settings.network.dns[0]) {
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
         copy_arg(settings.network.dns, sizeof(settings.network.dns),
-                 settings.network.gateway[0] ?
-                 settings.network.gateway : CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY);
-#else
-        copy_arg(settings.network.dns, sizeof(settings.network.dns),
-                 settings.network.gateway[0] ? settings.network.gateway : "192.168.127.5");
-#endif
+                 settings.network.gateway[0] ? settings.network.gateway :
+                 (settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI ?
+                  CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY : "192.168.127.5"));
     }
     settings.network.dhcp_enabled = 0;
 
@@ -502,6 +517,28 @@ static int cmd_ip(char **save, product_console_write_fn write_fn, void *ctx)
                   settings.network.gateway,
                   settings.network.netmask,
                   settings.network.dns);
+    return 0;
+}
+
+static int cmd_mode(char **save, product_console_write_fn write_fn, void *ctx)
+{
+    char *mode_name = next_token(save);
+    field_bridge_settings_t settings;
+    uint8_t mode;
+
+    if (!mode_name ||
+        product_config_network_mode_from_name(mode_name, &mode) != 0 ||
+        product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: mode auto|eth|wifi\n");
+        return -1;
+    }
+    settings.network.mode = mode;
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save mode failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx, "OK saved mode=%s; reboot to apply\n",
+             product_config_network_mode_name(settings.network.mode));
     return 0;
 }
 
@@ -522,7 +559,6 @@ static int cmd_dhcp(product_console_write_fn write_fn, void *ctx)
     return 0;
 }
 
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
 static int cmd_wifi(char **save, product_console_write_fn write_fn, void *ctx)
 {
     char *ssid = next_token(save);
@@ -560,7 +596,6 @@ static int cmd_wifi(char **save, product_console_write_fn write_fn, void *ctx)
              settings.network.netmask);
     return 0;
 }
-#endif
 
 static int cmd_broker(char **save, product_console_write_fn write_fn, void *ctx)
 {
@@ -790,15 +825,16 @@ static int cmd_menu_index(int index,
     case PRODUCT_CONSOLE_MENU_DEVICE_NETWORK:
         switch (index) {
         case 1:
-            print_usage_ip(write_fn, write_ctx);
+            print_usage_mode(write_fn, write_ctx);
             return 0;
         case 2:
-            return cmd_dhcp(write_fn, write_ctx);
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
+            print_usage_ip(write_fn, write_ctx);
+            return 0;
         case 3:
+            return cmd_dhcp(write_fn, write_ctx);
+        case 4:
             print_usage_wifi(write_fn, write_ctx);
             return 0;
-#endif
         default:
             pc_write(write_fn, write_ctx, "ERR unknown network index; try device-network\n");
             return -1;
@@ -936,14 +972,15 @@ int product_console_handle_line(char *line,
     if (strcmp(cmd, "ip") == 0) {
         return cmd_ip(&save, write_fn, write_ctx);
     }
+    if (strcmp(cmd, "mode") == 0) {
+        return cmd_mode(&save, write_fn, write_ctx);
+    }
     if (strcmp(cmd, "dhcp") == 0) {
         return cmd_dhcp(write_fn, write_ctx);
     }
-#if defined(CONFIG_FIELD_BRIDGE_WIFI_TEST_PROFILE)
     if (strcmp(cmd, "wifi") == 0) {
         return cmd_wifi(&save, write_fn, write_ctx);
     }
-#endif
     if (strcmp(cmd, "broker") == 0) {
         return cmd_broker(&save, write_fn, write_ctx);
     }
