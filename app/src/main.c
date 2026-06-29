@@ -11,6 +11,7 @@
 #include "p2p.h"
 
 #include "bridge_control.h"
+#include "provisioning_http.h"
 #include "product_console.h"
 #include "product_config.h"
 #include "product_wifi.h"
@@ -268,6 +269,16 @@ int main(void)
             product_runtime_broker_failed("network not ready");
             product_status_io_set_error();
             return -1;
+        }
+        if (active_network_mode == FIELD_BRIDGE_NETWORK_MODE_ETH) {
+            int http_rc = provisioning_http_start();
+
+            if (http_rc != 0) {
+                LOG_ERR("provisioning HTTP start failed: %d", http_rc);
+            }
+        } else {
+            LOG_INF("provisioning HTTP disabled for %s mode",
+                    product_config_network_mode_name(active_network_mode));
         }
         if (active_network_mode == FIELD_BRIDGE_NETWORK_MODE_ETH &&
             !settings.broker.broker_enabled) {
