@@ -15,10 +15,15 @@ items:
   notes: Added on 2026-06-30. USB0 is expected to use management/broker IP
     192.168.127.10 with the Linux host on 192.168.127.5. Product firmware now
     starts W5500 management HTTP on port 8080 and defers broker auto-start for
-    W5500 builds. Current hardware status: switch link is up and W5500 receives
-    some broadcast frames, but host ARP from 34:29:8f:70:f7:88 to 192.168.127.10
-    is intermittent and ping/web are not yet passing. Do not tag the dephy W5500
-    patch as a consumable release until USB0 passes arping, ping, and curl.
+    W5500 builds. Current hardware status: switch link is up and W5500 TX is
+    confirmed on the host by diagnostic 0x88b5 broadcast frames from
+    02:00:00:60:37:28. Host ARP/IP frames from 34:29:8f:70:f7:88 are visible on
+    the Linux NIC, but W5500 RX marker diagnostics do not fire, so host-to-W5500
+    frames are not entering the W5500 RX ring. A forced 10M/full PHY experiment
+    did not recover RX. Next hardware step is to change switch port/cable or test
+    direct host-to-W5500 wiring before resuming arping, ping, and curl. Do not tag
+    the dephy W5500 patch as a consumable release until USB0 passes arping, ping,
+    and curl.
 - id: product-eth-web-wifi-transport-mode
   area: firmware
   title: Keep provisioning web on Ethernet while allowing WiFi as an optional broker transport.
