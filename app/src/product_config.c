@@ -1,5 +1,8 @@
 #include <string.h>
 
+#if defined(__ZEPHYR__) && defined(CONFIG_HWINFO)
+#include <zephyr/drivers/hwinfo.h>
+#endif
 #include <zephyr/logging/log.h>
 
 #include <dephy_config/config_store.h>
@@ -19,6 +22,48 @@ LOG_MODULE_REGISTER(product_config, LOG_LEVEL_INF);
 static field_bridge_peer_t peers[FIELD_BRIDGE_PEER_MAX];
 static field_bridge_settings_t settings;
 static uint8_t settings_loaded_from_store;
+
+#if defined(__ZEPHYR__) && defined(CONFIG_HWINFO)
+static void apply_known_esp32_default_ip(void)
+{
+    static const struct {
+        uint8_t id_tail[3];
+        const char *ip;
+    } known_boards[] = {
+        { { 0x60, 0x37, 0x28 }, "192.168.127.10" },
+        { { 0x0c, 0x5d, 0xd8 }, "192.168.127.11" },
+        { { 0x60, 0x39, 0xe8 }, "192.168.127.12" },
+        { { 0x0c, 0x20, 0x90 }, "192.168.127.13" },
+        { { 0x09, 0xc4, 0x04 }, "192.168.127.14" },
+        { { 0x5a, 0xb4, 0x1c }, "192.168.127.15" },
+    };
+    uint8_t device_id[8];
+    ssize_t len = hwinfo_get_device_id(device_id, sizeof(device_id));
+
+    if (len < 3) {
+        return;
+    }
+
+    for (size_t i = 0; i < sizeof(known_boards) / sizeof(known_boards[0]); i++) {
+        const uint8_t *tail = &device_id[(size_t)len - 3];
+
+        if (memcmp(tail, known_boards[i].id_tail, 3) != 0) {
+            continue;
+        }
+
+        strncpy(settings.network.device_ip, known_boards[i].ip,
+                sizeof(settings.network.device_ip) - 1);
+        strncpy(settings.broker.broker_ip, known_boards[i].ip,
+                sizeof(settings.broker.broker_ip) - 1);
+        LOG_INF("known ESP32 default IP set to %s", known_boards[i].ip);
+        return;
+    }
+}
+#else
+static void apply_known_esp32_default_ip(void)
+{
+}
+#endif
 
 static void settings_defaults(void)
 {
@@ -73,6 +118,7 @@ static void settings_defaults(void)
     settings.network.wifi_dhcp_enabled = 0;
     strncpy(settings.broker.broker_ip, "192.168.127.10",
             sizeof(settings.broker.broker_ip) - 1);
+    apply_known_esp32_default_ip();
 #endif
     settings.network.mode = FIELD_BRIDGE_NETWORK_MODE_AUTO;
     strncpy(settings.broker.site_id, "field-a",
