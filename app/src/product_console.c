@@ -1115,11 +1115,6 @@ void product_console_start(void)
     if (console_started) {
         return;
     }
-#if defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
-    LOG_INF("UART console control disabled for W5500 build");
-    console_started = 1;
-    return;
-#endif
     console_getline_init();
     k_thread_create(&console_thread_data,
                     console_stack,
