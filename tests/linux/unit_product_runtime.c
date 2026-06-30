@@ -97,15 +97,18 @@ static void test_broker_state_transitions(void)
     field_bridge_runtime_status_t st;
 
     CHECK(product_runtime_set_broker_enabled(1) == 0);
+    CHECK(product_runtime_broker_start_requested() == 1);
     CHECK(product_runtime_get_status(&st) == 0);
     CHECK(strcmp(st.broker_state, "requested") == 0);
 
     product_runtime_broker_started();
+    CHECK(product_runtime_broker_start_requested() == 0);
     CHECK(product_runtime_get_status(&st) == 0);
     CHECK(strcmp(st.broker_state, "running") == 0);
     CHECK(strcmp(st.p2p_role, "dynamic") == 0);
 
     CHECK(product_runtime_set_broker_enabled(0) == 0);
+    CHECK(product_runtime_broker_start_requested() == 0);
     CHECK(product_runtime_get_status(&st) == 0);
     CHECK(strcmp(st.broker_state, "stopped") == 0);
     CHECK(product_runtime_set_broker_enabled(2) == -1);

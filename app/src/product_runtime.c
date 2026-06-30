@@ -104,6 +104,11 @@ int product_runtime_set_broker_enabled(uint8_t enabled)
     return 0;
 }
 
+int product_runtime_broker_start_requested(void)
+{
+    return strcmp(runtime_status.broker_state, "requested") == 0;
+}
+
 int product_runtime_get_status(field_bridge_runtime_status_t *out)
 {
     if (!out) {

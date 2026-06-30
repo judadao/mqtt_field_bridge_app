@@ -40,15 +40,6 @@ static int fail_before;
     printf("%s\n", tests_failed == fail_before ? "ok" : "FAIL");       \
 } while (0)
 
-static void fill_wifi_network_defaults(field_bridge_settings_t *s)
-{
-    strcpy(s->network.wifi_device_ip, "10.88.0.2");
-    strcpy(s->network.wifi_gateway, "10.88.0.1");
-    strcpy(s->network.wifi_netmask, "255.255.255.0");
-    strcpy(s->network.wifi_dns, "10.88.0.1");
-    s->network.wifi_dhcp_enabled = 0;
-}
-
 /* ── tests ─────────────────────────────────────────────────────────────── */
 
 static void test_init_zeroes_peers(void)
@@ -202,11 +193,6 @@ static void test_settings_defaults(void)
     CHECK(strcmp(s.network.netmask, "255.255.0.0") == 0);
     CHECK(strcmp(s.network.dns, "192.168.127.5") == 0);
     CHECK(s.network.dhcp_enabled == 0);
-    CHECK(strcmp(s.network.wifi_device_ip, "10.88.0.2") == 0);
-    CHECK(strcmp(s.network.wifi_gateway, "10.88.0.1") == 0);
-    CHECK(strcmp(s.network.wifi_netmask, "255.255.255.0") == 0);
-    CHECK(strcmp(s.network.wifi_dns, "10.88.0.1") == 0);
-    CHECK(s.network.wifi_dhcp_enabled == 0);
     CHECK(s.network.mode == FIELD_BRIDGE_NETWORK_MODE_AUTO);
     CHECK(strcmp(s.broker.broker_ip, "192.168.127.10") == 0);
     CHECK(strcmp(s.broker.site_id, "field-a") == 0);
@@ -226,9 +212,7 @@ static void test_settings_set_and_get(void)
     strcpy(in.network.netmask, "255.255.255.0");
     strcpy(in.network.dns, "8.8.8.8");
     in.network.dhcp_enabled = 0;
-    strcpy(in.network.wifi_ssid, "wifi-test");
-    fill_wifi_network_defaults(&in);
-    in.network.mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
+    in.network.mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
     strcpy(in.broker.site_id, "site-b");
     strcpy(in.broker.broker_ip, "192.168.10.20");
     strcpy(in.broker.topic_prefix, "site/site-b");
@@ -248,10 +232,7 @@ static void test_settings_set_and_get(void)
     CHECK(strcmp(out.network.netmask, "255.255.255.0") == 0);
     CHECK(strcmp(out.network.dns, "8.8.8.8") == 0);
     CHECK(out.network.dhcp_enabled == 0);
-    CHECK(strcmp(out.network.wifi_ssid, "wifi-test") == 0);
-    CHECK(strcmp(out.network.wifi_device_ip, "10.88.0.2") == 0);
-    CHECK(strcmp(out.network.wifi_gateway, "10.88.0.1") == 0);
-    CHECK(out.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
+    CHECK(out.network.mode == FIELD_BRIDGE_NETWORK_MODE_ETH);
     CHECK(strcmp(out.broker.site_id, "site-b") == 0);
     CHECK(strcmp(out.broker.broker_ip, "192.168.10.20") == 0);
     CHECK(out.broker.mqtt_port == 1884);
@@ -310,16 +291,7 @@ static void test_reject_invalid_settings(void)
     CHECK(product_config_set_settings(&s) == -1);
 
     CHECK(product_config_get_settings(&s) == 0);
-    s.network.wifi_dns[0] = '\0';
-    CHECK(product_config_set_settings(&s) == -1);
-
-    CHECK(product_config_get_settings(&s) == 0);
     s.network.mode = 99;
-    CHECK(product_config_set_settings(&s) == -1);
-
-    CHECK(product_config_get_settings(&s) == 0);
-    s.network.mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
-    s.network.wifi_ssid[0] = '\0';
     CHECK(product_config_set_settings(&s) == -1);
 }
 
@@ -331,15 +303,12 @@ static void test_network_mode_helpers(void)
                  "auto") == 0);
     CHECK(strcmp(product_config_network_mode_name(FIELD_BRIDGE_NETWORK_MODE_ETH),
                  "eth") == 0);
-    CHECK(strcmp(product_config_network_mode_name(FIELD_BRIDGE_NETWORK_MODE_WIFI),
-                 "wifi") == 0);
     CHECK(strcmp(product_config_network_mode_name(99), "unknown") == 0);
     CHECK(product_config_network_mode_from_name("auto", &mode) == 0);
     CHECK(mode == FIELD_BRIDGE_NETWORK_MODE_AUTO);
     CHECK(product_config_network_mode_from_name("ethernet", &mode) == 0);
     CHECK(mode == FIELD_BRIDGE_NETWORK_MODE_ETH);
-    CHECK(product_config_network_mode_from_name("wi-fi", &mode) == 0);
-    CHECK(mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
+    CHECK(product_config_network_mode_from_name("wi-fi", &mode) == -1);
     CHECK(product_config_network_mode_from_name("bad", &mode) == -1);
     CHECK(product_config_network_mode_from_name("auto", NULL) == -1);
 }
@@ -457,7 +426,6 @@ static void test_settings_persist_survives_reinit(void)
     strcpy(in.network.netmask, "255.255.255.0");
     strcpy(in.network.dns, "10.10.10.53");
     in.network.dhcp_enabled = 0;
-    fill_wifi_network_defaults(&in);
     in.network.mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
     strcpy(in.broker.broker_ip, "10.10.10.20");
     strcpy(in.broker.site_id, "persist-site");

@@ -75,8 +75,8 @@ static void test_help_and_status(void)
     CHECK(strstr(out_buf, "summary") != NULL);
     CHECK(strstr(out_buf, "device-network") != NULL);
     CHECK(strstr(out_buf, "local-broker") != NULL);
-    CHECK(strstr(out_buf, "mode auto|eth|wifi") != NULL);
-    CHECK(strstr(out_buf, "wifi <ssid>") != NULL);
+    CHECK(strstr(out_buf, "mode auto|eth") != NULL);
+    CHECK(strstr(out_buf, "wifi <ssid>") == NULL);
     CHECK(strstr(out_buf, "ap ") == NULL);
     CHECK(run_cmd("status") == 0);
     CHECK(strstr(out_buf, "Status") != NULL);
@@ -122,7 +122,7 @@ static void test_menu_index_commands(void)
     CHECK(run_cmd("1") == 0);
     CHECK(strstr(out_buf, "Device Network Setting") != NULL);
     CHECK(run_cmd("1") == 0);
-    CHECK(strstr(out_buf, "Command       : mode auto|eth|wifi") != NULL);
+    CHECK(strstr(out_buf, "Command       : mode auto|eth") != NULL);
     CHECK(run_cmd("2") == 0);
     CHECK(strstr(out_buf, "Command       : ip <addr> [gw] [mask]") != NULL);
     CHECK(run_cmd("0") == 0);
@@ -189,7 +189,7 @@ static void test_scan_and_show(void)
     CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
     CHECK(strstr(out_buf, "Mode          : auto") != NULL);
     CHECK(strstr(out_buf, "ETH IP        : 192.168.127.10") != NULL);
-    CHECK(strstr(out_buf, "WiFi IP       : 10.88.0.2") != NULL);
+    CHECK(strstr(out_buf, "WiFi") == NULL);
     CHECK(strstr(out_buf, "Broker IP     : 192.168.127.10") != NULL);
     CHECK(strstr(out_buf, "Broker port   :") != NULL);
     CHECK(strstr(out_buf, "Bridge port   :") != NULL);
@@ -217,29 +217,19 @@ static void test_ip_and_dhcp_commands_save_network_config(void)
     CHECK(settings.network.dhcp_enabled == 1);
 }
 
-static void test_mode_and_wifi_commands_save_network_config(void)
+static void test_mode_commands_save_network_config(void)
 {
     field_bridge_settings_t settings;
 
     CHECK(run_cmd("mode wifi") != 0);
-    CHECK(strstr(out_buf, "ERR save mode failed") != NULL);
-
-    CHECK(run_cmd("ip 10.88.0.2 10.88.0.1 255.255.255.0") == 0);
-    CHECK(run_cmd("wifi Linux-Bridge-Test -") == 0);
-    CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
-    CHECK(strcmp(settings.network.wifi_ssid, "Linux-Bridge-Test") == 0);
-    CHECK(strcmp(settings.network.wifi_password, "") == 0);
-    CHECK(strcmp(settings.network.wifi_device_ip, "10.88.0.2") == 0);
-    CHECK(strcmp(settings.network.wifi_gateway, "10.88.0.1") == 0);
-    CHECK(strcmp(settings.broker.broker_ip, "10.88.0.2") == 0);
+    CHECK(strstr(out_buf, "ERR usage: mode auto|eth") != NULL);
 
     CHECK(run_cmd("mode eth") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
     CHECK(settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_ETH);
 
     CHECK(run_cmd("mode bad") != 0);
-    CHECK(strstr(out_buf, "ERR usage: mode auto|eth|wifi") != NULL);
+    CHECK(strstr(out_buf, "ERR usage: mode auto|eth") != NULL);
 }
 
 static void test_reset_defaults_and_reboot(void)
@@ -257,7 +247,7 @@ static void test_reset_defaults_and_reboot(void)
 static void test_rejects_bad_commands(void)
 {
     CHECK(run_cmd("wifi onlyssid") != 0);
-    CHECK(strstr(out_buf, "ERR usage: wifi") != NULL);
+    CHECK(strstr(out_buf, "ERR unknown") != NULL);
     CHECK(run_cmd("scan") != 0);
     CHECK(strstr(out_buf, "ERR unknown") != NULL);
     CHECK(run_cmd("nope") != 0);
@@ -274,7 +264,7 @@ int main(void)
     RUN(test_peer_command_saves_peer);
     RUN(test_scan_and_show);
     RUN(test_ip_and_dhcp_commands_save_network_config);
-    RUN(test_mode_and_wifi_commands_save_network_config);
+    RUN(test_mode_commands_save_network_config);
     RUN(test_reset_defaults_and_reboot);
     RUN(test_rejects_bad_commands);
 

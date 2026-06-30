@@ -83,7 +83,7 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
     CHECK(strstr(resp, "ETH '+f") != NULL);
-    CHECK(strstr(resp, "WiFi '+f") != NULL);
+    CHECK(strstr(resp, "WiFi '+f") == NULL);
     CHECK(strstr(resp, "WiFi Scan") == NULL);
     CHECK(strstr(resp, "WiFi Connect") == NULL);
     CHECK(strstr(resp, "Operation Result") == NULL);
@@ -132,12 +132,12 @@ static void test_config_no_auth(void)
     CHECK(strstr(resp, "\"dns\":\"192.168.127.5\"") != NULL);
     CHECK(strstr(resp, "\"admin_password\"") == NULL);
     CHECK(strstr(resp, "\"ap_ssid\"") == NULL);
-    CHECK(strstr(resp, "\"wifi_ssid\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_device_ip\":\"10.88.0.2\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_gateway\":\"10.88.0.1\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_netmask\":\"255.255.255.0\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_dns\":\"10.88.0.1\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_dhcp_enabled\":0") != NULL);
+    CHECK(strstr(resp, "\"wifi_ssid\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_device_ip\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_gateway\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_netmask\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_dns\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_dhcp_enabled\"") == NULL);
     CHECK(strstr(resp, "\"wifi_password\"") == NULL);
 }
 
@@ -146,11 +146,8 @@ static void test_post_config_valid(void)
     const char *body =
         "{\"device_name\":\"node-a\",\"device_ip\":\"192.168.9.10\","
         "\"gateway\":\"192.168.9.1\",\"netmask\":\"255.255.255.0\","
-        "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,"
-        "\"wifi_ssid\":\"LabWiFi\",\"wifi_password\":\"secret\","
-        "\"wifi_device_ip\":\"10.88.0.9\",\"wifi_gateway\":\"10.88.0.1\","
-        "\"wifi_netmask\":\"255.255.255.0\",\"wifi_dns\":\"10.88.0.1\","
-        "\"wifi_dhcp_enabled\":0,\"mode\":\"wifi\",\"site_id\":\"field-b\","
+        "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,\"mode\":\"eth\","
+        "\"site_id\":\"field-b\","
         "\"broker_ip\":\"192.168.9.20\","
         "\"topic_prefix\":\"site/field-b\",\"mqtt_port\":1884,\"p2p_port\":4885,"
         "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":1}";
@@ -173,11 +170,11 @@ static void test_post_config_valid(void)
     CHECK(strstr(resp, "\"gateway\":\"192.168.9.1\"") != NULL);
     CHECK(strstr(resp, "\"netmask\":\"255.255.255.0\"") != NULL);
     CHECK(strstr(resp, "\"dns\":\"1.1.1.1\"") != NULL);
-    CHECK(strstr(resp, "\"mode\":\"wifi\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_ssid\":\"LabWiFi\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_device_ip\":\"10.88.0.9\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_gateway\":\"10.88.0.1\"") != NULL);
-    CHECK(strstr(resp, "\"wifi_dhcp_enabled\":0") != NULL);
+    CHECK(strstr(resp, "\"mode\":\"eth\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_ssid\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_device_ip\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_gateway\"") == NULL);
+    CHECK(strstr(resp, "\"wifi_dhcp_enabled\"") == NULL);
     CHECK(strstr(resp, "\"wifi_password\"") == NULL);
     CHECK(strstr(resp, "\"site_id\":\"field-b\"") != NULL);
     CHECK(strstr(resp, "\"topic_prefix\":\"site/field-b\"") != NULL);

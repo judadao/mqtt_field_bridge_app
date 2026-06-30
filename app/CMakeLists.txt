@@ -13,7 +13,6 @@ target_sources(app PRIVATE
   src/bridge_control.c
   src/provisioning_http.c
   src/product_ethernet.c
-  src/product_wifi.c
 )
 
 target_include_directories(app PRIVATE src)

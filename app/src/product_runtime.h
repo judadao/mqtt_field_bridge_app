@@ -43,6 +43,7 @@ int product_runtime_network_ready(void);
 void product_runtime_broker_started(void);
 void product_runtime_broker_failed(const char *error);
 int product_runtime_set_broker_enabled(uint8_t enabled);
+int product_runtime_broker_start_requested(void);
 int product_runtime_get_status(field_bridge_runtime_status_t *out);
 int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max);
 int product_runtime_record_publish_test(const field_bridge_publish_test_t *test);

@@ -28,9 +28,17 @@
 
 #include "provisioning_http.h"
 
+#include "bridge_control.h"
 #include "product_config.h"
 #include "product_runtime.h"
 #include "product_topics.h"
+
+#ifndef __ZEPHYR__
+__attribute__((weak)) int bridge_control_apply_peers(void)
+{
+    return 0;
+}
+#endif
 
 LOG_MODULE_REGISTER(provisioning_http, LOG_LEVEL_INF);
 
@@ -90,23 +98,19 @@ static const char index_html[] =
 "<th>#</th><th>On</th><th>Name</th><th>Host</th><th>MQTT</th><th>P2P</th><th></th></tr></thead>"
 "<tbody id=p></tbody></table>"
 "<script>"
-"let C,P,E=['device_ip','gateway','netmask','dns'],W=['wifi_ssid','wifi_device_ip','wifi_gateway','wifi_netmask','wifi_dns'],"
+"let C,P,E=['device_ip','gateway','netmask','dns'],"
 "A=['broker_ip','mqtt_port','p2p_port','topic_prefix'],G=x=>document.getElementById(x);"
 "async function J(u,o){let r=await fetch(u,o),t=await r.text();if(!r.ok)throw t;try{return JSON.parse(t)}catch(e){return t}}"
 "async function L(){C=await J('/config');P=await J('/peers');"
-"n.innerHTML='<tr><th>Mode</th><td><select id=mode>'+['auto','eth','wifi'].map(x=>'<option '+(C.mode==x?'selected':'')+'>'+x+'</option>').join('')+'</select></td></tr>'"
+"n.innerHTML='<tr><th>Mode</th><td><select id=mode>'+['auto','eth'].map(x=>'<option '+(C.mode==x?'selected':'')+'>'+x+'</option>').join('')+'</select></td></tr>'"
 "+E.map(f=>'<tr><th>ETH '+f+'</th><td><input id='+f+' value=\"'+(C[f]||'')+'\"></td></tr>').join('')"
-"+'<tr><th>ETH dhcp</th><td><input id=dhcp_enabled type=checkbox '+(C.dhcp_enabled?'checked':'')+'></td></tr>'"
-"+W.map(f=>'<tr><th>WiFi '+f+'</th><td><input id='+f+' value=\"'+(C[f]||'')+'\"></td></tr>').join('')"
-"+'<tr><th>WiFi password</th><td><input id=wifi_password type=password></td></tr>'"
-"+'<tr><th>WiFi dhcp</th><td><input id=wifi_dhcp_enabled type=checkbox '+(C.wifi_dhcp_enabled?'checked':'')+'></td></tr>';"
+"+'<tr><th>ETH dhcp</th><td><input id=dhcp_enabled type=checkbox '+(C.dhcp_enabled?'checked':'')+'></td></tr>';"
 "c.innerHTML=A.map(f=>'<tr><th>'+f+'</th><td><input id='+f+' value=\"'+(C[f]||'')+'\"></td></tr>').join('');"
 "p.innerHTML=P.map((x,i)=>'<tr><td>'+i+'</td><td><input id=e'+i+' type=checkbox '+(x.enabled?'checked':'')+'></td>"
 "<td><input id=n'+i+' value=\"'+(x.name||'')+'\"></td><td><input id=h'+i+' value=\"'+(x.host||'')+'\"></td>"
 "<td><input id=m'+i+' value=\"'+(x.mqtt_port||1883)+'\"></td><td><input id=q'+i+' value=\"'+(x.p2p_port||4884)+'\"></td>"
 "<td><button onclick=P'+i+'()>Save</button></td></tr>').join('')}"
-"async function s(){try{[...E,...W,...A].map(f=>C[f]=G(f).value);C.mode=G('mode').value;C.dhcp_enabled=G('dhcp_enabled').checked?1:0;"
-"C.wifi_dhcp_enabled=G('wifi_dhcp_enabled').checked?1:0;if(G('wifi_password').value)C.wifi_password=G('wifi_password').value;"
+"async function s(){try{[...E,...A].map(f=>C[f]=G(f).value);C.mode=G('mode').value;C.dhcp_enabled=G('dhcp_enabled').checked?1:0;"
 "C.mqtt_port=+C.mqtt_port||1883;C.p2p_port=+C.p2p_port||4884;"
 "await J('/config',{method:'POST',body:JSON.stringify(C)});alert('Save success');L()}catch(e){alert('Save failed')}}"
 "async function P0(){return V(0)}async function P1(){return V(1)}async function V(i){try{let x={enabled:G('e'+i).checked?1:0,"
@@ -279,10 +283,7 @@ static int build_config_json(char *out, size_t cap)
                     "{\"device_name\":\"%s\",\"mode\":\"%s\","
                     "\"device_ip\":\"%s\",\"gateway\":\"%s\","
                     "\"netmask\":\"%s\",\"dns\":\"%s\","
-                    "\"dhcp_enabled\":%u,\"wifi_ssid\":\"%s\","
-                    "\"wifi_device_ip\":\"%s\",\"wifi_gateway\":\"%s\","
-                    "\"wifi_netmask\":\"%s\",\"wifi_dns\":\"%s\","
-                    "\"wifi_dhcp_enabled\":%u,"
+                    "\"dhcp_enabled\":%u,"
                     "\"broker_ip\":\"%s\",\"site_id\":\"%s\","
                     "\"topic_prefix\":\"%s\",\"mqtt_port\":%u,"
                     "\"p2p_port\":%u,\"broker_enabled\":%u,"
@@ -291,10 +292,7 @@ static int build_config_json(char *out, size_t cap)
                     product_config_network_mode_name(s.network.mode),
                     s.network.device_ip, s.network.gateway,
                     s.network.netmask, s.network.dns,
-                    s.network.dhcp_enabled, s.network.wifi_ssid,
-                    s.network.wifi_device_ip, s.network.wifi_gateway,
-                    s.network.wifi_netmask, s.network.wifi_dns,
-                    s.network.wifi_dhcp_enabled,
+                    s.network.dhcp_enabled,
                     s.broker.broker_ip, s.broker.site_id,
                     s.broker.topic_prefix, s.broker.mqtt_port,
                     s.broker.p2p_port, s.broker.broker_enabled,
@@ -393,30 +391,6 @@ static int apply_config_json(const char *body, int *reboot_required)
                         sizeof(new_settings.network.dns)) == 0) {
         seen = 1;
     }
-    if (json_get_string(body, "wifi_ssid", new_settings.network.wifi_ssid,
-                        sizeof(new_settings.network.wifi_ssid)) == 0) {
-        seen = 1;
-    }
-    if (json_get_string(body, "wifi_password", new_settings.network.wifi_password,
-                        sizeof(new_settings.network.wifi_password)) == 0) {
-        seen = 1;
-    }
-    if (json_get_string(body, "wifi_device_ip", new_settings.network.wifi_device_ip,
-                        sizeof(new_settings.network.wifi_device_ip)) == 0) {
-        seen = 1;
-    }
-    if (json_get_string(body, "wifi_gateway", new_settings.network.wifi_gateway,
-                        sizeof(new_settings.network.wifi_gateway)) == 0) {
-        seen = 1;
-    }
-    if (json_get_string(body, "wifi_netmask", new_settings.network.wifi_netmask,
-                        sizeof(new_settings.network.wifi_netmask)) == 0) {
-        seen = 1;
-    }
-    if (json_get_string(body, "wifi_dns", new_settings.network.wifi_dns,
-                        sizeof(new_settings.network.wifi_dns)) == 0) {
-        seen = 1;
-    }
     if (json_get_string(body, "broker_ip", new_settings.broker.broker_ip,
                         sizeof(new_settings.broker.broker_ip)) == 0) {
         seen = 1;
@@ -437,10 +411,6 @@ static int apply_config_json(const char *body, int *reboot_required)
         seen = 1;
     }
     if (json_get_boolish(body, "dhcp_enabled", &new_settings.network.dhcp_enabled) == 0) {
-        seen = 1;
-    }
-    if (json_get_boolish(body, "wifi_dhcp_enabled",
-                         &new_settings.network.wifi_dhcp_enabled) == 0) {
         seen = 1;
     }
     if (json_get_boolish(body, "broker_enabled", &new_settings.broker.broker_enabled) == 0) {
@@ -489,7 +459,11 @@ static int apply_peer_json(int index, const char *body)
         peer.p2p_port = 4884;
     }
     (void)json_get_boolish(body, "enabled", &peer.enabled);
-    return product_config_set_peer(index, &peer);
+    if (product_config_set_peer(index, &peer) != 0) {
+        return -1;
+    }
+    (void)bridge_control_apply_peers();
+    return 0;
 }
 
 #ifdef __ZEPHYR__

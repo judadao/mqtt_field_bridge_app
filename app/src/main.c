@@ -14,7 +14,6 @@
 #include "provisioning_http.h"
 #include "product_console.h"
 #include "product_config.h"
-#include "product_wifi.h"
 #include "product_ethernet.h"
 #include "product_runtime.h"
 #include "product_status_io.h"
@@ -70,8 +69,7 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
     }
     product_runtime_broker_started();
 
-#if defined(CONFIG_MQTT_P2P_DYNAMIC) && \
-    !(defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500)
+#if defined(CONFIG_MQTT_P2P_DYNAMIC)
     LOG_INF("p2p startup requested after broker_init success");
     p2p_start();
 #else
@@ -80,12 +78,45 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
 
     broker_run();
 }
-#endif
 
-static int wifi_configured(const field_bridge_settings_t *settings)
+static int broker_thread_started;
+
+static int start_broker_service(const field_bridge_settings_t *settings)
 {
-    return settings && settings->network.wifi_ssid[0] != '\0';
+    if (broker_thread_started) {
+        return 0;
+    }
+    if (!settings) {
+        product_runtime_broker_failed("settings unavailable");
+        product_status_io_set_error();
+        return -EINVAL;
+    }
+    LOG_INF("broker startup requested: ip=%s mqtt=%u p2p=%u bridge=%u mesh=%u",
+            settings->broker.broker_ip,
+            settings->broker.mqtt_port,
+            settings->broker.p2p_port,
+            settings->broker.bridge_enabled,
+            settings->broker.mesh_enabled);
+    if (broker_set_bind_host(settings->broker.broker_ip) != 0) {
+        LOG_ERR("invalid broker bind ip: %s", settings->broker.broker_ip);
+        product_runtime_broker_failed("invalid broker bind ip");
+        product_status_io_set_error();
+        return -EINVAL;
+    }
+    bridge_control_apply_peers();
+    broker_set_activity_callback(broker_activity, NULL);
+    product_status_io_set_running(1);
+    k_thread_create(&broker_run_thread,
+                    broker_run_stack,
+                    K_THREAD_STACK_SIZEOF(broker_run_stack),
+                    broker_service_entry,
+                    NULL, NULL, NULL,
+                    6, 0, K_NO_WAIT);
+    k_thread_name_set(&broker_run_thread, "mqtt_broker");
+    broker_thread_started = 1;
+    return 0;
 }
+#endif
 
 #if defined(__ZEPHYR__) && defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
 static void wait_for_w5500_link_grace(int timeout_ms)
@@ -112,8 +143,6 @@ static int start_broker_network(const field_bridge_settings_t *settings,
                                 size_t ip_addr_cap,
                                 uint8_t *active_mode)
 {
-    int rc;
-
     if (!settings || !eth_ip_addr || !ip_addr || ip_addr_cap == 0 || !active_mode) {
         return -EINVAL;
     }
@@ -125,15 +154,6 @@ static int start_broker_network(const field_bridge_settings_t *settings,
         snprintf(ip_addr, ip_addr_cap, "%s", eth_ip_addr);
         *active_mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
         return 0;
-    case FIELD_BRIDGE_NETWORK_MODE_WIFI:
-        if (!wifi_configured(settings)) {
-            return -ENODATA;
-        }
-        rc = product_wifi_start(settings, ip_addr, ip_addr_cap);
-        if (rc == 0) {
-            *active_mode = FIELD_BRIDGE_NETWORK_MODE_WIFI;
-        }
-        return rc;
     case FIELD_BRIDGE_NETWORK_MODE_AUTO:
         snprintf(ip_addr, ip_addr_cap, "%s", eth_ip_addr);
         *active_mode = FIELD_BRIDGE_NETWORK_MODE_ETH;
@@ -188,7 +208,7 @@ int main(void)
             if (http_rc != 0) {
                 LOG_ERR("provisioning HTTP start failed: %d", http_rc);
             }
-        } else if (settings.network.mode != FIELD_BRIDGE_NETWORK_MODE_WIFI) {
+        } else {
 #if defined(__ZEPHYR__) && defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
             LOG_ERR("W5500 management link unavailable; rebooting to retry");
             k_sleep(K_SECONDS(3));
@@ -206,9 +226,6 @@ int main(void)
 #endif
         }
 
-        if (!eth_ready && settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI) {
-            LOG_INF("ethernet management unavailable; continuing WiFi mode without web");
-        }
         if (start_broker_network(&settings, eth_ip_addr, ip_addr, sizeof(ip_addr),
                                  &active_network_mode) != 0) {
             product_runtime_broker_failed("network start failed");
@@ -237,12 +254,6 @@ int main(void)
                 snprintf(runtime_settings.broker.broker_ip,
                          sizeof(runtime_settings.broker.broker_ip), "%s", ip_addr);
             }
-        } else if (ip_addr[0] && active_network_mode == FIELD_BRIDGE_NETWORK_MODE_WIFI) {
-            snprintf(runtime_settings.network.device_ip,
-                     sizeof(runtime_settings.network.device_ip), "%s", ip_addr);
-            runtime_settings.network.dhcp_enabled = settings.network.wifi_dhcp_enabled;
-            snprintf(runtime_settings.broker.broker_ip,
-                     sizeof(runtime_settings.broker.broker_ip), "%s", ip_addr);
         }
         if (requested_dhcp && configured_ip[0] &&
             strcmp(ip_addr, configured_ip) == 0) {
@@ -274,7 +285,17 @@ int main(void)
     LOG_INF("W5500 management web ready; broker auto-start deferred");
     product_runtime_set_broker_enabled(0);
     while (1) {
-        k_sleep(K_SECONDS(60));
+        if (product_runtime_broker_start_requested()) {
+            field_bridge_settings_t requested_settings;
+
+            if (product_config_get_settings(&requested_settings) != 0) {
+                product_runtime_broker_failed("settings unavailable");
+                product_status_io_set_error();
+            } else {
+                (void)start_broker_service(&requested_settings);
+            }
+        }
+        k_sleep(K_MSEC(500));
     }
 #endif
 
@@ -327,8 +348,7 @@ int main(void)
         return -1;
     }
     product_runtime_broker_started();
-#if defined(CONFIG_MQTT_P2P_DYNAMIC) && \
-    !(defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500)
+#if defined(CONFIG_MQTT_P2P_DYNAMIC)
     LOG_INF("p2p startup requested after broker_init success");
     p2p_start();
 #else

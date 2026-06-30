@@ -30,14 +30,6 @@
       "module_path": "deps/dephy_eth",
       "tag_pattern": "dephy-eth-v*"
     },
-    "dephy_wifi": {
-      "repo": "git@github.com:judadao/dephy_wifi.git",
-      "local": "../dephy_wifi",
-      "version": "dephy-wifi-v0.1.1",
-      "path": "deps/dephy_wifi",
-      "module_path": "deps/dephy_wifi",
-      "tag_pattern": "dephy-wifi-v*"
-    },
     "dephy_config": {
       "repo": "git@github.com:judadao/dephy_config.git",
       "local": "../dephy_config",
