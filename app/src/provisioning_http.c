@@ -52,8 +52,17 @@ int provisioning_http_start(void)
 #endif
 
 static uint8_t started;
+#ifdef __ZEPHYR__
+struct zephyr_http_buffers {
+    char request[REQ_BUF_SIZE];
+    char response[RESP_BUF_SIZE];
+};
+
+static struct zephyr_http_buffers *zephyr_buffers;
+#else
 static char request_buf[REQ_BUF_SIZE];
 static char response_buf[RESP_BUF_SIZE];
+#endif
 
 #ifdef __ZEPHYR__
 static void reboot_later_work_fn(struct k_work *work);
@@ -74,22 +83,31 @@ static const char index_html[] =
 "<title>Field Bridge Settings</title>"
 "<style>body{font:16px sans-serif;margin:16px}table{border-collapse:collapse;width:100%;margin:6px 0 12px}"
 "td,th{border:1px solid #ccc;padding:4px}input{width:100%;box-sizing:border-box}"
-"input[type=checkbox]{width:auto}button{background:#1565c0;color:white;border:0;padding:7px 10px}</style></head>"
-"<body><h1>Field Bridge Settings</h1><h2>Broker Settings</h2><table><tbody id=c></tbody></table>"
-"<button onclick=s()>Save Broker Settings</button><h2>Broker Peers</h2><table><thead><tr>"
+"select{width:100%;box-sizing:border-box}input[type=checkbox]{width:auto}button{background:#1565c0;color:white;border:0;padding:7px 10px}</style></head>"
+"<body><h1>Field Bridge Settings</h1><h2>Network</h2><table><tbody id=n></tbody></table>"
+"<h2>Broker</h2><table><tbody id=c></tbody></table><button onclick=s()>Save Settings</button>"
+"<h2>Broker Peers</h2><table><thead><tr>"
 "<th>#</th><th>On</th><th>Name</th><th>Host</th><th>MQTT</th><th>P2P</th><th></th></tr></thead>"
 "<tbody id=p></tbody></table>"
 "<script>"
-"let C,P,A=['device_ip','gateway','netmask','broker_ip','mqtt_port','p2p_port','topic_prefix'],"
-"B=['Device IP','Gateway','Netmask','Broker IP','MQTT Port','P2P Port','Topic Prefix'],G=x=>document.getElementById(x);"
+"let C,P,E=['device_ip','gateway','netmask','dns'],W=['wifi_ssid','wifi_device_ip','wifi_gateway','wifi_netmask','wifi_dns'],"
+"A=['broker_ip','mqtt_port','p2p_port','topic_prefix'],G=x=>document.getElementById(x);"
 "async function J(u,o){let r=await fetch(u,o),t=await r.text();if(!r.ok)throw t;try{return JSON.parse(t)}catch(e){return t}}"
 "async function L(){C=await J('/config');P=await J('/peers');"
-"c.innerHTML=A.map((f,i)=>'<tr><th>'+B[i]+'</th><td><input id=c'+i+' value=\"'+(C[f]||'')+'\"></td></tr>').join('');"
+"n.innerHTML='<tr><th>Mode</th><td><select id=mode>'+['auto','eth','wifi'].map(x=>'<option '+(C.mode==x?'selected':'')+'>'+x+'</option>').join('')+'</select></td></tr>'"
+"+E.map(f=>'<tr><th>ETH '+f+'</th><td><input id='+f+' value=\"'+(C[f]||'')+'\"></td></tr>').join('')"
+"+'<tr><th>ETH dhcp</th><td><input id=dhcp_enabled type=checkbox '+(C.dhcp_enabled?'checked':'')+'></td></tr>'"
+"+W.map(f=>'<tr><th>WiFi '+f+'</th><td><input id='+f+' value=\"'+(C[f]||'')+'\"></td></tr>').join('')"
+"+'<tr><th>WiFi password</th><td><input id=wifi_password type=password></td></tr>'"
+"+'<tr><th>WiFi dhcp</th><td><input id=wifi_dhcp_enabled type=checkbox '+(C.wifi_dhcp_enabled?'checked':'')+'></td></tr>';"
+"c.innerHTML=A.map(f=>'<tr><th>'+f+'</th><td><input id='+f+' value=\"'+(C[f]||'')+'\"></td></tr>').join('');"
 "p.innerHTML=P.map((x,i)=>'<tr><td>'+i+'</td><td><input id=e'+i+' type=checkbox '+(x.enabled?'checked':'')+'></td>"
 "<td><input id=n'+i+' value=\"'+(x.name||'')+'\"></td><td><input id=h'+i+' value=\"'+(x.host||'')+'\"></td>"
 "<td><input id=m'+i+' value=\"'+(x.mqtt_port||1883)+'\"></td><td><input id=q'+i+' value=\"'+(x.p2p_port||4884)+'\"></td>"
 "<td><button onclick=P'+i+'()>Save</button></td></tr>').join('')}"
-"async function s(){try{A.map((f,i)=>C[f]=G('c'+i).value);C.mqtt_port=+C.mqtt_port||1883;C.p2p_port=+C.p2p_port||4884;"
+"async function s(){try{[...E,...W,...A].map(f=>C[f]=G(f).value);C.mode=G('mode').value;C.dhcp_enabled=G('dhcp_enabled').checked?1:0;"
+"C.wifi_dhcp_enabled=G('wifi_dhcp_enabled').checked?1:0;if(G('wifi_password').value)C.wifi_password=G('wifi_password').value;"
+"C.mqtt_port=+C.mqtt_port||1883;C.p2p_port=+C.p2p_port||4884;"
 "await J('/config',{method:'POST',body:JSON.stringify(C)});alert('Save success');L()}catch(e){alert('Save failed')}}"
 "async function P0(){return V(0)}async function P1(){return V(1)}async function V(i){try{let x={enabled:G('e'+i).checked?1:0,"
 "name:G('n'+i).value,host:G('h'+i).value,mqtt_port:+G('m'+i).value||1883,p2p_port:+G('q'+i).value||4884};"
@@ -262,6 +280,9 @@ static int build_config_json(char *out, size_t cap)
                     "\"device_ip\":\"%s\",\"gateway\":\"%s\","
                     "\"netmask\":\"%s\",\"dns\":\"%s\","
                     "\"dhcp_enabled\":%u,\"wifi_ssid\":\"%s\","
+                    "\"wifi_device_ip\":\"%s\",\"wifi_gateway\":\"%s\","
+                    "\"wifi_netmask\":\"%s\",\"wifi_dns\":\"%s\","
+                    "\"wifi_dhcp_enabled\":%u,"
                     "\"broker_ip\":\"%s\",\"site_id\":\"%s\","
                     "\"topic_prefix\":\"%s\",\"mqtt_port\":%u,"
                     "\"p2p_port\":%u,\"broker_enabled\":%u,"
@@ -271,6 +292,9 @@ static int build_config_json(char *out, size_t cap)
                     s.network.device_ip, s.network.gateway,
                     s.network.netmask, s.network.dns,
                     s.network.dhcp_enabled, s.network.wifi_ssid,
+                    s.network.wifi_device_ip, s.network.wifi_gateway,
+                    s.network.wifi_netmask, s.network.wifi_dns,
+                    s.network.wifi_dhcp_enabled,
                     s.broker.broker_ip, s.broker.site_id,
                     s.broker.topic_prefix, s.broker.mqtt_port,
                     s.broker.p2p_port, s.broker.broker_enabled,
@@ -373,6 +397,26 @@ static int apply_config_json(const char *body, int *reboot_required)
                         sizeof(new_settings.network.wifi_ssid)) == 0) {
         seen = 1;
     }
+    if (json_get_string(body, "wifi_password", new_settings.network.wifi_password,
+                        sizeof(new_settings.network.wifi_password)) == 0) {
+        seen = 1;
+    }
+    if (json_get_string(body, "wifi_device_ip", new_settings.network.wifi_device_ip,
+                        sizeof(new_settings.network.wifi_device_ip)) == 0) {
+        seen = 1;
+    }
+    if (json_get_string(body, "wifi_gateway", new_settings.network.wifi_gateway,
+                        sizeof(new_settings.network.wifi_gateway)) == 0) {
+        seen = 1;
+    }
+    if (json_get_string(body, "wifi_netmask", new_settings.network.wifi_netmask,
+                        sizeof(new_settings.network.wifi_netmask)) == 0) {
+        seen = 1;
+    }
+    if (json_get_string(body, "wifi_dns", new_settings.network.wifi_dns,
+                        sizeof(new_settings.network.wifi_dns)) == 0) {
+        seen = 1;
+    }
     if (json_get_string(body, "broker_ip", new_settings.broker.broker_ip,
                         sizeof(new_settings.broker.broker_ip)) == 0) {
         seen = 1;
@@ -393,6 +437,10 @@ static int apply_config_json(const char *body, int *reboot_required)
         seen = 1;
     }
     if (json_get_boolish(body, "dhcp_enabled", &new_settings.network.dhcp_enabled) == 0) {
+        seen = 1;
+    }
+    if (json_get_boolish(body, "wifi_dhcp_enabled",
+                         &new_settings.network.wifi_dhcp_enabled) == 0) {
         seen = 1;
     }
     if (json_get_boolish(body, "broker_enabled", &new_settings.broker.broker_enabled) == 0) {
@@ -470,17 +518,38 @@ static void zephyr_set_json_response(struct http_response_ctx *response_ctx,
     response_ctx->final_chunk = true;
 }
 
-static int zephyr_copy_request_body(const struct http_request_ctx *request_ctx)
+static struct zephyr_http_buffers *zephyr_acquire_buffers(void)
+{
+    if (zephyr_buffers) {
+        return zephyr_buffers;
+    }
+    zephyr_buffers = k_malloc(sizeof(*zephyr_buffers));
+    if (zephyr_buffers) {
+        memset(zephyr_buffers, 0, sizeof(*zephyr_buffers));
+    }
+    return zephyr_buffers;
+}
+
+static void zephyr_release_buffers(void)
+{
+    if (zephyr_buffers) {
+        k_free(zephyr_buffers);
+        zephyr_buffers = NULL;
+    }
+}
+
+static int zephyr_copy_request_body(const struct http_request_ctx *request_ctx,
+                                    char *request)
 {
     if (!request_ctx || !request_ctx->data) {
-        request_buf[0] = '\0';
+        request[0] = '\0';
         return 0;
     }
     if (request_ctx->data_len >= REQ_BUF_SIZE) {
         return -ENOSPC;
     }
-    memcpy(request_buf, request_ctx->data, request_ctx->data_len);
-    request_buf[request_ctx->data_len] = '\0';
+    memcpy(request, request_ctx->data, request_ctx->data_len);
+    request[request_ctx->data_len] = '\0';
     return 0;
 }
 
@@ -491,12 +560,16 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
                                   void *user_data)
 {
     char path[128];
+    struct zephyr_http_buffers *buffers;
+    char *request_buf;
+    char *response_buf;
     int n = 0;
 
     (void)user_data;
 
     if (status == HTTP_SERVER_TRANSACTION_ABORTED ||
         status == HTTP_SERVER_TRANSACTION_COMPLETE) {
+        zephyr_release_buffers();
         return 0;
     }
     if (status != HTTP_SERVER_REQUEST_DATA_FINAL) {
@@ -508,20 +581,20 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
 
     if (client->method == HTTP_GET &&
         (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0)) {
-        size_t html_len = strlen(index_html);
-
-        if (html_len >= RESP_BUF_SIZE) {
-            zephyr_set_json_response(response_ctx, HTTP_500_INTERNAL_SERVER_ERROR,
-                                     "{\"error\":\"index too large\"}");
-            return 0;
-        }
         response_ctx->status = HTTP_200_OK;
-        memcpy(response_buf, index_html, html_len);
-        response_ctx->body = (const uint8_t *)response_buf;
-        response_ctx->body_len = html_len;
+        response_ctx->body = (const uint8_t *)index_html;
+        response_ctx->body_len = strlen(index_html);
         response_ctx->final_chunk = true;
         return 0;
     }
+    buffers = zephyr_acquire_buffers();
+    if (!buffers) {
+        zephyr_set_json_response(response_ctx, HTTP_503_SERVICE_UNAVAILABLE,
+                                 "{\"status\":\"error\",\"error\":\"low memory\"}");
+        return 0;
+    }
+    request_buf = buffers->request;
+    response_buf = buffers->response;
     if (client->method == HTTP_GET && strcmp(path, "/status") == 0) {
         n = build_status_json(response_buf, RESP_BUF_SIZE);
     } else if (client->method == HTTP_GET && strcmp(path, "/config") == 0) {
@@ -537,7 +610,7 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
     }
 
     if (client->method == HTTP_POST) {
-        if (zephyr_copy_request_body(request_ctx) != 0) {
+        if (zephyr_copy_request_body(request_ctx, request_buf) != 0) {
             zephyr_set_json_response(response_ctx, HTTP_400_BAD_REQUEST,
                                      "{\"status\":\"error\",\"error\":\"request too large\"}");
             return 0;

@@ -188,8 +188,9 @@ static void test_scan_and_show(void)
     CHECK(strstr(out_buf, "Saved config") != NULL);
     CHECK(strstr(out_buf, "Device        : esp32-min-broker") != NULL);
     CHECK(strstr(out_buf, "Mode          : auto") != NULL);
-    CHECK(strstr(out_buf, "IP            : 192.168.127.4") != NULL);
-    CHECK(strstr(out_buf, "Broker IP     : 192.168.127.15") != NULL);
+    CHECK(strstr(out_buf, "ETH IP        : 192.168.127.10") != NULL);
+    CHECK(strstr(out_buf, "WiFi IP       : 10.88.0.2") != NULL);
+    CHECK(strstr(out_buf, "Broker IP     : 192.168.127.10") != NULL);
     CHECK(strstr(out_buf, "Broker port   :") != NULL);
     CHECK(strstr(out_buf, "Bridge port   :") != NULL);
     CHECK(run_cmd("summary") == 0);
@@ -220,16 +221,17 @@ static void test_mode_and_wifi_commands_save_network_config(void)
 {
     field_bridge_settings_t settings;
 
-    CHECK(run_cmd("mode wifi") == 0);
-    CHECK(strstr(out_buf, "OK saved mode=wifi") != NULL);
-    CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
+    CHECK(run_cmd("mode wifi") != 0);
+    CHECK(strstr(out_buf, "ERR save mode failed") != NULL);
 
     CHECK(run_cmd("ip 10.88.0.2 10.88.0.1 255.255.255.0") == 0);
     CHECK(run_cmd("wifi Linux-Bridge-Test -") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(settings.network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI);
     CHECK(strcmp(settings.network.wifi_ssid, "Linux-Bridge-Test") == 0);
     CHECK(strcmp(settings.network.wifi_password, "") == 0);
+    CHECK(strcmp(settings.network.wifi_device_ip, "10.88.0.2") == 0);
+    CHECK(strcmp(settings.network.wifi_gateway, "10.88.0.1") == 0);
     CHECK(strcmp(settings.broker.broker_ip, "10.88.0.2") == 0);
 
     CHECK(run_cmd("mode eth") == 0);
@@ -247,7 +249,7 @@ static void test_reset_defaults_and_reboot(void)
     CHECK(run_cmd("ip 192.168.10.2 192.168.10.1 255.255.255.0") == 0);
     CHECK(run_cmd("reset") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(strcmp(settings.network.device_ip, "192.168.127.4") == 0);
+    CHECK(strcmp(settings.network.device_ip, "192.168.127.10") == 0);
     CHECK(run_cmd("reboot") == 0);
     CHECK(reboot_called == 1);
 }

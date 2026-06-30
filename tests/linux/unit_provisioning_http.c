@@ -70,7 +70,7 @@ static void test_get_status(void)
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
     CHECK(strstr(resp, "\"network_state\":\"static\"") != NULL);
-    CHECK(strstr(resp, "\"ip_addr\":\"192.168.127.4\"") != NULL);
+    CHECK(strstr(resp, "\"ip_addr\":\"192.168.127.10\"") != NULL);
     CHECK(strstr(resp, "\"test_topic\":\"site/field-a/test\"") != NULL);
     CHECK(strstr(resp, "wifi_state") == NULL);
 }
@@ -82,17 +82,18 @@ static void test_get_index_html(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "Field Bridge Settings") != NULL);
-    CHECK(strstr(resp, "Device IP") != NULL);
+    CHECK(strstr(resp, "ETH '+f") != NULL);
+    CHECK(strstr(resp, "WiFi '+f") != NULL);
     CHECK(strstr(resp, "WiFi Scan") == NULL);
     CHECK(strstr(resp, "WiFi Connect") == NULL);
     CHECK(strstr(resp, "Operation Result") == NULL);
     CHECK(strstr(resp, "id=\"operation-result\"") == NULL);
-    CHECK(strstr(resp, "Broker Settings") != NULL);
+    CHECK(strstr(resp, "Broker") != NULL);
     CHECK(strstr(resp, "Broker Peers") != NULL);
     CHECK(strstr(resp, "<table>") != NULL);
-    CHECK(strstr(resp, "Save Broker Settings") != NULL);
-    CHECK(strstr(resp, "MQTT Port") != NULL);
-    CHECK(strstr(resp, "P2P Port") != NULL);
+    CHECK(strstr(resp, "Save Settings") != NULL);
+    CHECK(strstr(resp, "mqtt_port") != NULL);
+    CHECK(strstr(resp, "p2p_port") != NULL);
     CHECK(strstr(resp, "Save success") != NULL);
     CHECK(strstr(resp, "Save failed") != NULL);
     CHECK(strstr(resp, "peer_p2p_") == NULL);
@@ -124,14 +125,19 @@ static void test_config_no_auth(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
-    CHECK(strstr(resp, "\"device_ip\":\"192.168.127.4\"") != NULL);
-    CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.15\"") != NULL);
+    CHECK(strstr(resp, "\"device_ip\":\"192.168.127.10\"") != NULL);
+    CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.10\"") != NULL);
     CHECK(strstr(resp, "\"gateway\":\"192.168.127.5\"") != NULL);
     CHECK(strstr(resp, "\"netmask\":\"255.255.0.0\"") != NULL);
     CHECK(strstr(resp, "\"dns\":\"192.168.127.5\"") != NULL);
     CHECK(strstr(resp, "\"admin_password\"") == NULL);
     CHECK(strstr(resp, "\"ap_ssid\"") == NULL);
     CHECK(strstr(resp, "\"wifi_ssid\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_device_ip\":\"10.88.0.2\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_gateway\":\"10.88.0.1\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_netmask\":\"255.255.255.0\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_dns\":\"10.88.0.1\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_dhcp_enabled\":0") != NULL);
     CHECK(strstr(resp, "\"wifi_password\"") == NULL);
 }
 
@@ -140,7 +146,11 @@ static void test_post_config_valid(void)
     const char *body =
         "{\"device_name\":\"node-a\",\"device_ip\":\"192.168.9.10\","
         "\"gateway\":\"192.168.9.1\",\"netmask\":\"255.255.255.0\","
-        "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,\"site_id\":\"field-b\","
+        "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,"
+        "\"wifi_ssid\":\"LabWiFi\",\"wifi_password\":\"secret\","
+        "\"wifi_device_ip\":\"10.88.0.9\",\"wifi_gateway\":\"10.88.0.1\","
+        "\"wifi_netmask\":\"255.255.255.0\",\"wifi_dns\":\"10.88.0.1\","
+        "\"wifi_dhcp_enabled\":0,\"mode\":\"wifi\",\"site_id\":\"field-b\","
         "\"broker_ip\":\"192.168.9.20\","
         "\"topic_prefix\":\"site/field-b\",\"mqtt_port\":1884,\"p2p_port\":4885,"
         "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":1}";
@@ -163,6 +173,12 @@ static void test_post_config_valid(void)
     CHECK(strstr(resp, "\"gateway\":\"192.168.9.1\"") != NULL);
     CHECK(strstr(resp, "\"netmask\":\"255.255.255.0\"") != NULL);
     CHECK(strstr(resp, "\"dns\":\"1.1.1.1\"") != NULL);
+    CHECK(strstr(resp, "\"mode\":\"wifi\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_ssid\":\"LabWiFi\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_device_ip\":\"10.88.0.9\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_gateway\":\"10.88.0.1\"") != NULL);
+    CHECK(strstr(resp, "\"wifi_dhcp_enabled\":0") != NULL);
+    CHECK(strstr(resp, "\"wifi_password\"") == NULL);
     CHECK(strstr(resp, "\"site_id\":\"field-b\"") != NULL);
     CHECK(strstr(resp, "\"topic_prefix\":\"site/field-b\"") != NULL);
     CHECK(strstr(resp, "\"broker_ip\":\"192.168.9.20\"") != NULL);
@@ -273,8 +289,8 @@ static void test_config_reset_valid(void)
     n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
-    CHECK(strstr(resp, "\"device_ip\":\"192.168.127.4\"") != NULL);
-    CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.15\"") != NULL);
+    CHECK(strstr(resp, "\"device_ip\":\"192.168.127.10\"") != NULL);
+    CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.10\"") != NULL);
 }
 
 static void test_reboot_valid(void)

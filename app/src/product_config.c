@@ -8,6 +8,14 @@
 
 LOG_MODULE_REGISTER(product_config, LOG_LEVEL_INF);
 
+#ifndef CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY
+#define CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY "10.88.0.1"
+#endif
+
+#ifndef CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK
+#define CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK "255.255.255.0"
+#endif
+
 static field_bridge_peer_t peers[FIELD_BRIDGE_PEER_MAX];
 static field_bridge_settings_t settings;
 static uint8_t settings_loaded_from_store;
@@ -31,12 +39,21 @@ static void settings_defaults(void)
     strncpy(settings.network.dns, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
             sizeof(settings.network.dns) - 1);
     settings.network.dhcp_enabled = 0;
+    strncpy(settings.network.wifi_device_ip, "0.0.0.0",
+            sizeof(settings.network.wifi_device_ip) - 1);
+    strncpy(settings.network.wifi_gateway, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
+            sizeof(settings.network.wifi_gateway) - 1);
+    strncpy(settings.network.wifi_netmask, CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK,
+            sizeof(settings.network.wifi_netmask) - 1);
+    strncpy(settings.network.wifi_dns, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
+            sizeof(settings.network.wifi_dns) - 1);
+    settings.network.wifi_dhcp_enabled = 0;
     strncpy(settings.broker.broker_ip, "0.0.0.0",
             sizeof(settings.broker.broker_ip) - 1);
 #else
     settings.network.wifi_ssid[0] = '\0';
     settings.network.wifi_password[0] = '\0';
-    strncpy(settings.network.device_ip, "192.168.127.4",
+    strncpy(settings.network.device_ip, "192.168.127.10",
             sizeof(settings.network.device_ip) - 1);
     strncpy(settings.network.gateway, "192.168.127.5",
             sizeof(settings.network.gateway) - 1);
@@ -45,7 +62,16 @@ static void settings_defaults(void)
     strncpy(settings.network.dns, "192.168.127.5",
             sizeof(settings.network.dns) - 1);
     settings.network.dhcp_enabled = 0;
-    strncpy(settings.broker.broker_ip, "192.168.127.15",
+    strncpy(settings.network.wifi_device_ip, "10.88.0.2",
+            sizeof(settings.network.wifi_device_ip) - 1);
+    strncpy(settings.network.wifi_gateway, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
+            sizeof(settings.network.wifi_gateway) - 1);
+    strncpy(settings.network.wifi_netmask, CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK,
+            sizeof(settings.network.wifi_netmask) - 1);
+    strncpy(settings.network.wifi_dns, CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY,
+            sizeof(settings.network.wifi_dns) - 1);
+    settings.network.wifi_dhcp_enabled = 0;
+    strncpy(settings.broker.broker_ip, "192.168.127.10",
             sizeof(settings.broker.broker_ip) - 1);
 #endif
     settings.network.mode = FIELD_BRIDGE_NETWORK_MODE_AUTO;
@@ -119,8 +145,17 @@ static int validate_settings(const field_bridge_settings_t *cfg)
         !valid_nonempty(cfg->network.gateway) ||
         !valid_nonempty(cfg->network.netmask) ||
         !valid_nonempty(cfg->network.dns) ||
+        !valid_nonempty(cfg->network.wifi_device_ip) ||
+        !valid_nonempty(cfg->network.wifi_gateway) ||
+        !valid_nonempty(cfg->network.wifi_netmask) ||
+        !valid_nonempty(cfg->network.wifi_dns) ||
         !valid_bool(cfg->network.dhcp_enabled) ||
+        !valid_bool(cfg->network.wifi_dhcp_enabled) ||
         !valid_network_mode(cfg->network.mode)) {
+        return -1;
+    }
+    if (cfg->network.mode == FIELD_BRIDGE_NETWORK_MODE_WIFI &&
+        !valid_nonempty(cfg->network.wifi_ssid)) {
         return -1;
     }
     if (!valid_nonempty(cfg->broker.broker_ip) ||

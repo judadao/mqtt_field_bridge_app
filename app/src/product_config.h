@@ -36,7 +36,12 @@ typedef struct {
     char gateway[FIELD_BRIDGE_HOST_MAX];
     char netmask[FIELD_BRIDGE_HOST_MAX];
     char dns[FIELD_BRIDGE_HOST_MAX];
+    char wifi_device_ip[FIELD_BRIDGE_HOST_MAX];
+    char wifi_gateway[FIELD_BRIDGE_HOST_MAX];
+    char wifi_netmask[FIELD_BRIDGE_HOST_MAX];
+    char wifi_dns[FIELD_BRIDGE_HOST_MAX];
     uint8_t dhcp_enabled;
+    uint8_t wifi_dhcp_enabled;
     uint8_t mode;
 } field_bridge_network_settings_t;
 

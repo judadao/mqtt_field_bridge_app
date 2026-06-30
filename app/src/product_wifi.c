@@ -56,14 +56,14 @@ static void choose_sta_ip(const field_bridge_settings_t *settings,
                           char *out,
                           size_t out_cap)
 {
-    if (!settings->network.dhcp_enabled &&
-        is_zero_ip(settings->network.device_ip)) {
+    if (!settings->network.wifi_dhcp_enabled &&
+        is_zero_ip(settings->network.wifi_device_ip)) {
         snprintf(out, out_cap, "%s.%u",
                  CONFIG_FIELD_BRIDGE_WIFI_STATIC_PREFIX,
                  derived_host_octet());
         return;
     }
-    copy_field(out, out_cap, settings->network.device_ip);
+    copy_field(out, out_cap, settings->network.wifi_device_ip);
 }
 
 static void build_wifi_settings(const field_bridge_settings_t *settings,
@@ -88,18 +88,18 @@ static void build_wifi_settings(const field_bridge_settings_t *settings,
     copy_field(wifi_settings->device_ip, sizeof(wifi_settings->device_ip),
                sta_ip);
     copy_field(wifi_settings->gateway, sizeof(wifi_settings->gateway),
-               is_zero_ip(settings->network.gateway) ?
+               is_zero_ip(settings->network.wifi_gateway) ?
                CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY :
-               settings->network.gateway);
+               settings->network.wifi_gateway);
     copy_field(wifi_settings->netmask, sizeof(wifi_settings->netmask),
-               is_zero_ip(settings->network.netmask) ?
+               is_zero_ip(settings->network.wifi_netmask) ?
                CONFIG_FIELD_BRIDGE_WIFI_STATIC_NETMASK :
-               settings->network.netmask);
+               settings->network.wifi_netmask);
     copy_field(wifi_settings->dns, sizeof(wifi_settings->dns),
-               is_zero_ip(settings->network.dns) ?
+               is_zero_ip(settings->network.wifi_dns) ?
                CONFIG_FIELD_BRIDGE_WIFI_STATIC_GATEWAY :
-               settings->network.dns);
-    wifi_settings->dhcp_enabled = settings->network.dhcp_enabled;
+               settings->network.wifi_dns);
+    wifi_settings->dhcp_enabled = settings->network.wifi_dhcp_enabled;
 }
 #endif
 
