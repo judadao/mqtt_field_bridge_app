@@ -44,8 +44,8 @@ int provisioning_http_start(void)
 #else
 
 #ifdef __ZEPHYR__
-#define REQ_BUF_SIZE 1024
-#define RESP_BUF_SIZE 2048
+#define REQ_BUF_SIZE 768
+#define RESP_BUF_SIZE 2304
 #else
 #define REQ_BUF_SIZE 4096
 #define RESP_BUF_SIZE 8192
@@ -71,20 +71,29 @@ static pthread_t http_thread_data;
 
 static const char index_html[] =
 "<!doctype html><html><head><meta charset=\"utf-8\">"
-"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
 "<title>Field Bridge Settings</title>"
-"<style>body{font-family:sans-serif;margin:24px;max-width:760px}"
-"button{margin:6px;padding:10px 14px;background:#1565c0;color:white;border:0}"
-"pre{background:#f4f4f4;padding:12px;white-space:pre-wrap}</style></head>"
-"<body><h1>Field Bridge Settings</h1><button onclick=\"cfg()\">Save Config</button>"
-"<h2>Broker Peers</h2><button onclick=\"peer(0)\">Save Peer 0</button>"
-"<button onclick=\"peer(1)\">Save Peer 1</button><pre id=\"o\"></pre>"
+"<style>body{font:16px sans-serif;margin:16px}table{border-collapse:collapse;width:100%;margin:6px 0 12px}"
+"td,th{border:1px solid #ccc;padding:4px}input{width:100%;box-sizing:border-box}"
+"input[type=checkbox]{width:auto}button{background:#1565c0;color:white;border:0;padding:7px 10px}</style></head>"
+"<body><h1>Field Bridge Settings</h1><h2>Broker Settings</h2><table><tbody id=c></tbody></table>"
+"<button onclick=s()>Save Broker Settings</button><h2>Broker Peers</h2><table><thead><tr>"
+"<th>#</th><th>On</th><th>Name</th><th>Host</th><th>MQTT</th><th>P2P</th><th></th></tr></thead>"
+"<tbody id=p></tbody></table>"
 "<script>"
-"async function j(u,o){let r=await fetch(u,o),t=await r.text();if(!r.ok)throw t;try{return JSON.parse(t)}catch(e){return t}}"
-"async function load(){window.c=await j('/config');window.ps=await j('/peers');o.textContent=JSON.stringify({config:c,peers:ps},0,2)}"
-"async function cfg(){try{c.device_ip=prompt('Device IP',c.device_ip)||c.device_ip;c.gateway=prompt('Gateway',c.gateway)||c.gateway;c.netmask=prompt('Netmask',c.netmask)||c.netmask;await j('/config',{method:'POST',body:JSON.stringify(c)});alert('Save success');load()}catch(e){alert('Save failed')}}"
-"async function peer(i){try{let p=ps[i];p.name=prompt('Name',p.name)||p.name;p.host=prompt('Host',p.host)||p.host;p.mqtt_port=parseInt(prompt('MQTT Port',p.mqtt_port||1883)||1883,10);p.p2p_port=parseInt(prompt('P2P Port',p.p2p_port||4884)||4884,10);p.enabled=confirm('Enable peer?')?1:0;await j('/peers/'+i,{method:'POST',body:JSON.stringify(p)});alert('Save success');load()}catch(e){alert('Save failed')}}"
-"load();</script></body></html>";
+"let C,P,A=['device_ip','gateway','netmask','broker_ip','mqtt_port','p2p_port','topic_prefix'],"
+"B=['Device IP','Gateway','Netmask','Broker IP','MQTT Port','P2P Port','Topic Prefix'],G=x=>document.getElementById(x);"
+"async function J(u,o){let r=await fetch(u,o),t=await r.text();if(!r.ok)throw t;try{return JSON.parse(t)}catch(e){return t}}"
+"async function L(){C=await J('/config');P=await J('/peers');"
+"c.innerHTML=A.map((f,i)=>'<tr><th>'+B[i]+'</th><td><input id=c'+i+' value=\"'+(C[f]||'')+'\"></td></tr>').join('');"
+"p.innerHTML=P.map((x,i)=>'<tr><td>'+i+'</td><td><input id=e'+i+' type=checkbox '+(x.enabled?'checked':'')+'></td>"
+"<td><input id=n'+i+' value=\"'+(x.name||'')+'\"></td><td><input id=h'+i+' value=\"'+(x.host||'')+'\"></td>"
+"<td><input id=m'+i+' value=\"'+(x.mqtt_port||1883)+'\"></td><td><input id=q'+i+' value=\"'+(x.p2p_port||4884)+'\"></td>"
+"<td><button onclick=P'+i+'()>Save</button></td></tr>').join('')}"
+"async function s(){try{A.map((f,i)=>C[f]=G('c'+i).value);C.mqtt_port=+C.mqtt_port||1883;C.p2p_port=+C.p2p_port||4884;"
+"await J('/config',{method:'POST',body:JSON.stringify(C)});alert('Save success');L()}catch(e){alert('Save failed')}}"
+"async function P0(){return V(0)}async function P1(){return V(1)}async function V(i){try{let x={enabled:G('e'+i).checked?1:0,"
+"name:G('n'+i).value,host:G('h'+i).value,mqtt_port:+G('m'+i).value||1883,p2p_port:+G('q'+i).value||4884};"
+"await J('/peers/'+i,{method:'POST',body:JSON.stringify(x)});alert('Save success');L()}catch(e){alert('Save failed')}}L()</script></body></html>";
 
 #ifndef __ZEPHYR__
 static int send_all(int fd, const char *buf, size_t len)

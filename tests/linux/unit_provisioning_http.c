@@ -87,9 +87,12 @@ static void test_get_index_html(void)
     CHECK(strstr(resp, "WiFi Connect") == NULL);
     CHECK(strstr(resp, "Operation Result") == NULL);
     CHECK(strstr(resp, "id=\"operation-result\"") == NULL);
+    CHECK(strstr(resp, "Broker Settings") != NULL);
     CHECK(strstr(resp, "Broker Peers") != NULL);
-    CHECK(strstr(resp, "Save Peer 0") != NULL);
-    CHECK(strstr(resp, "Save Peer 1") != NULL);
+    CHECK(strstr(resp, "<table>") != NULL);
+    CHECK(strstr(resp, "Save Broker Settings") != NULL);
+    CHECK(strstr(resp, "MQTT Port") != NULL);
+    CHECK(strstr(resp, "P2P Port") != NULL);
     CHECK(strstr(resp, "Save success") != NULL);
     CHECK(strstr(resp, "Save failed") != NULL);
     CHECK(strstr(resp, "peer_p2p_") == NULL);
