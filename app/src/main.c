@@ -30,7 +30,7 @@ LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 #define BROKER_STAGGER_STEP_MS          750
 #define BROKER_STAGGER_BUCKETS          8
 #define MESH_PEER_LOSS_GRACE_MS         90000
-#define MESH_PEER_LOSS_REBOOT_MS        60000
+#define MESH_PEER_LOSS_LOG_MS           60000
 
 #ifdef __ZEPHYR__
 #define BROKER_RUN_STACK_SIZE 3072
@@ -362,6 +362,7 @@ int main(void)
     }
     int64_t broker_started_ms = 0;
     int64_t peer_zero_since_ms = 0;
+    int64_t peer_zero_last_log_ms = 0;
     while (1) {
         if (!broker_thread_started) {
             field_bridge_settings_t requested_settings;
@@ -390,15 +391,16 @@ int main(void)
                 if (status.connected_peers == 0) {
                     if (peer_zero_since_ms == 0) {
                         peer_zero_since_ms = k_uptime_get();
-                        LOG_WRN("mesh peers all disconnected; starting recovery timer");
-                    } else if (k_uptime_get() - peer_zero_since_ms >
-                               MESH_PEER_LOSS_REBOOT_MS) {
-                        LOG_ERR("mesh peers stayed disconnected; rebooting for W5500/P2P recovery");
-                        product_status_io_set_error();
-                        sys_reboot(SYS_REBOOT_COLD);
+                        peer_zero_last_log_ms = peer_zero_since_ms;
+                        LOG_WRN("mesh peers all disconnected; local broker remains active");
+                    } else if (k_uptime_get() - peer_zero_last_log_ms >
+                               MESH_PEER_LOSS_LOG_MS) {
+                        peer_zero_last_log_ms = k_uptime_get();
+                        LOG_WRN("mesh peers still disconnected; keeping local broker/web online");
                     }
                 } else {
                     peer_zero_since_ms = 0;
+                    peer_zero_last_log_ms = 0;
                 }
             }
         }
