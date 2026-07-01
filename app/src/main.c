@@ -27,6 +27,10 @@ LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 #define HTTP_TO_BROKER_DELAY_MS         1500
 #define BROKER_TO_P2P_DELAY_MS          1000
 #define NETWORK_REBOOT_DELAY_MS         10000
+#define BROKER_STAGGER_STEP_MS          750
+#define BROKER_STAGGER_BUCKETS          8
+#define MESH_PEER_LOSS_GRACE_MS         90000
+#define MESH_PEER_LOSS_REBOOT_MS        60000
 
 #ifdef __ZEPHYR__
 #define BROKER_RUN_STACK_SIZE 3072
@@ -101,6 +105,30 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
 }
 
 static int broker_thread_started;
+
+static int enabled_peer_count(void)
+{
+    int count = 0;
+
+    for (int i = 0; i < FIELD_BRIDGE_PEER_MAX; i++) {
+        field_bridge_peer_t peer;
+
+        if (product_config_get_peer(i, &peer) == 0 && peer.enabled) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static int startup_stagger_ms(const char *ip_addr)
+{
+    unsigned int a, b, c, d;
+
+    if (!ip_addr || sscanf(ip_addr, "%u.%u.%u.%u", &a, &b, &c, &d) != 4) {
+        return 0;
+    }
+    return (int)((d % BROKER_STAGGER_BUCKETS) * BROKER_STAGGER_STEP_MS);
+}
 
 static int start_broker_service(const field_bridge_settings_t *settings)
 {
@@ -324,6 +352,16 @@ int main(void)
 #if defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
     LOG_INF("W5500 management web ready; staged broker auto-start");
     k_sleep(K_MSEC(HTTP_TO_BROKER_DELAY_MS));
+    {
+        int stagger_ms = startup_stagger_ms(settings.broker.broker_ip);
+
+        if (stagger_ms > 0) {
+            LOG_INF("broker startup stagger %d ms", stagger_ms);
+            k_sleep(K_MSEC(stagger_ms));
+        }
+    }
+    int64_t broker_started_ms = 0;
+    int64_t peer_zero_since_ms = 0;
     while (1) {
         if (!broker_thread_started) {
             field_bridge_settings_t requested_settings;
@@ -332,13 +370,36 @@ int main(void)
                 product_runtime_broker_failed("settings unavailable");
                 product_status_io_set_error();
             } else {
-                (void)start_broker_service(&requested_settings);
+                if (start_broker_service(&requested_settings) == 0) {
+                    broker_started_ms = k_uptime_get();
+                    peer_zero_since_ms = 0;
+                }
             }
         } else if (product_runtime_broker_start_requested()) {
             field_bridge_settings_t requested_settings;
 
             if (product_config_get_settings(&requested_settings) == 0) {
                 (void)start_broker_service(&requested_settings);
+            }
+        } else if (settings.broker.mesh_enabled && enabled_peer_count() > 0 &&
+                   broker_started_ms > 0 &&
+                   k_uptime_get() - broker_started_ms > MESH_PEER_LOSS_GRACE_MS) {
+            field_bridge_runtime_status_t status;
+
+            if (product_runtime_get_status(&status) == 0) {
+                if (status.connected_peers == 0) {
+                    if (peer_zero_since_ms == 0) {
+                        peer_zero_since_ms = k_uptime_get();
+                        LOG_WRN("mesh peers all disconnected; starting recovery timer");
+                    } else if (k_uptime_get() - peer_zero_since_ms >
+                               MESH_PEER_LOSS_REBOOT_MS) {
+                        LOG_ERR("mesh peers stayed disconnected; rebooting for W5500/P2P recovery");
+                        product_status_io_set_error();
+                        sys_reboot(SYS_REBOOT_COLD);
+                    }
+                } else {
+                    peer_zero_since_ms = 0;
+                }
             }
         }
         k_sleep(K_SECONDS(10));

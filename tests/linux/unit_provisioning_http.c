@@ -69,7 +69,7 @@ static void test_get_status(void)
     CHECK(n > 0);
     CHECK(strstr(resp, "200 OK") != NULL);
     CHECK(strstr(resp, "\"status\":\"ok\"") != NULL);
-    CHECK(strstr(resp, "\"firmware_version\":\"bridge-v0.1.15-dev\"") != NULL);
+    CHECK(strstr(resp, "\"firmware_version\":\"bridge-v0.1.16-dev\"") != NULL);
     CHECK(strstr(resp, "\"config_version\":2") != NULL);
     CHECK(strstr(resp, "\"network_state\":\"static\"") != NULL);
     CHECK(strstr(resp, "\"ip_addr\":\"192.168.127.10\"") != NULL);
@@ -291,7 +291,7 @@ static void test_config_reset_valid(void)
     n = http_req("GET /config HTTP/1.0\r\n\r\n", resp, sizeof(resp));
     CHECK(n > 0);
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
-    CHECK(strstr(resp, "\"firmware_version\":\"bridge-v0.1.15-dev\"") != NULL);
+    CHECK(strstr(resp, "\"firmware_version\":\"bridge-v0.1.16-dev\"") != NULL);
     CHECK(strstr(resp, "\"config_version\":2") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.127.10\"") != NULL);
     CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.10\"") != NULL);
