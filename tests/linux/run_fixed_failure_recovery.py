@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import signal
 import subprocess
 import threading
 import time
@@ -20,11 +21,11 @@ from pathlib import Path
 from load_balance_throughput import (
     BROKER_DIR,
     MqttClient,
-    build_field_binary,
     start_mosquitto,
     stop_broker,
     stop_ports,
     wait_port,
+    run,
 )
 
 
@@ -79,39 +80,55 @@ def parse_dropped_brokers() -> list[int]:
 
 
 class FixedSubscriber:
-    def __init__(self, intended: int, ports: list[int], fallback: bool):
+    def __init__(
+        self,
+        intended: int,
+        ports: list[int],
+        fallback: bool,
+        fallback_ports: list[int] | None = None,
+    ):
         self.intended = intended
         self.ports = ports
         self.fallback = fallback
+        self.fallback_ports = fallback_ports
         self.topic = f"site/fixed-failure/broker-{intended}"
         self.connected = -1
+        self.connected_port = -1
         self.messages: set[int] = set()
         self.reconnects = 0
+        self.fallback_connects = 0
         self.stop = threading.Event()
         self.ready = threading.Event()
+        self.client: MqttClient | None = None
+        self.client_lock = threading.Lock()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
         self.thread.start()
 
     def _connect(self) -> MqttClient | None:
-        order = list(range(len(self.ports))) if self.fallback else [self.intended]
-        if self.fallback:
-            order = order[self.intended :] + order[: self.intended]
+        targets = [(self.intended, self.ports[self.intended])]
+        if self.fallback and self.fallback_ports:
+            targets.append((self.intended, self.fallback_ports[self.intended]))
         while not self.stop.is_set():
-            for broker_idx in order:
+            for broker_idx, port in targets:
                 try:
                     client = MqttClient(
                         f"fs{self.intended}b{broker_idx}",
                         "127.0.0.1",
-                        self.ports[broker_idx],
+                        port,
                     )
                     if not client.subscribe(self.topic):
                         client.close()
                         continue
-                    if self.connected != -1 and self.connected != broker_idx:
+                    if self.connected_port != -1 and self.connected_port != port:
                         self.reconnects += 1
                     self.connected = broker_idx
+                    self.connected_port = port
+                    if self.fallback_ports and port == self.fallback_ports[self.intended]:
+                        self.fallback_connects += 1
+                    with self.client_lock:
+                        self.client = client
                     self.ready.set()
                     return client
                 except OSError:
@@ -142,44 +159,71 @@ class FixedSubscriber:
                         self.messages.add(int(seq_s))
                 except ValueError:
                     continue
+            with self.client_lock:
+                if self.client is client:
+                    self.client = None
 
     def close(self) -> None:
         self.stop.set()
+        self.force_disconnect()
         self.thread.join(timeout=1.0)
+
+    def force_disconnect(self) -> None:
+        with self.client_lock:
+            client = self.client
+            self.client = None
+        if client is not None:
+            client.close()
 
 
 class FixedPublisher:
-    def __init__(self, intended: int, ports: list[int], fallback: bool):
+    def __init__(
+        self,
+        intended: int,
+        ports: list[int],
+        fallback: bool,
+        fallback_ports: list[int] | None = None,
+    ):
         self.intended = intended
         self.ports = ports
         self.fallback = fallback
+        self.fallback_ports = fallback_ports
         self.topic = f"site/fixed-failure/broker-{intended}"
         self.connected = -1
+        self.connected_port = -1
         self.sent = 0
         self.errors = 0
         self.reconnects = 0
+        self.fallback_connects = 0
         self.completed = False
         self.stop = threading.Event()
+        self.client: MqttClient | None = None
+        self.client_lock = threading.Lock()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
         self.thread.start()
 
     def _connect(self) -> MqttClient | None:
-        order = list(range(len(self.ports))) if self.fallback else [self.intended]
-        if self.fallback:
-            order = order[self.intended :] + order[: self.intended]
+        targets = [(self.intended, self.ports[self.intended])]
+        if self.fallback and self.fallback_ports:
+            targets.append((self.intended, self.fallback_ports[self.intended]))
         while not self.stop.is_set():
-            for broker_idx in order:
+            for broker_idx, port in targets:
                 try:
                     client = MqttClient(
                         f"fp{self.intended}b{broker_idx}",
                         "127.0.0.1",
-                        self.ports[broker_idx],
+                        port,
                     )
-                    if self.connected != -1 and self.connected != broker_idx:
+                    if self.connected_port != -1 and self.connected_port != port:
                         self.reconnects += 1
                     self.connected = broker_idx
+                    self.connected_port = port
+                    if self.fallback_ports and port == self.fallback_ports[self.intended]:
+                        self.fallback_connects += 1
+                    with self.client_lock:
+                        self.client = client
                     return client
                 except OSError:
                     continue
@@ -201,6 +245,9 @@ class FixedPublisher:
             except OSError:
                 self.errors += 1
                 client.close()
+                with self.client_lock:
+                    if self.client is client:
+                        self.client = None
                 if not self.fallback:
                     return
                 client = self._connect()
@@ -209,18 +256,81 @@ class FixedPublisher:
                 time.sleep(0.2)
         self.completed = self.sent >= MESSAGES_PER_BROKER
         client.close()
+        with self.client_lock:
+            if self.client is client:
+                self.client = None
 
     def close(self) -> None:
         self.stop.set()
+        self.force_disconnect()
         self.thread.join(timeout=1.0)
 
+    def force_disconnect(self) -> None:
+        with self.client_lock:
+            client = self.client
+            self.client = None
+        if client is not None:
+            client.close()
 
-def start_field_fixed(outdir: Path, ports: list[int], p2p_ports: list[int]) -> list[subprocess.Popen]:
+
+def build_mesh_fallback_binary(
+    out: Path,
+    mqtt_port: int,
+    p2p_port: int,
+    disc_port: int,
+    admission: int,
+    topic_max_subs: int,
+) -> None:
+    srcs = [
+        ROOT / "tests" / "linux" / "fallback_listener_broker.c",
+        BROKER_DIR / "src" / "broker.c",
+        BROKER_DIR / "src" / "client.c",
+        BROKER_DIR / "src" / "packet.c",
+        BROKER_DIR / "src" / "session.c",
+        BROKER_DIR / "src" / "topic.c",
+        BROKER_DIR / "src" / "p2p_discover.c",
+        BROKER_DIR / "src" / "p2p_election.c",
+        BROKER_DIR / "src" / "p2p_peer.c",
+        BROKER_DIR / "src" / "p2p_router.c",
+        BROKER_DIR / "src" / "p2p_shard.c",
+        BROKER_DIR / "platform" / "posix" / "platform_posix.c",
+    ]
+    cmd = [
+        "gcc",
+        "-Wall",
+        "-Wextra",
+        "-std=c11",
+        "-g",
+        "-D_POSIX_C_SOURCE=200809L",
+        "-DCONFIG_MQTT_P2P_DYNAMIC",
+        "-DCONFIG_MQTT_P2P_STATIC_SEEDS_ONLY",
+        "-DMQTT_MAX_CLIENTS=64",
+        f"-DMQTT_ADMISSION_MAX_CLIENTS={admission}",
+        f"-DTOPIC_MAX_SUBS={topic_max_subs}" if topic_max_subs > 0 else "-DTOPIC_MAX_SUBS=512",
+        f"-DMQTT_BROKER_PORT={mqtt_port}",
+        f"-DP2P_PORT={p2p_port}",
+        f"-DP2P_DISCOVERY_PORT={disc_port}",
+        f"-I{BROKER_DIR / 'include'}",
+        f"-I{BROKER_DIR}",
+        *[str(src) for src in srcs],
+        "-o",
+        str(out),
+        "-lpthread",
+    ]
+    run(cmd)
+
+
+def start_field_fixed(
+    outdir: Path,
+    ports: list[int],
+    fallback_ports: list[int],
+    p2p_ports: list[int],
+) -> list[subprocess.Popen]:
     disc_port = ports[0] + 4000
     bins = []
     for idx, port in enumerate(ports):
         binary = outdir / f"field_b{idx + 1}"
-        build_field_binary(binary, port, p2p_ports[idx], disc_port, ADMISSION, 512)
+        build_mesh_fallback_binary(binary, port, p2p_ports[idx], disc_port, ADMISSION, 512)
         bins.append(binary)
 
     procs = []
@@ -229,8 +339,13 @@ def start_field_fixed(outdir: Path, ports: list[int], p2p_ports: list[int]) -> l
         env = os.environ.copy()
         env["MQTT_P2P_PEERS"] = ",".join(peers)
         log = open(outdir / f"field_b{idx + 1}.log", "w", encoding="utf-8")
-        procs.append(subprocess.Popen([str(binary)], stdout=log, stderr=log, env=env))
-    for port in ports:
+        procs.append(subprocess.Popen(
+            [str(binary), str(ports[idx]), str(fallback_ports[idx])],
+            stdout=log,
+            stderr=log,
+            env=env,
+        ))
+    for port in ports + fallback_ports:
         wait_port(port)
     return procs
 
@@ -259,33 +374,48 @@ def run_case(impl: str, port_base: int, dropped_brokers: list[int], outdir: Path
     case_dir.mkdir(parents=True, exist_ok=True)
     if impl == "mosquitto":
         ports = [port_base + i for i in range(BROKER_COUNT)]
+        fallback_ports: list[int] | None = None
         p2p_ports: list[int] = []
         fallback = False
     else:
         ports = [port_base + 100 + i for i in range(BROKER_COUNT)]
+        fallback_ports = [port_base + 200 + i for i in range(BROKER_COUNT)]
         p2p_ports = [port_base + 300 + i for i in range(BROKER_COUNT)]
         fallback = impl == "field_fallback"
-    stop_ports(ports + p2p_ports)
+    stop_ports(ports + (fallback_ports or []) + p2p_ports)
     if impl == "mosquitto":
         procs = start_mosquitto(case_dir, ports)
     else:
-        procs = start_field_fixed(case_dir, ports, p2p_ports)
+        procs = start_field_fixed(case_dir, ports, fallback_ports or [], p2p_ports)
 
-    subscribers = [FixedSubscriber(idx, ports, fallback) for idx in range(BROKER_COUNT)]
-    publishers = [FixedPublisher(idx, ports, fallback) for idx in range(BROKER_COUNT)]
+    subscribers = [
+        FixedSubscriber(idx, ports, fallback, fallback_ports)
+        for idx in range(BROKER_COUNT)
+    ]
+    publishers = [
+        FixedPublisher(idx, ports, fallback, fallback_ports)
+        for idx in range(BROKER_COUNT)
+    ]
 
     failure_done = threading.Event()
 
     def fail_brokers() -> None:
         time.sleep(DROP_AFTER_SEC)
-        for dropped in dropped_brokers:
-            stop_broker(procs[dropped])
+        if impl == "mosquitto":
+            for dropped in dropped_brokers:
+                stop_broker(procs[dropped])
+        else:
+            for dropped in dropped_brokers:
+                procs[dropped].send_signal(signal.SIGUSR1)
+                publishers[dropped].force_disconnect()
+                subscribers[dropped].force_disconnect()
         time.sleep(DROP_HOLD_SEC)
-        for dropped in dropped_brokers:
-            if impl == "mosquitto":
+        if impl == "mosquitto":
+            for dropped in dropped_brokers:
                 procs[dropped] = restart_mosquitto(case_dir, dropped, ports[dropped])
-            else:
-                procs[dropped] = restart_field(case_dir, dropped, p2p_ports, ports[dropped])
+        else:
+            for dropped in dropped_brokers:
+                procs[dropped].send_signal(signal.SIGUSR2)
         failure_done.set()
 
     started = time.time()
@@ -341,6 +471,8 @@ def run_case(impl: str, port_base: int, dropped_brokers: list[int], outdir: Path
         "publisher_completed_by_broker": completed_by_broker,
         "publisher_reconnects_by_broker": [pub.reconnects for pub in publishers],
         "subscriber_reconnects_by_broker": [sub.reconnects for sub in subscribers],
+        "publisher_fallback_connects_by_broker": [pub.fallback_connects for pub in publishers],
+        "subscriber_fallback_connects_by_broker": [sub.fallback_connects for sub in subscribers],
         "publisher_errors_by_broker": [pub.errors for pub in publishers],
         "expected_messages": expected,
         "received_messages": received,
@@ -398,12 +530,12 @@ def main() -> int:
         "- Metric: received unique payloads versus the fixed expected message count; dropped workload isolates the failed broker workload.",
         f"- Artifacts: `{outdir}`",
         "",
-        f"| Impl | Dropped | Elapsed sec | Expected {axis} | Sent {axis} | Received {axis} | Dropped workload | Dropped delivery % | Pub done {axis} | Pub reconnects | Sub reconnects | Missing | Delivery % |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| Impl | Dropped | Elapsed sec | Expected {axis} | Sent {axis} | Received {axis} | Dropped workload | Dropped delivery % | Pub done {axis} | Pub reconnects | Sub reconnects | Pub fallback | Sub fallback | Missing | Delivery % |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
-            "| {impl} | {dropped} | {elapsed} | {expected} | {sent} | {received} | {dropped_workload} | {dropped_delivery} | {done} | {pub_rec} | {sub_rec} | {missing} | {delivery} |".format(
+            "| {impl} | {dropped} | {elapsed} | {expected} | {sent} | {received} | {dropped_workload} | {dropped_delivery} | {done} | {pub_rec} | {sub_rec} | {pub_fb} | {sub_fb} | {missing} | {delivery} |".format(
                 impl=row["impl"],
                 dropped="/".join(row["dropped_broker_names"]),
                 elapsed=row["elapsed_sec"],
@@ -415,6 +547,8 @@ def main() -> int:
                 done=format_counts(row["publisher_completed_by_broker"]),
                 pub_rec=format_counts(row["publisher_reconnects_by_broker"]),
                 sub_rec=format_counts(row["subscriber_reconnects_by_broker"]),
+                pub_fb=format_counts(row["publisher_fallback_connects_by_broker"]),
+                sub_fb=format_counts(row["subscriber_fallback_connects_by_broker"]),
                 missing=row["missing_messages"],
                 delivery=row["delivery_percent"],
             )

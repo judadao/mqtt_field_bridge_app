@@ -56,28 +56,31 @@ Result: field broker throughput matches mosquitto for this workload.
 ### 2. Fixed Message Broker Failure Recovery
 
 Three brokers each send 700,000 fixed messages, which produced roughly
-three-minute cases on the Linux benchmark host. A random broker failure is
-triggered 60s after publishing starts, held down for 10s, then restarted.
+three-minute cases on the Linux benchmark host. A random node's primary broker
+listener is stopped 60s after publishing starts, held down for 10s, then
+restarted. The fallback case retries that same node's primary broker port first,
+then connects to that same node's mesh-only fallback ingress port.
 
 Random single-broker failure, seed `270701`, selected broker A.
 
-| Case | Dropped | Elapsed | Sent A/B/C | Received A/B/C | Dropped workload | Pub done A/B/C | Missing | Delivery |
-|------|--------:|--------:|-----------:|----------------:|-----------------:|---------------:|--------:|---------:|
-| mosquitto | `A` | `183.215s` | `230811/700000/700000` | `230810/366994/367001` | `230810/700000` | `0/1/1` | `1135195` | `45.9431%` |
-| field no-fallback | `A` | `183.438s` | `227682/700000/700000` | `227681/350312/350313` | `227681/700000` | `0/1/1` | `1171694` | `44.205%` |
-| field fallback | `A` | `184.263s` | `700000/700000/700000` | `699998/699999/699999` | `699998/700000` | `1/1/1` | `4` | `99.9998%` |
+| Case | Dropped | Elapsed | Sent A/B/C | Received A/B/C | Fallback pub/sub | Missing | Delivery |
+|------|--------:|--------:|-----------:|----------------:|-----------------:|--------:|---------:|
+| mosquitto | `A` | `182.455s` | `231024/700000/700000` | `231023/368009/367995` | `0/0/0 / 0/0/0` | `1132973` | `46.0489%` |
+| field no-fallback | `A` | `182.781s` | `230836/700000/700000` | `230836/354003/353956` | `0/0/0 / 0/0/0` | `1161205` | `44.7045%` |
+| field fallback | `A` | `184.411s` | `700000/700000/700000` | `698837/699999/699999` | `1/0/0 / 1/0/0` | `1165` | `99.9445%` |
 
 Random two-broker failure, seed `270702`, selected brokers A/C.
 
-| Case | Dropped | Elapsed | Sent A/B/C | Received A/B/C | Dropped workload | Pub done A/B/C | Missing | Delivery |
-|------|--------:|--------:|-----------:|----------------:|-----------------:|---------------:|--------:|---------:|
-| mosquitto | `A/C` | `180.903s` | `231701/700000/231674` | `231700/370758/231673` | `463373/1400000` | `0/1/0` | `1265869` | `39.7205%` |
-| field no-fallback | `A/C` | `180.415s` | `231541/700000/231645` | `231540/358561/231644` | `463184/1400000` | `0/1/0` | `1278255` | `39.1307%` |
-| field fallback | `A/C` | `183.538s` | `700000/700000/700000` | `699998/699999/699998` | `1399996/1400000` | `1/1/1` | `5` | `99.9998%` |
+| Case | Dropped | Elapsed | Sent A/B/C | Received A/B/C | Fallback pub/sub | Missing | Delivery |
+|------|--------:|--------:|-----------:|----------------:|-----------------:|--------:|---------:|
+| mosquitto | `A/C` | `182.392s` | `230181/700000/230186` | `230180/368529/230185` | `0/0/0 / 0/0/0` | `1271106` | `39.4711%` |
+| field no-fallback | `A/C` | `181.781s` | `230530/700000/230454` | `230530/354425/230454` | `0/0/0 / 0/0/0` | `1284591` | `38.829%` |
+| field fallback | `A/C` | `185.194s` | `700000/700000/700000` | `698841/699999/698844` | `1/0/1 / 1/0/1` | `2316` | `99.8897%` |
 
 Result: fallback reconnects affected publishers and subscribers through the
-remaining live broker(s), completes every publisher target, and loses only QoS 0
-boundary messages at socket break/reconnect time.
+mesh-only fallback ingress port on the failed node(s), completes every publisher
+target, and keeps end-to-end delivery above 99.88% under one- and two-node
+primary broker listener failures.
 
 ### 3. Client Limit Balance
 
