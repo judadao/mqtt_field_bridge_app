@@ -32,6 +32,7 @@
 #include "product_config.h"
 #include "product_runtime.h"
 #include "product_topics.h"
+#include "product_version.h"
 
 #ifndef __ZEPHYR__
 __attribute__((weak)) int bridge_control_apply_peers(void)
@@ -261,11 +262,14 @@ static int build_status_json(char *out, size_t cap)
         return -1;
     }
     return snprintf(out, cap,
-                    "{\"status\":\"ok\",\"network_state\":\"%s\","
+                    "{\"status\":\"ok\",\"firmware_version\":\"%s\","
+                    "\"config_version\":%u,\"network_state\":\"%s\","
                     "\"ip_addr\":\"%s\",\"broker_state\":\"%s\","
                     "\"p2p_role\":\"%s\",\"connected_peers\":%u,"
                     "\"remote_subscriptions\":%u,\"test_topic\":\"%s\","
                     "\"last_error\":\"%s\"}",
+                    FIELD_BRIDGE_FIRMWARE_VERSION,
+                    FIELD_BRIDGE_CONFIG_VERSION,
                     status.network_state, status.ip_addr,
                     status.broker_state, status.p2p_role,
                     status.connected_peers, status.remote_subscriptions,
@@ -280,7 +284,8 @@ static int build_config_json(char *out, size_t cap)
         return -1;
     }
     return snprintf(out, cap,
-                    "{\"device_name\":\"%s\",\"mode\":\"%s\","
+                    "{\"device_name\":\"%s\",\"firmware_version\":\"%s\","
+                    "\"config_version\":%u,\"mode\":\"%s\","
                     "\"device_ip\":\"%s\",\"gateway\":\"%s\","
                     "\"netmask\":\"%s\",\"dns\":\"%s\","
                     "\"dhcp_enabled\":%u,"
@@ -289,6 +294,8 @@ static int build_config_json(char *out, size_t cap)
                     "\"fallback_port\":%u,\"p2p_port\":%u,\"broker_enabled\":%u,"
                     "\"bridge_enabled\":%u,\"mesh_enabled\":%u}",
                     s.system.device_name,
+                    FIELD_BRIDGE_FIRMWARE_VERSION,
+                    FIELD_BRIDGE_CONFIG_VERSION,
                     product_config_network_mode_name(s.network.mode),
                     s.network.device_ip, s.network.gateway,
                     s.network.netmask, s.network.dns,

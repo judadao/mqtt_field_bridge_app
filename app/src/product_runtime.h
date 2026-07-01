@@ -4,13 +4,17 @@
 #include <stdint.h>
 
 #include "product_config.h"
+#include "product_version.h"
 
 #define FIELD_BRIDGE_STATE_MAX 16
+#define FIELD_BRIDGE_VERSION_MAX 32
 #define FIELD_BRIDGE_ERROR_MAX 96
 #define FIELD_BRIDGE_TOPIC_FULL_MAX 128
 #define FIELD_BRIDGE_PAYLOAD_MAX 256
 
 typedef struct {
+    char firmware_version[FIELD_BRIDGE_VERSION_MAX];
+    uint16_t config_version;
     char network_state[FIELD_BRIDGE_STATE_MAX];
     char ip_addr[FIELD_BRIDGE_HOST_MAX];
     char broker_state[FIELD_BRIDGE_STATE_MAX];

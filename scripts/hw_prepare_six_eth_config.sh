@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Flash six ESP32 W5500 targets and provision static Ethernet broker settings.
+# Flash ESP32 W5500 targets and provision static Ethernet broker settings.
 set -euo pipefail
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -8,7 +8,7 @@ if [ ! -x "$WEST_WORKDIR/.venv/bin/west" ]; then
     WEST_WORKDIR=${WEST_WORKDIR_FALLBACK:-"/home/judd/moxa/personal/dephy/zephyrproject"}
 fi
 WEST=${WEST:-"$WEST_WORKDIR/.venv/bin/west"}
-BUILD_DIR=${BUILD_DIR:-"$ROOT_DIR/build_product_eth"}
+BUILD_DIR=${BUILD_DIR:-"$ROOT_DIR/build_product"}
 LOG_DIR=${LOG_DIR:-"$ROOT_DIR/tests/linux/out/hardware/six-eth-config-$(date +%Y%m%d-%H%M%S)"}
 BAUD=${BAUD:-115200}
 FLASH_RETRIES=${FLASH_RETRIES:-3}
@@ -16,6 +16,7 @@ PORT_WAIT_SECONDS=${PORT_WAIT_SECONDS:-20}
 CONFIG_ERASE_OFFSET=${CONFIG_ERASE_OFFSET:-0x3b0000}
 CONFIG_ERASE_SIZE=${CONFIG_ERASE_SIZE:-0x30000}
 START_INDEX=${START_INDEX:-0}
+NODE_COUNT=${NODE_COUNT:-5}
 GATEWAY=${GATEWAY:-192.168.127.5}
 
 PATH="$WEST_WORKDIR/.venv/bin:$PATH"
@@ -76,8 +77,12 @@ provision_config() {
     idx=$2
     mgmt_ip=$3
     broker_ip=$4
+    prev_idx=$(( (idx + NODE_COUNT - 1) % NODE_COUNT ))
+    next_idx=$(( (idx + 1) % NODE_COUNT ))
+    prev_ip=${broker_ips[$prev_idx]}
+    next_ip=${broker_ips[$next_idx]}
     wait_for_port "$port"
-    timeout 45 python3 - "$port" "$BAUD" "$mgmt_ip" "$broker_ip" "$GATEWAY" "$LOG_DIR/config-ttyUSB${idx}.log" <<'PY'
+    timeout 60 python3 - "$port" "$BAUD" "$mgmt_ip" "$broker_ip" "$GATEWAY" "$prev_ip" "$next_ip" "$LOG_DIR/config-ttyUSB${idx}.log" <<'PY'
 import serial
 import sys
 import time
@@ -87,14 +92,21 @@ baud = int(sys.argv[2])
 mgmt_ip = sys.argv[3]
 broker_ip = sys.argv[4]
 gateway = sys.argv[5]
-log_path = sys.argv[6]
+prev_ip = sys.argv[6]
+next_ip = sys.argv[7]
+log_path = sys.argv[8]
 
 commands = [
+    "status",
     f"ip {mgmt_ip} {gateway} 255.255.255.0",
     f"broker-ip {broker_ip}",
     "broker-port 1883",
+    "broker-fallback-port 1884",
     "bridge-port 4884",
+    f"peer 0 prev {prev_ip} 1883 4884 1",
+    f"peer 1 next {next_ip} 1883 4884 1",
     "broker-state 1",
+    "status",
     "show",
     "reboot",
 ]
@@ -121,18 +133,29 @@ with serial.Serial(port, baudrate=baud, timeout=0.25, write_timeout=1.0) as ser,
 PY
 }
 
-summary "six-node Ethernet config preparation started"
+if [ "$NODE_COUNT" -lt 1 ] || [ "$NODE_COUNT" -gt "${#ports[@]}" ]; then
+    summary "FAIL invalid NODE_COUNT=$NODE_COUNT"
+    exit 1
+fi
+
+summary "Ethernet node config preparation started"
 summary "log_dir=$LOG_DIR"
 summary "build_dir=$BUILD_DIR"
+summary "node_count=$NODE_COUNT"
 
 for idx in "${!ports[@]}"; do
+    if [ "$idx" -ge "$NODE_COUNT" ]; then
+        continue
+    fi
     if [ "$idx" -lt "$START_INDEX" ]; then
         continue
     fi
     port=${ports[$idx]}
     mgmt_ip=${mgmt_ips[$idx]}
     broker_ip=${broker_ips[$idx]}
-    summary "START node$((idx + 1)) port=$port mgmt=$mgmt_ip broker=$broker_ip mqtt=1883 bridge=4884"
+    prev_idx=$(( (idx + NODE_COUNT - 1) % NODE_COUNT ))
+    next_idx=$(( (idx + 1) % NODE_COUNT ))
+    summary "START node$((idx + 1)) port=$port mgmt=$mgmt_ip broker=$broker_ip peers=${broker_ips[$prev_idx]},${broker_ips[$next_idx]} mqtt=1883 fallback=1884 bridge=4884"
     if ! flash_port "$port" "$idx"; then
         summary "FAIL node$((idx + 1)) port=$port flash"
         continue
@@ -148,4 +171,4 @@ for idx in "${!ports[@]}"; do
     summary "OK node$((idx + 1)) port=$port mgmt=$mgmt_ip broker=$broker_ip"
 done
 
-summary "DONE six-node Ethernet config preparation complete"
+summary "DONE Ethernet node config preparation complete"

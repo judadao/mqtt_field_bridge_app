@@ -52,6 +52,9 @@ void product_runtime_init(void)
 {
     memset(&runtime_status, 0, sizeof(runtime_status));
     memset(&last_publish, 0, sizeof(last_publish));
+    copy_str(runtime_status.firmware_version, sizeof(runtime_status.firmware_version),
+             FIELD_BRIDGE_FIRMWARE_VERSION);
+    runtime_status.config_version = FIELD_BRIDGE_CONFIG_VERSION;
     copy_str(runtime_status.network_state, sizeof(runtime_status.network_state), "init");
     copy_str(runtime_status.ip_addr, sizeof(runtime_status.ip_addr), "0.0.0.0");
     copy_str(runtime_status.broker_state, sizeof(runtime_status.broker_state), "stopped");
@@ -114,6 +117,9 @@ int product_runtime_get_status(field_bridge_runtime_status_t *out)
     if (!out) {
         return -1;
     }
+    copy_str(runtime_status.firmware_version, sizeof(runtime_status.firmware_version),
+             FIELD_BRIDGE_FIRMWARE_VERSION);
+    runtime_status.config_version = FIELD_BRIDGE_CONFIG_VERSION;
 
 #if defined(PRODUCT_RUNTIME_HAS_P2P)
     if (strcmp(runtime_status.broker_state, "running") == 0 ||

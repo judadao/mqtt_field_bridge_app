@@ -8,6 +8,7 @@
 #include "product_config.h"
 #include "product_console.h"
 #include "product_runtime.h"
+#include "product_version.h"
 
 #ifdef __ZEPHYR__
 #include <zephyr/device.h>
@@ -259,6 +260,8 @@ static int cmd_status(product_console_write_fn write_fn, void *ctx)
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx, "Status\n");
     pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Firmware      : %s\n", status.firmware_version);
+    pc_write(write_fn, ctx, "Config ver    : %u\n", status.config_version);
     pc_write(write_fn, ctx, "Network       : %s\n", status.network_state);
     pc_write(write_fn, ctx, "IP            : %s\n", status.ip_addr);
     pc_write(write_fn, ctx, "Broker        : %s\n", status.broker_state);
@@ -282,6 +285,8 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx, "Saved config\n");
     pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Firmware      : %s\n", FIELD_BRIDGE_FIRMWARE_VERSION);
+    pc_write(write_fn, ctx, "Config ver    : %u\n", FIELD_BRIDGE_CONFIG_VERSION);
     pc_write(write_fn, ctx, "Device        : %s\n", settings.system.device_name);
     pc_write(write_fn, ctx, "Mode          : %s\n",
              product_config_network_mode_name(settings.network.mode));
@@ -314,6 +319,8 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx, "Runtime\n");
     pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Firmware      : %s\n", status.firmware_version);
+    pc_write(write_fn, ctx, "Config ver    : %u\n", status.config_version);
     pc_write(write_fn, ctx, "Network       : %s\n", status.network_state);
     pc_write(write_fn, ctx, "IP            : %s\n", status.ip_addr);
     pc_write(write_fn, ctx, "Broker        : %s\n", status.broker_state);

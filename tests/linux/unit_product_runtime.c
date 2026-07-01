@@ -51,6 +51,8 @@ static void test_defaults(void)
     field_bridge_runtime_status_t st;
     CHECK(product_runtime_network_ready() == 0);
     CHECK(product_runtime_get_status(&st) == 0);
+    CHECK(strcmp(st.firmware_version, FIELD_BRIDGE_FIRMWARE_VERSION) == 0);
+    CHECK(st.config_version == FIELD_BRIDGE_CONFIG_VERSION);
     CHECK(strcmp(st.network_state, "init") == 0);
     CHECK(strcmp(st.ip_addr, "0.0.0.0") == 0);
     CHECK(strcmp(st.broker_state, "stopped") == 0);
