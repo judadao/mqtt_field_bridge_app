@@ -72,6 +72,15 @@ wait_for_http() {
     return 1
 }
 
+wait_for_esp_mqtt() {
+    deadline=$((SECONDS + WAIT_MSG_SEC))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        "$CLI" status -h "$ESP_BROKER" -p "$ESP_MQTT_PORT" >/dev/null 2>&1 && return 0
+        sleep 1
+    done
+    return 1
+}
+
 wait_for_match() {
     file=$1
     pattern=$2
@@ -121,7 +130,7 @@ printf 'ESP: http=%s broker=%s mqtt=%s admission=2\n' "$ESP_HTTP" "$ESP_BROKER" 
 printf 'Linux fallback: host=%s mqtt=%s p2p=%s\n' "$LINUX_HOST" "$LINUX_MQTT_PORT" "$LINUX_P2P_PORT"
 
 wait_for_http && pass "ESP HTTP reachable" || fail "ESP HTTP unreachable"
-wait_for_tcp "$ESP_BROKER" "$ESP_MQTT_PORT" 4 && pass "ESP broker TCP open" || fail "ESP broker TCP closed"
+wait_for_esp_mqtt && pass "ESP broker MQTT reachable" || fail "ESP broker MQTT unreachable"
 
 build_linux_broker
 fuser -k "$LINUX_MQTT_PORT/tcp" "$LINUX_P2P_PORT/tcp" >/dev/null 2>&1 || true

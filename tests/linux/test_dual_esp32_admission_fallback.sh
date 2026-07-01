@@ -75,14 +75,14 @@ wait_for_http() {
     return 1
 }
 
-wait_for_tcp() {
+wait_for_mqtt() {
     host=$1
     port=$2
     timeout_sec=$3
     deadline=$((SECONDS + timeout_sec))
     while [ "$SECONDS" -lt "$deadline" ]; do
-        timeout 2 bash -c "</dev/tcp/$host/$port" >/dev/null 2>&1 && return 0
-        sleep 0.5
+        "$CLI" status -h "$host" -p "$port" >/dev/null 2>&1 && return 0
+        sleep 1
     done
     return 1
 }
@@ -161,8 +161,8 @@ wait_for_http "$ESP_A_HTTP" && pass "ESP A HTTP reachable" || fail "ESP A HTTP u
 wait_for_http "$ESP_B_HTTP" && pass "ESP B HTTP reachable" || fail "ESP B HTTP unreachable"
 check_arp_mac "$ESP_A_HTTP" "02:00:00:12:34:56" && pass "ESP A management MAC is not default duplicate" || fail "ESP A MAC check failed"
 check_arp_mac "$ESP_B_HTTP" "02:00:00:12:34:56" && pass "ESP B management MAC is not default duplicate" || fail "ESP B MAC check failed"
-wait_for_tcp "$ESP_A_BROKER" "$MQTT_PORT" 4 && pass "ESP A broker TCP open" || fail "ESP A broker TCP closed"
-wait_for_tcp "$ESP_B_BROKER" "$MQTT_PORT" 4 && pass "ESP B broker TCP open" || fail "ESP B broker TCP closed"
+wait_for_mqtt "$ESP_A_BROKER" "$MQTT_PORT" 6 && pass "ESP A broker MQTT reachable" || fail "ESP A broker MQTT unreachable"
+wait_for_mqtt "$ESP_B_BROKER" "$MQTT_PORT" 6 && pass "ESP B broker MQTT reachable" || fail "ESP B broker MQTT unreachable"
 
 configure_bridge
 sleep "$SETTLE_SEC"

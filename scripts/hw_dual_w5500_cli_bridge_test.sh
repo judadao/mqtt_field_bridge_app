@@ -147,13 +147,13 @@ with serial.Serial(port, baudrate=baud, timeout=0.2) as ser, open(log_path, "wb"
 PY
 }
 
-wait_for_tcp() {
+wait_for_mqtt() {
     host=$1
     port=$2
     seconds=$3
     deadline=$((SECONDS + seconds))
     while [ "$SECONDS" -lt "$deadline" ]; do
-        if timeout 2 bash -c "</dev/tcp/$host/$port" >/dev/null 2>&1; then
+        if "$CLI" status -h "$host" -p "$port" >/dev/null 2>&1; then
             return 0
         fi
         sleep 1
@@ -219,12 +219,12 @@ if [ -z "$IFACE" ]; then
 fi
 log "iface=$IFACE"
 
-wait_for_tcp "$ESP_A_BROKER" "$MQTT_PORT" "$WAIT_MSG_SEC" ||
-    { log "FAIL ESP A broker TCP closed"; exit 1; }
-log "PASS ESP A broker TCP open"
-wait_for_tcp "$ESP_B_BROKER" "$MQTT_PORT" "$WAIT_MSG_SEC" ||
-    { log "FAIL ESP B broker TCP closed"; exit 1; }
-log "PASS ESP B broker TCP open"
+wait_for_mqtt "$ESP_A_BROKER" "$MQTT_PORT" "$WAIT_MSG_SEC" ||
+    { log "FAIL ESP A broker MQTT unreachable"; exit 1; }
+log "PASS ESP A broker MQTT reachable"
+wait_for_mqtt "$ESP_B_BROKER" "$MQTT_PORT" "$WAIT_MSG_SEC" ||
+    { log "FAIL ESP B broker MQTT unreachable"; exit 1; }
+log "PASS ESP B broker MQTT reachable"
 
 recv_ab="$OUT_DIR/recv-b.log"
 recv_ba="$OUT_DIR/recv-a.log"

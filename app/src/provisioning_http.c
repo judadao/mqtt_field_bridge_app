@@ -55,6 +55,7 @@ int provisioning_http_start(void)
 #ifdef __ZEPHYR__
 #define REQ_BUF_SIZE 768
 #define RESP_BUF_SIZE 2304
+#define ZEPHYR_HTTP_BUFFER_SLOTS 2
 #else
 #define REQ_BUF_SIZE 4096
 #define RESP_BUF_SIZE 8192
@@ -63,11 +64,12 @@ int provisioning_http_start(void)
 static uint8_t started;
 #ifdef __ZEPHYR__
 struct zephyr_http_buffers {
+    struct http_client_ctx *client;
     char request[REQ_BUF_SIZE];
     char response[RESP_BUF_SIZE];
 };
 
-static struct zephyr_http_buffers *zephyr_buffers;
+static struct zephyr_http_buffers zephyr_buffers[ZEPHYR_HTTP_BUFFER_SLOTS];
 #else
 static char request_buf[REQ_BUF_SIZE];
 static char response_buf[RESP_BUF_SIZE];
@@ -502,23 +504,34 @@ static void zephyr_set_json_response(struct http_response_ctx *response_ctx,
     response_ctx->final_chunk = true;
 }
 
-static struct zephyr_http_buffers *zephyr_acquire_buffers(void)
+static struct zephyr_http_buffers *zephyr_acquire_buffers(struct http_client_ctx *client)
 {
-    if (zephyr_buffers) {
-        return zephyr_buffers;
+    int free_slot = -1;
+
+    for (int i = 0; i < ZEPHYR_HTTP_BUFFER_SLOTS; i++) {
+        if (zephyr_buffers[i].client == client) {
+            return &zephyr_buffers[i];
+        }
+        if (!zephyr_buffers[i].client && free_slot < 0) {
+            free_slot = i;
+        }
     }
-    zephyr_buffers = k_malloc(sizeof(*zephyr_buffers));
-    if (zephyr_buffers) {
-        memset(zephyr_buffers, 0, sizeof(*zephyr_buffers));
+    if (free_slot < 0) {
+        return NULL;
     }
-    return zephyr_buffers;
+    zephyr_buffers[free_slot].client = client;
+    zephyr_buffers[free_slot].request[0] = '\0';
+    zephyr_buffers[free_slot].response[0] = '\0';
+    return &zephyr_buffers[free_slot];
 }
 
-static void zephyr_release_buffers(void)
+static void zephyr_release_buffers(struct http_client_ctx *client)
 {
-    if (zephyr_buffers) {
-        k_free(zephyr_buffers);
-        zephyr_buffers = NULL;
+    for (int i = 0; i < ZEPHYR_HTTP_BUFFER_SLOTS; i++) {
+        if (zephyr_buffers[i].client == client) {
+            memset(&zephyr_buffers[i], 0, sizeof(zephyr_buffers[i]));
+            return;
+        }
     }
 }
 
@@ -553,7 +566,7 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
 
     if (status == HTTP_SERVER_TRANSACTION_ABORTED ||
         status == HTTP_SERVER_TRANSACTION_COMPLETE) {
-        zephyr_release_buffers();
+        zephyr_release_buffers(client);
         return 0;
     }
     if (status != HTTP_SERVER_REQUEST_DATA_FINAL) {
@@ -571,7 +584,7 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
         response_ctx->final_chunk = true;
         return 0;
     }
-    buffers = zephyr_acquire_buffers();
+    buffers = zephyr_acquire_buffers(client);
     if (!buffers) {
         zephyr_set_json_response(response_ctx, HTTP_503_SERVICE_UNAVAILABLE,
                                  "{\"status\":\"error\",\"error\":\"low memory\"}");
@@ -700,7 +713,8 @@ static const struct http_service_config zephyr_http_config = {
 };
 
 HTTP_SERVICE_DEFINE_EMPTY(provisioning_http_service, NULL, &zephyr_http_port,
-                          1, 1, NULL, &zephyr_fallback_detail.common,
+                          ZEPHYR_HTTP_BUFFER_SLOTS, ZEPHYR_HTTP_BUFFER_SLOTS,
+                          NULL, &zephyr_fallback_detail.common,
                           &zephyr_http_config);
 #else
 static void handle_request(int fd, char *req)
