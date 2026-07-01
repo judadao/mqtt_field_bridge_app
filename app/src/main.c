@@ -20,6 +20,14 @@
 
 LOG_MODULE_REGISTER(field_bridge_main, LOG_LEVEL_INF);
 
+#define POWER_ON_SETTLE_MS              1500
+#define W5500_LINK_TIMEOUT_MS           15000
+#define W5500_LINK_SAMPLE_MS            250
+#define W5500_LINK_STABLE_SAMPLES       4
+#define HTTP_TO_BROKER_DELAY_MS         1500
+#define BROKER_TO_P2P_DELAY_MS          1000
+#define NETWORK_REBOOT_DELAY_MS         10000
+
 #ifdef __ZEPHYR__
 #define BROKER_RUN_STACK_SIZE 3072
 K_THREAD_STACK_DEFINE(broker_run_stack, BROKER_RUN_STACK_SIZE);
@@ -80,6 +88,9 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
     product_runtime_broker_started();
 
 #if defined(CONFIG_MQTT_P2P_DYNAMIC)
+#ifdef __ZEPHYR__
+    k_sleep(K_MSEC(BROKER_TO_P2P_DELAY_MS));
+#endif
     LOG_INF("p2p startup requested after broker_init success");
     p2p_start();
 #else
@@ -135,20 +146,27 @@ static int start_broker_service(const field_bridge_settings_t *settings)
 #endif
 
 #if defined(__ZEPHYR__) && defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
-static void wait_for_w5500_link_grace(int timeout_ms)
+static int wait_for_w5500_link_stable(int timeout_ms)
 {
     int elapsed_ms = 0;
+    int stable_samples = 0;
 
     while (elapsed_ms < timeout_ms) {
         if (product_ethernet_link_ready()) {
-            LOG_INF("W5500 link ready after %d ms", elapsed_ms);
-            return;
+            stable_samples++;
+            if (stable_samples >= W5500_LINK_STABLE_SAMPLES) {
+                LOG_INF("W5500 link stable after %d ms", elapsed_ms);
+                return 0;
+            }
+        } else {
+            stable_samples = 0;
         }
-        k_sleep(K_MSEC(250));
-        elapsed_ms += 250;
+        k_sleep(K_MSEC(W5500_LINK_SAMPLE_MS));
+        elapsed_ms += W5500_LINK_SAMPLE_MS;
     }
-    LOG_WRN("W5500 link not confirmed after %d ms; starting management web anyway",
+    LOG_WRN("W5500 link not stable after %d ms",
             timeout_ms);
+    return -ETIMEDOUT;
 }
 
 #endif
@@ -183,6 +201,10 @@ int main(void)
 {
     LOG_INF("MQTT field bridge app starting");
 
+#ifdef __ZEPHYR__
+    k_sleep(K_MSEC(POWER_ON_SETTLE_MS));
+#endif
+
     product_config_init();
     product_runtime_init();
     product_status_io_init(NULL, NULL, status_config_reset_press, NULL);
@@ -213,8 +235,8 @@ int main(void)
         LOG_INF("ethernet start result rc=%d ip=%s", eth_start_rc,
                 eth_ip_addr[0] ? eth_ip_addr : "-");
 #if defined(__ZEPHYR__) && defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
-        if (eth_start_rc == 0) {
-            wait_for_w5500_link_grace(15000);
+        if (eth_start_rc == 0 &&
+            wait_for_w5500_link_stable(W5500_LINK_TIMEOUT_MS) == 0) {
 #else
         if (eth_start_rc == 0 && product_ethernet_link_ready()) {
 #endif
@@ -226,8 +248,10 @@ int main(void)
             }
         } else {
 #if defined(__ZEPHYR__) && defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
-            LOG_ERR("W5500 management link unavailable; rebooting to retry");
-            k_sleep(K_SECONDS(3));
+            LOG_ERR("W5500 management link unavailable; rebooting after slow retry window");
+            product_runtime_broker_failed("ethernet link unavailable");
+            product_status_io_set_error();
+            k_sleep(K_MSEC(NETWORK_REBOOT_DELAY_MS));
             sys_reboot(SYS_REBOOT_COLD);
 #endif
             LOG_INF("ethernet management unavailable; waiting for UART CLI provisioning");
@@ -298,10 +322,10 @@ int main(void)
     bridge_control_init();
 
 #if defined(CONFIG_ETH_W5500) && CONFIG_ETH_W5500
-    LOG_INF("W5500 management web ready; broker auto-start deferred");
-    product_runtime_set_broker_enabled(0);
+    LOG_INF("W5500 management web ready; staged broker auto-start");
+    k_sleep(K_MSEC(HTTP_TO_BROKER_DELAY_MS));
     while (1) {
-        if (product_runtime_broker_start_requested()) {
+        if (!broker_thread_started) {
             field_bridge_settings_t requested_settings;
 
             if (product_config_get_settings(&requested_settings) != 0) {
@@ -310,8 +334,14 @@ int main(void)
             } else {
                 (void)start_broker_service(&requested_settings);
             }
+        } else if (product_runtime_broker_start_requested()) {
+            field_bridge_settings_t requested_settings;
+
+            if (product_config_get_settings(&requested_settings) == 0) {
+                (void)start_broker_service(&requested_settings);
+            }
         }
-        k_sleep(K_MSEC(500));
+        k_sleep(K_SECONDS(10));
     }
 #endif
 
@@ -379,6 +409,7 @@ int main(void)
     }
     product_runtime_broker_started();
 #if defined(CONFIG_MQTT_P2P_DYNAMIC)
+    k_sleep(K_MSEC(BROKER_TO_P2P_DELAY_MS));
     LOG_INF("p2p startup requested after broker_init success");
     p2p_start();
 #else
