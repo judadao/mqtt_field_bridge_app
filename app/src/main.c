@@ -67,6 +67,16 @@ static void broker_service_entry(void *p1, void *p2, void *p3)
         product_status_io_set_error();
         return;
     }
+    field_bridge_settings_t settings;
+    if (product_config_get_settings(&settings) == 0 &&
+        settings.broker.fallback_port != settings.broker.mqtt_port) {
+        int rc = broker_start_mesh_ingress_listener(settings.broker.fallback_port);
+
+        if (rc != 0) {
+            LOG_WRN("fallback MQTT listener failed port=%u rc=%d",
+                    settings.broker.fallback_port, rc);
+        }
+    }
     product_runtime_broker_started();
 
 #if defined(CONFIG_MQTT_P2P_DYNAMIC)
@@ -100,6 +110,12 @@ static int start_broker_service(const field_bridge_settings_t *settings)
     if (broker_set_bind_host(settings->broker.broker_ip) != 0) {
         LOG_ERR("invalid broker bind ip: %s", settings->broker.broker_ip);
         product_runtime_broker_failed("invalid broker bind ip");
+        product_status_io_set_error();
+        return -EINVAL;
+    }
+    if (broker_set_listen_port(settings->broker.mqtt_port) != 0) {
+        LOG_ERR("invalid broker listen port: %u", settings->broker.mqtt_port);
+        product_runtime_broker_failed("invalid broker listen port");
         product_status_io_set_error();
         return -EINVAL;
     }
@@ -324,6 +340,12 @@ int main(void)
         product_status_io_set_error();
         return -1;
     }
+    if (broker_set_listen_port(settings.broker.mqtt_port) != 0) {
+        LOG_ERR("invalid broker listen port: %u", settings.broker.mqtt_port);
+        product_runtime_broker_failed("invalid broker listen port");
+        product_status_io_set_error();
+        return -1;
+    }
     broker_set_activity_callback(broker_activity, NULL);
     product_status_io_set_running(1);
 
@@ -346,6 +368,14 @@ int main(void)
         product_runtime_broker_failed("broker_init failed");
         product_status_io_set_error();
         return -1;
+    }
+    if (settings.broker.fallback_port != settings.broker.mqtt_port) {
+        int rc = broker_start_mesh_ingress_listener(settings.broker.fallback_port);
+
+        if (rc != 0) {
+            LOG_WRN("fallback MQTT listener failed port=%u rc=%d",
+                    settings.broker.fallback_port, rc);
+        }
     }
     product_runtime_broker_started();
 #if defined(CONFIG_MQTT_P2P_DYNAMIC)

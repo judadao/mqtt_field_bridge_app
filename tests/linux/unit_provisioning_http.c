@@ -127,6 +127,7 @@ static void test_config_no_auth(void)
     CHECK(strstr(resp, "\"device_name\":\"esp32-min-broker\"") != NULL);
     CHECK(strstr(resp, "\"device_ip\":\"192.168.127.10\"") != NULL);
     CHECK(strstr(resp, "\"broker_ip\":\"192.168.127.10\"") != NULL);
+    CHECK(strstr(resp, "\"fallback_port\":1884") != NULL);
     CHECK(strstr(resp, "\"gateway\":\"192.168.127.5\"") != NULL);
     CHECK(strstr(resp, "\"netmask\":\"255.255.0.0\"") != NULL);
     CHECK(strstr(resp, "\"dns\":\"192.168.127.5\"") != NULL);
@@ -149,7 +150,8 @@ static void test_post_config_valid(void)
         "\"dns\":\"1.1.1.1\",\"dhcp_enabled\":0,\"mode\":\"eth\","
         "\"site_id\":\"field-b\","
         "\"broker_ip\":\"192.168.9.20\","
-        "\"topic_prefix\":\"site/field-b\",\"mqtt_port\":1884,\"p2p_port\":4885,"
+        "\"topic_prefix\":\"site/field-b\",\"mqtt_port\":1884,"
+        "\"fallback_port\":1886,\"p2p_port\":4885,"
         "\"broker_enabled\":1,\"bridge_enabled\":1,\"mesh_enabled\":1}";
     char req[2048];
     char resp[4096];
@@ -180,6 +182,7 @@ static void test_post_config_valid(void)
     CHECK(strstr(resp, "\"topic_prefix\":\"site/field-b\"") != NULL);
     CHECK(strstr(resp, "\"broker_ip\":\"192.168.9.20\"") != NULL);
     CHECK(strstr(resp, "\"mqtt_port\":1884") != NULL);
+    CHECK(strstr(resp, "\"fallback_port\":1886") != NULL);
     CHECK(strstr(resp, "\"p2p_port\":4885") != NULL);
     CHECK(strstr(resp, "\"broker_enabled\":1") != NULL);
     CHECK(strstr(resp, "\"bridge_enabled\":1") != NULL);

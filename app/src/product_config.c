@@ -81,6 +81,7 @@ static void settings_defaults(void)
             sizeof(settings.broker.topic_prefix) - 1);
     settings.broker.mqtt_port = 1883;
     settings.broker.p2p_port = 4884;
+    settings.broker.fallback_port = 1884;
     settings.broker.broker_enabled = 1;
     settings.broker.bridge_enabled = 1;
     settings.broker.mesh_enabled = 1;
@@ -153,9 +154,15 @@ static int validate_settings(const field_bridge_settings_t *cfg)
         !valid_nonempty(cfg->broker.topic_prefix) ||
         !valid_port(cfg->broker.mqtt_port) ||
         !valid_port(cfg->broker.p2p_port) ||
+        !valid_port(cfg->broker.fallback_port) ||
         !valid_bool(cfg->broker.broker_enabled) ||
         !valid_bool(cfg->broker.bridge_enabled) ||
         !valid_bool(cfg->broker.mesh_enabled)) {
+        return -1;
+    }
+    if (cfg->broker.fallback_port == cfg->broker.mqtt_port ||
+        cfg->broker.fallback_port == cfg->broker.p2p_port ||
+        cfg->broker.fallback_port == 8080) {
         return -1;
     }
     return 0;
@@ -163,6 +170,49 @@ static int validate_settings(const field_bridge_settings_t *cfg)
 
 #define PEER_KEY_BASE 1
 #define SETTINGS_KEY  100
+
+static int persist_save_settings(void);
+
+typedef struct {
+    field_bridge_system_settings_t system;
+    field_bridge_network_settings_t network;
+    struct {
+        char broker_ip[FIELD_BRIDGE_HOST_MAX];
+        char site_id[FIELD_BRIDGE_SITE_MAX];
+        char topic_prefix[FIELD_BRIDGE_TOPIC_MAX];
+        uint16_t mqtt_port;
+        uint16_t p2p_port;
+        uint8_t broker_enabled;
+        uint8_t bridge_enabled;
+        uint8_t mesh_enabled;
+    } broker;
+} field_bridge_settings_v1_t;
+
+static int load_legacy_settings(field_bridge_settings_t *out)
+{
+    field_bridge_settings_v1_t legacy;
+
+    if (!out ||
+        dephy_config_store_load(SETTINGS_KEY, &legacy, sizeof(legacy)) != 0) {
+        return -1;
+    }
+    memset(out, 0, sizeof(*out));
+    out->system = legacy.system;
+    out->network = legacy.network;
+    strncpy(out->broker.broker_ip, legacy.broker.broker_ip,
+            sizeof(out->broker.broker_ip) - 1);
+    strncpy(out->broker.site_id, legacy.broker.site_id,
+            sizeof(out->broker.site_id) - 1);
+    strncpy(out->broker.topic_prefix, legacy.broker.topic_prefix,
+            sizeof(out->broker.topic_prefix) - 1);
+    out->broker.mqtt_port = legacy.broker.mqtt_port;
+    out->broker.p2p_port = legacy.broker.p2p_port;
+    out->broker.fallback_port = 1884;
+    out->broker.broker_enabled = legacy.broker.broker_enabled;
+    out->broker.bridge_enabled = legacy.broker.bridge_enabled;
+    out->broker.mesh_enabled = legacy.broker.mesh_enabled;
+    return validate_settings(out);
+}
 
 static void persist_load(void)
 {
@@ -178,6 +228,9 @@ static void persist_load(void)
     }
     if (dephy_config_store_load(SETTINGS_KEY, &settings, sizeof(settings)) == 0 &&
         validate_settings(&settings) == 0) {
+        settings_loaded_from_store = 1;
+    } else if (load_legacy_settings(&settings) == 0) {
+        (void)persist_save_settings();
         settings_loaded_from_store = 1;
     } else {
         settings_defaults();

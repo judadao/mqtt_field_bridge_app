@@ -91,7 +91,7 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
 {
     clear_screen(write_fn, ctx);
     pc_write(write_fn, ctx,
-                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge mode ip dhcp broker-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
+                  "commands: help menu back info settings system status summary show device-network local-broker peer-bridge mode ip dhcp broker-port broker-fallback-port broker-ip broker-state bridge-port peer defaults reset reboot\n");
     pc_write(write_fn, ctx,
                   "  info                     show info menu\n");
     pc_write(write_fn, ctx,
@@ -108,6 +108,8 @@ static void print_help(product_console_write_fn write_fn, void *ctx)
                   "  dhcp                     enable DHCP, reboot to apply\n");
     pc_write(write_fn, ctx,
                   "  broker-port <port>        save local broker client port\n");
+    pc_write(write_fn, ctx,
+                  "  broker-fallback-port <port> save local fallback MQTT port\n");
     pc_write(write_fn, ctx,
                   "  broker-ip <ip>            save local broker IP\n");
     pc_write(write_fn, ctx,
@@ -196,6 +198,7 @@ static void print_broker_menu(product_console_write_fn write_fn, void *ctx)
 {
     static const dephy_cli_menu_item_t items[] = {
         { "broker-port <port>", "set local broker port" },
+        { "broker-fallback-port <port>", "set fallback MQTT port" },
         { "broker-ip <ip>", "set local broker IP" },
         { "broker-state <0|1>", "disable/enable broker" },
     };
@@ -289,6 +292,7 @@ static int cmd_show(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "ETH DHCP      : %u\n", settings.network.dhcp_enabled);
     pc_write(write_fn, ctx, "Broker IP     : %s\n", settings.broker.broker_ip);
     pc_write(write_fn, ctx, "Broker port   : %u\n", settings.broker.mqtt_port);
+    pc_write(write_fn, ctx, "Fallback port : %u\n", settings.broker.fallback_port);
     pc_write(write_fn, ctx, "Bridge port   : %u\n", settings.broker.p2p_port);
     pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
     pc_write(write_fn, ctx, "Mesh          : %u\n", settings.broker.mesh_enabled);
@@ -330,6 +334,7 @@ static int cmd_info(product_console_write_fn write_fn, void *ctx)
     pc_write(write_fn, ctx, "ETH DNS       : %s\n", settings.network.dns);
     pc_write(write_fn, ctx, "Broker IP     : %s\n", settings.broker.broker_ip);
     pc_write(write_fn, ctx, "Broker port   : %u\n", settings.broker.mqtt_port);
+    pc_write(write_fn, ctx, "Fallback port : %u\n", settings.broker.fallback_port);
     pc_write(write_fn, ctx, "Bridge port   : %u\n", settings.broker.p2p_port);
     pc_write(write_fn, ctx, "Broker        : %u\n", settings.broker.broker_enabled);
     pc_write(write_fn, ctx, "Bridge        : %u\n", settings.broker.bridge_enabled);
@@ -370,6 +375,19 @@ static void print_usage_broker_port(product_console_write_fn write_fn, void *ctx
     pc_write(write_fn, ctx, "Example       : broker-port 1883\n");
     pc_write(write_fn, ctx, "Meaning       : client connects to this broker port\n");
     pc_write(write_fn, ctx, "Effect        : save broker port; reboot to apply\n");
+    print_back_to_menu(write_fn, ctx);
+}
+
+static void print_usage_broker_fallback_port(product_console_write_fn write_fn,
+                                             void *ctx)
+{
+    clear_screen(write_fn, ctx);
+    pc_write(write_fn, ctx, "Local Broker Setting\n");
+    pc_write(write_fn, ctx, "------------------------------\n");
+    pc_write(write_fn, ctx, "Command       : broker-fallback-port <port>\n");
+    pc_write(write_fn, ctx, "Example       : broker-fallback-port 1884\n");
+    pc_write(write_fn, ctx, "Meaning       : alternate MQTT port for client fallback\n");
+    pc_write(write_fn, ctx, "Effect        : save fallback port; reboot to apply\n");
     print_back_to_menu(write_fn, ctx);
 }
 
@@ -563,6 +581,27 @@ static int cmd_broker_port(char **save, product_console_write_fn write_fn,
     }
     pc_write(write_fn, ctx, "OK saved broker-port=%u; reboot to apply\n",
              settings.broker.mqtt_port);
+    return 0;
+}
+
+static int cmd_broker_fallback_port(char **save,
+                                    product_console_write_fn write_fn,
+                                    void *ctx)
+{
+    char *port = next_token(save);
+    field_bridge_settings_t settings;
+
+    if (!port || product_config_get_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR usage: broker-fallback-port <port>\n");
+        return -1;
+    }
+    settings.broker.fallback_port = (uint16_t)atoi(port);
+    if (product_config_set_settings(&settings) != 0) {
+        pc_write(write_fn, ctx, "ERR save failed\n");
+        return -1;
+    }
+    pc_write(write_fn, ctx, "OK saved broker-fallback-port=%u; reboot to apply\n",
+             settings.broker.fallback_port);
     return 0;
 }
 
@@ -770,9 +809,12 @@ static int cmd_menu_index(int index,
             print_usage_broker_port(write_fn, write_ctx);
             return 0;
         case 2:
-            print_usage_broker_ip(write_fn, write_ctx);
+            print_usage_broker_fallback_port(write_fn, write_ctx);
             return 0;
         case 3:
+            print_usage_broker_ip(write_fn, write_ctx);
+            return 0;
+        case 4:
             print_usage_broker_state(write_fn, write_ctx);
             return 0;
         default:
@@ -907,6 +949,10 @@ int product_console_handle_line(char *line,
     }
     if (strcmp(cmd, "broker-port") == 0) {
         return cmd_broker_port(&save, write_fn, write_ctx);
+    }
+    if (strcmp(cmd, "broker-fallback-port") == 0 ||
+        strcmp(cmd, "fallback-port") == 0) {
+        return cmd_broker_fallback_port(&save, write_fn, write_ctx);
     }
     if (strcmp(cmd, "broker-ip") == 0) {
         return cmd_broker_ip(&save, write_fn, write_ctx);

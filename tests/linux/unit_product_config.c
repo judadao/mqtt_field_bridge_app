@@ -199,6 +199,7 @@ static void test_settings_defaults(void)
     CHECK(strcmp(s.broker.topic_prefix, "site/field-a") == 0);
     CHECK(s.broker.mqtt_port == 1883);
     CHECK(s.broker.p2p_port == 4884);
+    CHECK(s.broker.fallback_port == 1884);
     CHECK(s.broker.mesh_enabled == 1);
 }
 
@@ -218,6 +219,7 @@ static void test_settings_set_and_get(void)
     strcpy(in.broker.topic_prefix, "site/site-b");
     in.broker.mqtt_port = 1884;
     in.broker.p2p_port = 4885;
+    in.broker.fallback_port = 1886;
     in.broker.broker_enabled = 1;
     in.broker.bridge_enabled = 0;
     in.broker.mesh_enabled = 1;
@@ -236,6 +238,7 @@ static void test_settings_set_and_get(void)
     CHECK(strcmp(out.broker.site_id, "site-b") == 0);
     CHECK(strcmp(out.broker.broker_ip, "192.168.10.20") == 0);
     CHECK(out.broker.mqtt_port == 1884);
+    CHECK(out.broker.fallback_port == 1886);
     CHECK(out.broker.bridge_enabled == 0);
 }
 
@@ -276,6 +279,22 @@ static void test_reject_invalid_settings(void)
 
     CHECK(product_config_get_settings(&s) == 0);
     s.broker.mqtt_port = 0;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.broker.fallback_port = 0;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.broker.fallback_port = s.broker.mqtt_port;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.broker.fallback_port = s.broker.p2p_port;
+    CHECK(product_config_set_settings(&s) == -1);
+
+    CHECK(product_config_get_settings(&s) == 0);
+    s.broker.fallback_port = 8080;
     CHECK(product_config_set_settings(&s) == -1);
 
     CHECK(product_config_get_settings(&s) == 0);
@@ -432,6 +451,7 @@ static void test_settings_persist_survives_reinit(void)
     strcpy(in.broker.topic_prefix, "site/persist-site");
     in.broker.mqtt_port = 2883;
     in.broker.p2p_port = 5884;
+    in.broker.fallback_port = 2884;
     in.broker.broker_enabled = 1;
     in.broker.bridge_enabled = 1;
     in.broker.mesh_enabled = 0;
@@ -449,6 +469,7 @@ static void test_settings_persist_survives_reinit(void)
     CHECK(strcmp(out.broker.broker_ip, "10.10.10.20") == 0);
     CHECK(strcmp(out.broker.site_id, "persist-site") == 0);
     CHECK(out.broker.p2p_port == 5884);
+    CHECK(out.broker.fallback_port == 2884);
     CHECK(out.broker.mesh_enabled == 0);
 }
 #endif /* !__ZEPHYR__ */

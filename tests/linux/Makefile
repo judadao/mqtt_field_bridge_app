@@ -21,7 +21,7 @@ OUTDIR = out
         unit_product_io_bridge \
         integration-tests hardware-esp32-chain-bridge-test hardware-esp32-network-bind-test hardware-esp32-config-save-reboot-test stress scale-tests \
         testkit-wrapper testkit-unit-tests testkit-integration-tests testkit-stress \
-        scale-ring-tests clean broker-p2p
+        scale-ring-tests client-fallback-test clean broker-p2p
 
 all: unit-tests
 
@@ -203,6 +203,9 @@ integration-tests: broker-p2p
 	@echo ""
 	@echo "--- test_3node_scenario ---"
 	@bash test_3node_scenario.sh
+
+client-fallback-test:
+	@bash test_fallback_mqtt_client.sh
 
 hardware-esp32-chain-bridge-test: broker-p2p
 	@bash test_esp32_linux_chain_bridge.sh

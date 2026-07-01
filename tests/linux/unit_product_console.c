@@ -130,7 +130,8 @@ static void test_menu_index_commands(void)
     CHECK(run_cmd("2") == 0);
     CHECK(strstr(out_buf, "Local Broker Setting") != NULL);
     CHECK(strstr(out_buf, "1. broker-port") != NULL);
-    CHECK(strstr(out_buf, "2. broker-ip") != NULL);
+    CHECK(strstr(out_buf, "2. broker-fallback-port") != NULL);
+    CHECK(strstr(out_buf, "3. broker-ip") != NULL);
     CHECK(run_cmd("1") == 0);
     CHECK(strstr(out_buf, "Command       : broker-port <port>") != NULL);
     CHECK(strstr(out_buf, "Example       : broker-port 1883") != NULL);
@@ -150,15 +151,19 @@ static void test_broker_save_config(void)
 {
     field_bridge_settings_t settings;
 
-    CHECK(run_cmd("broker 1884 4885 192.168.127.15") == 0);
+    CHECK(run_cmd("broker 1883 4885 192.168.127.15") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
-    CHECK(settings.broker.mqtt_port == 1884);
+    CHECK(settings.broker.mqtt_port == 1883);
     CHECK(settings.broker.p2p_port == 4885);
     CHECK(strcmp(settings.broker.broker_ip, "192.168.127.15") == 0);
 
     CHECK(run_cmd("broker-port 1886") == 0);
     CHECK(product_config_get_settings(&settings) == 0);
     CHECK(settings.broker.mqtt_port == 1886);
+
+    CHECK(run_cmd("broker-fallback-port 1887") == 0);
+    CHECK(product_config_get_settings(&settings) == 0);
+    CHECK(settings.broker.fallback_port == 1887);
 
     CHECK(run_cmd("broker-ip 192.168.127.16") == 0);
     CHECK(product_config_get_settings(&settings) == 0);

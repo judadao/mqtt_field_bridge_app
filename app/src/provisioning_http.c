@@ -99,7 +99,7 @@ static const char index_html[] =
 "<tbody id=p></tbody></table>"
 "<script>"
 "let C,P,E=['device_ip','gateway','netmask','dns'],"
-"A=['broker_ip','mqtt_port','p2p_port','topic_prefix'],G=x=>document.getElementById(x);"
+"A=['broker_ip','mqtt_port','fallback_port','p2p_port','topic_prefix'],G=x=>document.getElementById(x);"
 "async function J(u,o){let r=await fetch(u,o),t=await r.text();if(!r.ok)throw t;try{return JSON.parse(t)}catch(e){return t}}"
 "async function L(){C=await J('/config');P=await J('/peers');"
 "n.innerHTML='<tr><th>Mode</th><td><select id=mode>'+['auto','eth'].map(x=>'<option '+(C.mode==x?'selected':'')+'>'+x+'</option>').join('')+'</select></td></tr>'"
@@ -111,7 +111,7 @@ static const char index_html[] =
 "<td><input id=m'+i+' value=\"'+(x.mqtt_port||1883)+'\"></td><td><input id=q'+i+' value=\"'+(x.p2p_port||4884)+'\"></td>"
 "<td><button onclick=P'+i+'()>Save</button></td></tr>').join('')}"
 "async function s(){try{[...E,...A].map(f=>C[f]=G(f).value);C.mode=G('mode').value;C.dhcp_enabled=G('dhcp_enabled').checked?1:0;"
-"C.mqtt_port=+C.mqtt_port||1883;C.p2p_port=+C.p2p_port||4884;"
+"C.mqtt_port=+C.mqtt_port||1883;C.fallback_port=+C.fallback_port||1884;C.p2p_port=+C.p2p_port||4884;"
 "await J('/config',{method:'POST',body:JSON.stringify(C)});alert('Save success');L()}catch(e){alert('Save failed')}}"
 "async function P0(){return V(0)}async function P1(){return V(1)}async function V(i){try{let x={enabled:G('e'+i).checked?1:0,"
 "name:G('n'+i).value,host:G('h'+i).value,mqtt_port:+G('m'+i).value||1883,p2p_port:+G('q'+i).value||4884};"
@@ -286,7 +286,7 @@ static int build_config_json(char *out, size_t cap)
                     "\"dhcp_enabled\":%u,"
                     "\"broker_ip\":\"%s\",\"site_id\":\"%s\","
                     "\"topic_prefix\":\"%s\",\"mqtt_port\":%u,"
-                    "\"p2p_port\":%u,\"broker_enabled\":%u,"
+                    "\"fallback_port\":%u,\"p2p_port\":%u,\"broker_enabled\":%u,"
                     "\"bridge_enabled\":%u,\"mesh_enabled\":%u}",
                     s.system.device_name,
                     product_config_network_mode_name(s.network.mode),
@@ -295,7 +295,7 @@ static int build_config_json(char *out, size_t cap)
                     s.network.dhcp_enabled,
                     s.broker.broker_ip, s.broker.site_id,
                     s.broker.topic_prefix, s.broker.mqtt_port,
-                    s.broker.p2p_port, s.broker.broker_enabled,
+                    s.broker.fallback_port, s.broker.p2p_port, s.broker.broker_enabled,
                     s.broker.bridge_enabled, s.broker.mesh_enabled);
 }
 
@@ -423,6 +423,9 @@ static int apply_config_json(const char *body, int *reboot_required)
         seen = 1;
     }
     if (json_get_u16(body, "mqtt_port", &new_settings.broker.mqtt_port) == 0) {
+        seen = 1;
+    }
+    if (json_get_u16(body, "fallback_port", &new_settings.broker.fallback_port) == 0) {
         seen = 1;
     }
     if (json_get_u16(body, "p2p_port", &new_settings.broker.p2p_port) == 0) {

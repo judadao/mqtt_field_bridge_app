@@ -43,6 +43,7 @@ typedef struct {
     char topic_prefix[FIELD_BRIDGE_TOPIC_MAX];
     uint16_t mqtt_port;
     uint16_t p2p_port;
+    uint16_t fallback_port;
     uint8_t broker_enabled;
     uint8_t bridge_enabled;
     uint8_t mesh_enabled;
