@@ -225,7 +225,7 @@ int product_runtime_get_peer_statuses(field_bridge_peer_status_t *out, int max)
 int product_runtime_record_publish_test(const field_bridge_publish_test_t *test)
 {
     if (!test || test->topic[0] == '\0' || test->payload[0] == '\0' ||
-        test->qos > 1 || test->retain > 1) {
+        test->qos > 2 || test->retain > 1) {
         return -1;
     }
 

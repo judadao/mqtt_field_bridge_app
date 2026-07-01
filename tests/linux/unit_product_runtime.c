@@ -149,7 +149,7 @@ static void test_publish_test_rejects_invalid(void)
     CHECK(product_runtime_record_publish_test(&in) == -1);
 
     strcpy(in.topic, "site/field-a/test");
-    in.qos = 2;
+    in.qos = 3;
     CHECK(product_runtime_record_publish_test(&in) == -1);
 }
 

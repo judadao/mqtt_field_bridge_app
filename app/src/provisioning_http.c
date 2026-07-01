@@ -640,7 +640,16 @@ static int zephyr_dynamic_handler(struct http_client_ctx *client,
                 return 0;
             }
             (void)json_get_boolish(request_buf, "retain", &test.retain);
-            (void)json_get_boolish(request_buf, "qos", &test.qos);
+            {
+                const char *qos_p = json_find_key(request_buf, "qos");
+                const char *colon = qos_p ? strchr(qos_p, ':') : NULL;
+
+                if (colon) {
+                    long qos = strtol(colon + 1, NULL, 10);
+
+                    test.qos = (qos >= 0 && qos <= 2) ? (uint8_t)qos : 3;
+                }
+            }
             if (product_runtime_record_publish_test(&test) != 0) {
                 zephyr_set_json_response(response_ctx, HTTP_400_BAD_REQUEST,
                                          "{\"status\":\"error\",\"error\":\"invalid publish test\"}");
@@ -790,7 +799,16 @@ static void handle_request(int fd, char *req)
             return;
         }
         (void)json_get_boolish(body, "retain", &test.retain);
-        (void)json_get_boolish(body, "qos", &test.qos);
+        {
+            const char *qos_p = json_find_key(body, "qos");
+            const char *colon = qos_p ? strchr(qos_p, ':') : NULL;
+
+            if (colon) {
+                long qos = strtol(colon + 1, NULL, 10);
+
+                test.qos = (qos >= 0 && qos <= 2) ? (uint8_t)qos : 3;
+            }
+        }
         if (product_runtime_record_publish_test(&test) != 0) {
             http_send(fd, 400, "application/json",
                       "{\"status\":\"error\",\"error\":\"invalid publish test\"}");

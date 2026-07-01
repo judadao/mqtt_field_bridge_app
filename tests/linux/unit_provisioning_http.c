@@ -251,7 +251,7 @@ static void test_broker_control_and_publish(void)
     CHECK(strstr(resp, "requested") != NULL);
 
     const char *body =
-        "{\"topic\":\"site/field-b/test\",\"payload\":\"hello\",\"qos\":1,\"retain\":0}";
+        "{\"topic\":\"site/field-b/test\",\"payload\":\"hello\",\"qos\":2,\"retain\":0}";
     char req[512];
     snprintf(req, sizeof(req),
              "POST /publish-test HTTP/1.0\r\nContent-Length: %d\r\n\r\n%s",

@@ -82,6 +82,13 @@ mesh-only fallback ingress port on the failed node(s), completes every publisher
 target, and keeps end-to-end delivery above 99.88% under one- and two-node
 primary broker listener failures.
 
+QoS coverage: the pinned broker module `mqtt-v0.1.27` supports MQTT QoS 0, 1,
+and 2 on the primary broker and fallback ingress paths. Fallback ingress now
+completes QoS1 PUBACK and QoS2 PUBREC/PUBREL/PUBCOMP handshakes in both publish
+and subscribe directions, while the mesh path uses TCP transport, `(origin,
+seq)` duplicate suppression, and a fixed in-memory pending queue for routed
+QoS1/2 publishes that temporarily cannot reach a known next hop.
+
 ### 3. Client Limit Balance
 
 A is full at 8 clients; 18 new subscribers try A first.
@@ -146,7 +153,8 @@ Recovery uses client fallback and mesh routing. If a node's primary MQTT broker
 listener fails, affected clients retry that same broker port first, then connect
 to the same node's mesh-only fallback ingress port. The fallback ingress accepts
 MQTT publish/subscribe packets and injects them into the P2P mesh; it is not a
-full broker. QoS 0 messages already in flight at the failure boundary can be
+full broker. QoS 1/2 handshakes are completed on the fallback ingress
+connection; QoS 0 messages already in flight at the failure boundary can be
 lost.
 
 ```mermaid

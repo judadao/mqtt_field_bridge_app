@@ -125,6 +125,7 @@ wait_for_tcp 127.0.0.1 "$FALLBACK_PORT" "$WAIT_MSG_SEC" \
     || fail "fallback broker TCP closed"
 
 "$CLI" sub -h 127.0.0.1 -p "$FALLBACK_PORT" -i fallback_probe -t "$TOPIC" \
+    -q 2 \
     >"$OUT/fallback-sub.out" 2>"$OUT/fallback-sub.err" &
 SUB_PID=$!
 wait_for_match "$OUT/fallback-sub.err" "subscribed" "$WAIT_MSG_SEC" \
@@ -137,6 +138,7 @@ wait_for_match "$OUT/fallback-sub.err" "subscribed" "$WAIT_MSG_SEC" \
     --fallback-port "$FALLBACK_PORT" \
     --id wrapper_sub \
     --topic "$TOPIC" \
+    --qos 2 \
     >"$OUT/wrapper-sub.out" 2>"$OUT/wrapper-sub.err" &
 WRAPPER_SUB_PID=$!
 wait_for_match "$OUT/wrapper-sub.err" "subscribed" "$WAIT_MSG_SEC" \
@@ -145,7 +147,7 @@ wait_for_match "$OUT/wrapper-sub.err" "subscribed" "$WAIT_MSG_SEC" \
 
 sub_msg="fallback-sub-$(date +%s)"
 "$CLI" pub -h 127.0.0.1 -p "$FALLBACK_PORT" -i direct_fallback_pub \
-    -t "$TOPIC" -m "$sub_msg" >/dev/null
+    -t "$TOPIC" -m "$sub_msg" -q 2 >/dev/null
 wait_for_match "$OUT/wrapper-sub.out" "$sub_msg" "$WAIT_MSG_SEC" \
     && ok "fallback subscriber wrapper receives publish" \
     || fail "fallback subscriber wrapper missed publish"
@@ -162,6 +164,7 @@ if "$FALLBACK_CLIENT" pub \
     --id fallback_pub \
     --topic "$TOPIC" \
     --message "$msg" \
+    --qos 2 \
     >"$OUT/client-primary-down.out" 2>"$OUT/client-primary-down.err"; then
     ok "client publish succeeds when primary is down"
 else
@@ -182,6 +185,7 @@ wait_for_tcp 127.0.0.1 "$PRIMARY_PORT" "$WAIT_MSG_SEC" \
     || fail "primary broker TCP closed"
 
 "$CLI" sub -h 127.0.0.1 -p "$PRIMARY_PORT" -i primary_probe -t "$TOPIC" \
+    -q 2 \
     >"$OUT/primary-sub.out" 2>"$OUT/primary-sub.err" &
 PRIMARY_SUB_PID=$!
 wait_for_match "$OUT/primary-sub.err" "subscribed" "$WAIT_MSG_SEC" \
@@ -196,6 +200,7 @@ if "$FALLBACK_CLIENT" pub \
     --id primary_pub \
     --topic "$TOPIC" \
     --message "$msg2" \
+    --qos 2 \
     >"$OUT/client-primary-up.out" 2>"$OUT/client-primary-up.err"; then
     ok "client publish succeeds when primary is up"
 else
@@ -237,6 +242,7 @@ wait_for_tcp 127.0.0.1 "$PRIMARY_PORT" "$WAIT_MSG_SEC" \
     || fail "mesh brokers did not expose listeners"
 
 "$CLI" sub -h 127.0.0.1 -p "$FALLBACK_PORT" -i dual_fallback_sub -t "$TOPIC" \
+    -q 2 \
     >"$OUT/dual-fallback-sub.out" 2>"$OUT/dual-fallback-sub.err" &
 SUB_PID=$!
 wait_for_match "$OUT/dual-fallback-sub.err" "subscribed" "$WAIT_MSG_SEC" \
@@ -246,7 +252,7 @@ wait_for_match "$OUT/dual-fallback-sub.err" "subscribed" "$WAIT_MSG_SEC" \
 dual_msg="dual-listener-$(date +%s)"
 sleep 4
 "$CLI" pub -h 127.0.0.1 -p "$MESH_B_PORT" -i dual_primary_pub \
-    -t "$TOPIC" -m "$dual_msg" >/dev/null
+    -t "$TOPIC" -m "$dual_msg" -q 2 >/dev/null
 wait_for_match "$OUT/dual-fallback-sub.out" "$dual_msg" "$WAIT_MSG_SEC" \
     && ok "mesh routes remote publish to fallback subscriber" \
     || fail "mesh did not route remote publish to fallback subscriber"
@@ -257,7 +263,7 @@ SUB_PID=""
 sleep 4
 gone_msg="dual-listener-after-unsub-$(date +%s)"
 "$CLI" pub -h 127.0.0.1 -p "$MESH_B_PORT" -i dual_primary_pub2 \
-    -t "$TOPIC" -m "$gone_msg" >/dev/null
+    -t "$TOPIC" -m "$gone_msg" -q 2 >/dev/null
 if wait_for_match "$OUT/dual-fallback-sub.out" "$gone_msg" 3; then
     fail "mesh still delivered after fallback subscriber disconnected"
 else
