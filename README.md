@@ -142,51 +142,54 @@ Example peer slots:
 
 ## Recovery Process
 
-Recovery uses client fallback and mesh routing. If a broker fails, affected
-clients retry it first, then connect to another live broker and continue the
-same topics. QoS 0 messages already in flight at the failure boundary can be
+Recovery uses client fallback and mesh routing. If a node's primary MQTT broker
+listener fails, affected clients retry that same broker port first, then connect
+to the same node's mesh-only fallback ingress port. The fallback ingress accepts
+MQTT publish/subscribe packets and injects them into the P2P mesh; it is not a
+full broker. QoS 0 messages already in flight at the failure boundary can be
 lost.
 
 ```mermaid
 flowchart TD
-    Healthy[Normal traffic through broker A] --> Failure[Broker A fails]
+    Healthy[Normal traffic through node A broker port] --> Failure[Node A primary broker listener fails]
     Failure --> SocketBreak[Publishers/subscribers detect broken socket]
-    SocketBreak --> RetryA[Retry intended broker A]
-    RetryA --> Alive{A reachable?}
-    Alive -- yes --> RejoinA[Reconnect to A]
-    Alive -- no --> Fallback[Connect to live broker B or C]
+    SocketBreak --> RetryA[Retry node A broker port]
+    RetryA --> Alive{Broker port reachable?}
+    Alive -- yes --> RejoinA[Reconnect to node A broker]
+    Alive -- no --> Fallback[Connect to node A fallback ingress port]
     Fallback --> Resume[Resume same topic workload]
     RejoinA --> Resume
-    Resume --> MeshRoute[Mesh forwards matching topics]
+    Resume --> MeshRoute[Fallback ingress injects PUB/SUB into P2P mesh]
     MeshRoute --> Delivered[Live subscribers receive traffic]
     Failure --> BoundaryLoss[Possible QoS 0 in-flight loss]
 ```
 
 ## Three-Node Recovery Sequence
 
-When broker A fails, its clients fall back to a live broker and keep using the
-same topics. The mesh carries resumed traffic through the remaining nodes.
+When node A's primary broker listener fails, its clients fall back to node A's
+mesh-only ingress port and keep using the same topics. The mesh carries resumed
+traffic through the remaining nodes.
 
 ```mermaid
 sequenceDiagram
     participant Client as Publisher / subscriber
-    participant A as Broker A
-    participant B as Broker B
-    participant C as Broker C
+    participant A1883 as Node A broker port
+    participant A1884 as Node A fallback ingress
+    participant Mesh as B/C P2P mesh
 
-    Client->>A: Publish / subscribe topic traffic
-    A->>B: Forward matching traffic over bridge link
-    B->>C: Maintain alternate mesh path
+    Client->>A1883: Publish / subscribe topic traffic
+    A1883->>Mesh: Forward matching traffic over P2P
 
-    Note over A: Broker A fails
-    A--xClient: Socket breaks
-    Client->>A: Retry intended broker
-    A--xClient: Not reachable
+    Note over A1883: Primary broker listener fails
+    A1883--xClient: Socket breaks
+    Client->>A1883: Retry intended broker port
+    A1883--xClient: Not reachable
 
-    Client->>B: Fallback connect and resume same topic
-    B->>C: Route matching traffic through live mesh
-    C->>Client: Deliver resumed traffic
-    Note over Client,C: In-flight QoS 0 messages may be missing
+    Client->>A1884: Fallback connect and resume same topic
+    A1884->>Mesh: Inject publish/subscribe into mesh
+    Mesh->>A1884: Return matching mesh traffic
+    A1884->>Client: Deliver resumed traffic
+    Note over Client,Mesh: In-flight QoS 0 messages may be missing
 ```
 
 ## Results And Historical Notes
