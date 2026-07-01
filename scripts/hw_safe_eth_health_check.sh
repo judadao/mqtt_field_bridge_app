@@ -114,7 +114,7 @@ for host in "${HOSTS[@]}"; do
         topic="$TOPIC_PREFIX/$host/$(date +%s)"
         payload="safe-health-$host-$(date +%s)"
         rm -f "$mqtt_log"
-        timeout 10 "$CLI" sub -h "$host" -p "$MQTT_PORT" -t "$topic" -q "$MQTT_QOS" \
+        timeout 15 "$CLI" sub -h "$host" -p "$MQTT_PORT" -t "$topic" -q "$MQTT_QOS" -n 1 \
             >"$mqtt_log" 2>&1 &
         sub_pid=$!
         sleep 1
