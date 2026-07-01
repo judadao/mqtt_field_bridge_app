@@ -164,3 +164,29 @@ publisher target, and loses only four QoS 0 messages at the socket-break boundar
 | mosquitto | A | 10000/10000/10000 | 1936/10000/10000 | 1935/10000/10000 | 1935/10000 | 19.35 | 0/1/1 | 0/0/0 | 0/0/0 | 8065 | 73.1167 |
 | field_no_fallback | A | 10000/10000/10000 | 1928/10000/10000 | 1927/10000/10000 | 1927/10000 | 19.27 | 0/1/1 | 0/0/0 | 0/0/0 | 8073 | 73.09 |
 | field_fallback | A | 10000/10000/10000 | 10000/10000/10000 | 9999/10000/10000 | 9999/10000 | 99.99 | 1/1/1 | 1/0/0 | 1/0/0 | 1 | 99.9967 |
+
+## 20260701-3node-3min-random1-700k fixed-message broker failure recovery
+
+- Workload: 3 brokers, 700000 messages per broker, expected total 2100000.
+- Failure: broker(s) A are terminated 60.0s after publishing starts, held down for 10.0s, then restarted.
+- Metric: received unique payloads versus the fixed expected message count; dropped workload isolates the failed broker workload.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/fixed_failure_recovery/20260701-3node-3min-random1-700k`
+
+| Impl | Dropped | Elapsed sec | Expected A/B/C | Sent A/B/C | Received A/B/C | Dropped workload | Dropped delivery % | Pub done A/B/C | Pub reconnects | Sub reconnects | Missing | Delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mosquitto | A | 183.215 | 700000/700000/700000 | 230811/700000/700000 | 230810/366994/367001 | 230810/700000 | 32.9729 | 0/1/1 | 0/0/0 | 0/0/0 | 1135195 | 45.9431 |
+| field_no_fallback | A | 183.438 | 700000/700000/700000 | 227682/700000/700000 | 227681/350312/350313 | 227681/700000 | 32.5259 | 0/1/1 | 0/0/0 | 0/0/0 | 1171694 | 44.205 |
+| field_fallback | A | 184.263 | 700000/700000/700000 | 700000/700000/700000 | 699998/699999/699999 | 699998/700000 | 99.9997 | 1/1/1 | 1/0/0 | 2/0/0 | 4 | 99.9998 |
+
+## 20260701-3node-3min-random2-700k fixed-message broker failure recovery
+
+- Workload: 3 brokers, 700000 messages per broker, expected total 2100000.
+- Failure: broker(s) A/C are terminated 60.0s after publishing starts, held down for 10.0s, then restarted.
+- Metric: received unique payloads versus the fixed expected message count; dropped workload isolates the failed broker workload.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/fixed_failure_recovery/20260701-3node-3min-random2-700k`
+
+| Impl | Dropped | Elapsed sec | Expected A/B/C | Sent A/B/C | Received A/B/C | Dropped workload | Dropped delivery % | Pub done A/B/C | Pub reconnects | Sub reconnects | Missing | Delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mosquitto | A/C | 180.903 | 700000/700000/700000 | 231701/700000/231674 | 231700/370758/231673 | 463373/1400000 | 33.0981 | 0/1/0 | 0/0/0 | 0/0/0 | 1265869 | 39.7205 |
+| field_no_fallback | A/C | 180.415 | 700000/700000/700000 | 231541/700000/231645 | 231540/358561/231644 | 463184/1400000 | 33.0846 | 0/1/0 | 0/0/0 | 0/0/0 | 1278255 | 39.1307 |
+| field_fallback | A/C | 183.538 | 700000/700000/700000 | 700000/700000/700000 | 699998/699999/699998 | 1399996/1400000 | 99.9997 | 1/1/1 | 1/0/1 | 2/0/2 | 5 | 99.9998 |

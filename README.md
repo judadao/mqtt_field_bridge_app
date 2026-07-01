@@ -55,18 +55,29 @@ Result: field broker throughput matches mosquitto for this workload.
 
 ### 2. Fixed Message Broker Failure Recovery
 
-Three brokers send 30,000 fixed messages while broker A fails mid-run. A is
-terminated 0.5s after publishing starts, held down for 3.0s, then restarted.
+Three brokers each send 700,000 fixed messages, which produced roughly
+three-minute cases on the Linux benchmark host. A random broker failure is
+triggered 60s after publishing starts, held down for 10s, then restarted.
 
-| Case | Dropped | Expected A/B/C | Sent A/B/C | Received A/B/C | Dropped workload | Pub done A/B/C | Pub reconnects | Sub reconnects | Missing | Delivery |
-|------|--------:|---------------:|-----------:|----------------:|-----------------:|---------------:|---------------:|---------------:|--------:|---------:|
-| mosquitto | `A` | `10000/10000/10000` | `1936/10000/10000` | `1935/10000/10000` | `1935/10000` | `0/1/1` | `0/0/0` | `0/0/0` | `8065` | `73.1167%` |
-| field no-fallback | `A` | `10000/10000/10000` | `1928/10000/10000` | `1927/10000/10000` | `1927/10000` | `0/1/1` | `0/0/0` | `0/0/0` | `8073` | `73.09%` |
-| field fallback | `A` | `10000/10000/10000` | `10000/10000/10000` | `9999/10000/10000` | `9999/10000` | `1/1/1` | `1/0/0` | `1/0/0` | `1` | `99.9967%` |
+Random single-broker failure, seed `270701`, selected broker A.
 
-Result: fallback reconnects broker A's affected clients through live brokers B
-or C and completes 99.9967% of the fixed workload. The single missing message is
-expected QoS 0 boundary loss at the socket break.
+| Case | Dropped | Elapsed | Sent A/B/C | Received A/B/C | Dropped workload | Pub done A/B/C | Missing | Delivery |
+|------|--------:|--------:|-----------:|----------------:|-----------------:|---------------:|--------:|---------:|
+| mosquitto | `A` | `183.215s` | `230811/700000/700000` | `230810/366994/367001` | `230810/700000` | `0/1/1` | `1135195` | `45.9431%` |
+| field no-fallback | `A` | `183.438s` | `227682/700000/700000` | `227681/350312/350313` | `227681/700000` | `0/1/1` | `1171694` | `44.205%` |
+| field fallback | `A` | `184.263s` | `700000/700000/700000` | `699998/699999/699999` | `699998/700000` | `1/1/1` | `4` | `99.9998%` |
+
+Random two-broker failure, seed `270702`, selected brokers A/C.
+
+| Case | Dropped | Elapsed | Sent A/B/C | Received A/B/C | Dropped workload | Pub done A/B/C | Missing | Delivery |
+|------|--------:|--------:|-----------:|----------------:|-----------------:|---------------:|--------:|---------:|
+| mosquitto | `A/C` | `180.903s` | `231701/700000/231674` | `231700/370758/231673` | `463373/1400000` | `0/1/0` | `1265869` | `39.7205%` |
+| field no-fallback | `A/C` | `180.415s` | `231541/700000/231645` | `231540/358561/231644` | `463184/1400000` | `0/1/0` | `1278255` | `39.1307%` |
+| field fallback | `A/C` | `183.538s` | `700000/700000/700000` | `699998/699999/699998` | `1399996/1400000` | `1/1/1` | `5` | `99.9998%` |
+
+Result: fallback reconnects affected publishers and subscribers through the
+remaining live broker(s), completes every publisher target, and loses only QoS 0
+boundary messages at socket break/reconnect time.
 
 ### 3. Client Limit Balance
 

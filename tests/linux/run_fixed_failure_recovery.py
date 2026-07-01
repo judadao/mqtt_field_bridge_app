@@ -359,10 +359,15 @@ def format_counts(values: list[int | bool]) -> str:
     return "/".join("1" if value is True else "0" if value is False else str(value) for value in values)
 
 
+def broker_axis_label() -> str:
+    return "/".join(broker_name(idx) for idx in range(BROKER_COUNT))
+
+
 def main() -> int:
     outdir = OUT_ROOT / STAMP
     outdir.mkdir(parents=True, exist_ok=True)
     dropped_brokers = parse_dropped_brokers()
+    axis = broker_axis_label()
     rows = [
         run_case("mosquitto", PORT_BASE, dropped_brokers, outdir),
         run_case("field_no_fallback", PORT_BASE + 1000, dropped_brokers, outdir),
@@ -393,14 +398,15 @@ def main() -> int:
         "- Metric: received unique payloads versus the fixed expected message count; dropped workload isolates the failed broker workload.",
         f"- Artifacts: `{outdir}`",
         "",
-        "| Impl | Dropped | Expected A/B/C/D | Sent A/B/C/D | Received A/B/C/D | Dropped workload | Dropped delivery % | Pub done A/B/C/D | Pub reconnects | Sub reconnects | Missing | Delivery % |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        f"| Impl | Dropped | Elapsed sec | Expected {axis} | Sent {axis} | Received {axis} | Dropped workload | Dropped delivery % | Pub done {axis} | Pub reconnects | Sub reconnects | Missing | Delivery % |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         lines.append(
-            "| {impl} | {dropped} | {expected} | {sent} | {received} | {dropped_workload} | {dropped_delivery} | {done} | {pub_rec} | {sub_rec} | {missing} | {delivery} |".format(
+            "| {impl} | {dropped} | {elapsed} | {expected} | {sent} | {received} | {dropped_workload} | {dropped_delivery} | {done} | {pub_rec} | {sub_rec} | {missing} | {delivery} |".format(
                 impl=row["impl"],
                 dropped="/".join(row["dropped_broker_names"]),
+                elapsed=row["elapsed_sec"],
                 expected=format_counts(row["expected_by_broker"]),
                 sent=format_counts(row["sent_by_broker"]),
                 received=format_counts(row["received_by_broker"]),
