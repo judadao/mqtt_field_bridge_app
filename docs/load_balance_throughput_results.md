@@ -151,3 +151,16 @@ no-fallback stop the failed-broker publishers around 1900 messages each, leaving
 only about 19% of the failed workload delivered. Field fallback reconnects those
 failed-broker publishers and subscribers through live broker C, completes every
 publisher target, and loses only four QoS 0 messages at the socket-break boundary.
+
+## 20260701-3node-fixed-a-failure fixed-message broker failure recovery
+
+- Workload: 3 brokers, 10000 messages per broker, expected total 30000.
+- Failure: broker(s) A are terminated 0.5s after publishing starts, held down for 3.0s, then restarted.
+- Metric: received unique payloads versus the fixed expected message count; dropped workload isolates the failed broker workload.
+- Artifacts: `/home/judd/moxa/personal/mqtt_field_bridge_app/tests/linux/out/fixed_failure_recovery/20260701-3node-fixed-a-failure`
+
+| Impl | Dropped | Expected A/B/C | Sent A/B/C | Received A/B/C | Dropped workload | Dropped delivery % | Pub done A/B/C | Pub reconnects | Sub reconnects | Missing | Delivery % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mosquitto | A | 10000/10000/10000 | 1936/10000/10000 | 1935/10000/10000 | 1935/10000 | 19.35 | 0/1/1 | 0/0/0 | 0/0/0 | 8065 | 73.1167 |
+| field_no_fallback | A | 10000/10000/10000 | 1928/10000/10000 | 1927/10000/10000 | 1927/10000 | 19.27 | 0/1/1 | 0/0/0 | 0/0/0 | 8073 | 73.09 |
+| field_fallback | A | 10000/10000/10000 | 10000/10000/10000 | 9999/10000/10000 | 9999/10000 | 99.99 | 1/1/1 | 1/0/0 | 1/0/0 | 1 | 99.9967 |

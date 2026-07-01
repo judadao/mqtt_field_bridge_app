@@ -55,16 +55,18 @@ Result: field broker throughput matches mosquitto for this workload.
 
 ### 2. Fixed Message Broker Failure Recovery
 
-Four brokers send 40,000 fixed messages while A/B/D fail mid-run.
+Three brokers send 30,000 fixed messages while broker A fails mid-run. A is
+terminated 0.5s after publishing starts, held down for 3.0s, then restarted.
 
-| Case | Dropped | Expected A/B/C/D | Sent A/B/C/D | Received A/B/C/D | Dropped workload | Pub done A/B/C/D | Missing | Delivery |
-|------|--------:|-----------------:|-------------:|------------------:|-----------------:|-----------------:|--------:|---------:|
-| mosquitto | `A/B/D` | `10000/10000/10000/10000` | `1932/1932/10000/1938` | `1931/1931/10000/1937` | `5799/30000` | `0/0/1/0` | `24201` | `39.4975%` |
-| field no-fallback | `A/B/D` | `10000/10000/10000/10000` | `1924/1929/10000/1934` | `1923/1928/10000/1933` | `5784/30000` | `0/0/1/0` | `24216` | `39.46%` |
-| field fallback | `A/B/D` | `10000/10000/10000/10000` | `10000/10000/10000/10000` | `9998/9999/10000/9999` | `29996/30000` | `1/1/1/1` | `4` | `99.99%` |
+| Case | Dropped | Expected A/B/C | Sent A/B/C | Received A/B/C | Dropped workload | Pub done A/B/C | Pub reconnects | Sub reconnects | Missing | Delivery |
+|------|--------:|---------------:|-----------:|----------------:|-----------------:|---------------:|---------------:|---------------:|--------:|---------:|
+| mosquitto | `A` | `10000/10000/10000` | `1936/10000/10000` | `1935/10000/10000` | `1935/10000` | `0/1/1` | `0/0/0` | `0/0/0` | `8065` | `73.1167%` |
+| field no-fallback | `A` | `10000/10000/10000` | `1928/10000/10000` | `1927/10000/10000` | `1927/10000` | `0/1/1` | `0/0/0` | `0/0/0` | `8073` | `73.09%` |
+| field fallback | `A` | `10000/10000/10000` | `10000/10000/10000` | `9999/10000/10000` | `9999/10000` | `1/1/1` | `1/0/0` | `1/0/0` | `1` | `99.9967%` |
 
-Result: fallback reconnects clients through live brokers and completes 99.99%
-of the fixed workload; the remaining loss is expected QoS 0 boundary loss.
+Result: fallback reconnects broker A's affected clients through live brokers B
+or C and completes 99.9967% of the fixed workload. The single missing message is
+expected QoS 0 boundary loss at the socket break.
 
 ### 3. Client Limit Balance
 
@@ -138,7 +140,7 @@ flowchart TD
     SocketBreak --> RetryA[Retry intended broker A]
     RetryA --> Alive{A reachable?}
     Alive -- yes --> RejoinA[Reconnect to A]
-    Alive -- no --> Fallback[Connect to live broker B/C/D]
+    Alive -- no --> Fallback[Connect to live broker B or C]
     Fallback --> Resume[Resume same topic workload]
     RejoinA --> Resume
     Resume --> MeshRoute[Mesh forwards matching topics]
@@ -146,7 +148,7 @@ flowchart TD
     Failure --> BoundaryLoss[Possible QoS 0 in-flight loss]
 ```
 
-## Four-Node Recovery Sequence
+## Three-Node Recovery Sequence
 
 When broker A fails, its clients fall back to a live broker and keep using the
 same topics. The mesh carries resumed traffic through the remaining nodes.
@@ -155,20 +157,22 @@ same topics. The mesh carries resumed traffic through the remaining nodes.
 sequenceDiagram
     participant Client as Publisher / subscriber
     participant A as Broker A
-    participant Mesh as Brokers B/C/D mesh
+    participant B as Broker B
+    participant C as Broker C
 
     Client->>A: Publish / subscribe topic traffic
-    A->>Mesh: Forward matching traffic over bridge links
+    A->>B: Forward matching traffic over bridge link
+    B->>C: Maintain alternate mesh path
 
     Note over A: Broker A fails
     A--xClient: Socket breaks
     Client->>A: Retry intended broker
     A--xClient: Not reachable
 
-    Client->>Mesh: Fallback connect and resume same topic
-    Mesh->>Mesh: Route matching traffic through live brokers
-    Mesh->>Client: Deliver resumed traffic
-    Note over Client,Mesh: In-flight QoS 0 messages may be missing
+    Client->>B: Fallback connect and resume same topic
+    B->>C: Route matching traffic through live mesh
+    C->>Client: Deliver resumed traffic
+    Note over Client,C: In-flight QoS 0 messages may be missing
 ```
 
 ## Results And Historical Notes
